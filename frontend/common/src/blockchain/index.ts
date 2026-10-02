@@ -17,4 +17,5 @@ export enum Blockchain {
   MONAD = 'monad',
   ZKSYNC_LITE = 'zksync_lite',
   HYPERLIQUID = 'hyperliquid',
+  TRON = 'tron',
 }

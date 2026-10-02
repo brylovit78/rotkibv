@@ -21,6 +21,10 @@ const blockchainCategories = [{
   icon: 'lu-substrate-accounts',
   label: t('dashboard.blockchain_balances.categories.substrate'),
   path: '/accounts/substrate',
+}, {
+  icon: 'lu-blockchain',
+  label: t('dashboard.blockchain_balances.categories.tron'),
+  path: '/accounts/tron',
 }];
 
 function addBlockchainAccount(path: string) {

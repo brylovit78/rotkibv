@@ -7,6 +7,7 @@ export const ChainType = {
   EVMLIKE: 'evmlike',
   SOLANA: 'solana',
   SUBSTRATE: 'substrate',
+  TRON: 'tron',
 } as const;
 
 export type ChainType = (typeof ChainType)[keyof typeof ChainType];
@@ -40,8 +41,15 @@ const EvmChainInfo = BasicChainInfo.extend({
 
 export type EvmChainInfo = z.infer<typeof EvmChainInfo>;
 
+// keeps the native token, which a basic entry drops and which is TRX, not the chain id
+const TronChainInfo = BasicChainInfo.extend({
+  nativeToken: z.string().optional(),
+  type: z.literal('tron'),
+});
+
 export const ChainInfo = EvmChainInfo.or(SubstrateChainInfo)
   .or(EvmLikeChainInfo)
+  .or(TronChainInfo)
   .or(BasicChainInfo)
   .transform(obj => ({
     ...obj,
