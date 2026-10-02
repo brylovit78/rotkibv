@@ -51,9 +51,12 @@ git merge --no-ff vX.Y.Z
 ```
 
 Після розв'язання конфліктів оновити `.github/fork.env`: `UPSTREAM_TAG`,
-`CASSETTES_REF` (commit test-caching, сумісний із релізом), `ASSETS_BRANCH`.
-Початкові cassettes зафіксовано на master станом на публікацію v1.44.0;
-assets читаються з master. Це не повністю offline-тести: деякі upstream
+`CASSETTES_REF` (commit test-caching, сумісний із релізом), `ASSETS_BRANCH`
+та `ASSETS_REF` (snapshot assets для перевірки packaged DB).
+Початкові cassettes та assets snapshot зафіксовано станом на публікацію v1.44.0;
+загальні data-запити використовують master, а consistency test — assets snapshot
+версії 41. Live master вже містить assets v42, тому порівнювати його зі старою
+packaged DB некоректно. Це не повністю offline-тести: деякі upstream
 fixtures ще залежать від мережі та `rotki/data/develop`.
 Перевірити міграції на **копії** реальних даних, пройти повний CI та рев'ю,
 merge PR і випустити новий fork tag. Не перепризначати upstream tags.
