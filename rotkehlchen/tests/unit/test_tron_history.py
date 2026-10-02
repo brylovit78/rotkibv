@@ -1,5 +1,6 @@
 """TRON history sync (brylovit78/rotkibv#10) from the #2 TronScan corpus and its
 `synthetic-pagination-coverage` outcomes. Every HTTP exchange is mocked; no VCR."""
+import json
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, Final
 from unittest.mock import patch
@@ -7,7 +8,6 @@ from unittest.mock import patch
 import pytest
 
 from rotkehlchen.api.websockets.typedefs import TransactionStatusStep, WSMessageType
-from rotkehlchen.chain.accounts import BlockchainAccountData
 from rotkehlchen.chain.tron import transactions as tron_transactions
 from rotkehlchen.chain.tron.transactions import TronTransactions
 from rotkehlchen.concurrency.cancellation import TaskCancelledError
@@ -15,6 +15,7 @@ from rotkehlchen.db.trontx import TronInternalTransfer, TronTransaction, add_tro
 from rotkehlchen.errors.misc import RemoteError
 from rotkehlchen.externalapis.tronscan import TRONSCAN_API_URL, Tronscan
 from rotkehlchen.tests.fixtures.messages import MockRotkiNotifier
+from rotkehlchen.tests.utils.mock import MockResponse
 from rotkehlchen.tests.utils.tronscan import (
     set_tronscan_key,
     tronscan_body,
@@ -28,7 +29,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
 
     from rotkehlchen.db.dbhandler import DBHandler
-    from rotkehlchen.tests.utils.mock import MockResponse
 
 INTERNAL_ROW: Final = tronscan_body('history-internal-only-receipt', 'internal-page0')['data'][0]
 TRC20_ROW: Final = tronscan_body('history-zero-holding-token', 'trc20-page0')['token_transfers'][0]
@@ -80,7 +80,16 @@ class _Feeds:
         return sorted(rows, key=lambda x: -x[TIME_KEYS[feed]])[start:start + tron_transactions.TRONSCAN_FEED_LIMIT]  # noqa: E501
 
 
+def _track(history: TronTransactions, accounts: Sequence[str]) -> None:
+    with history.database.user_write() as write_cursor:
+        write_cursor.executemany(
+            'INSERT OR IGNORE INTO blockchain_accounts(blockchain, account) VALUES(?, ?)',
+            [(SupportedBlockchain.TRON.value, x) for x in accounts],
+        )
+
+
 def _sync(history: TronTransactions, feeds: _Feeds, from_ts: int, to_ts: int, accounts: Sequence[str] = (ACCOUNT,)) -> None:  # noqa: E501
+    _track(history, accounts)
     with patch.object(history.tronscan, 'query_feed_page', side_effect=feeds):
         history.query_transactions([TronAddress(x) for x in accounts], Timestamp(from_ts), Timestamp(to_ts))  # noqa: E501
 
@@ -124,6 +133,7 @@ def test_history_cases_are_stored_by_identity(history: TronTransactions, case: s
     def request(url: str, params: dict[str, Any] | None, **kwargs: Any) -> MockResponse:
         return tronscan_response(case, roles['/api' + url.removeprefix(TRONSCAN_API_URL), (params or {}).get('start', 0)])  # noqa: E501
 
+    _track(history, [account])
     with (
         patch.object(history.tronscan._rate_limiter, 'acquire'),
         patch.object(history.tronscan.session, 'request', side_effect=request) as requests,
@@ -203,11 +213,12 @@ def test_interrupted_window_keeps_the_gap_until_a_retry(
 @pytest.mark.usefixtures('small_windows')
 def test_saturated_single_second_keeps_coverage_before_it(history: TronTransactions) -> None:
     """single-second-saturation: a second with more rows than a window holds can not be split.
-    Coverage ends before it with a warning, and a later complete window can not jump it."""
+    Its rows are kept, but coverage ends before it with a warning, and a later complete window
+    can not jump it."""
     rows = [_internal('a', 100), _internal('b', 104), *(_internal(x, 105) for x in '01234'), _internal('e', 108)]  # noqa: E501
     _sync(history, feeds := _Feeds({'internal-transaction': rows}), 100, 109)
     assert (105, 105) in feeds.windows['internal-transaction']
-    assert _internal_identities(history) == ['a', 'b', 'e']
+    assert _internal_identities(history) == ['0', '1', '2', '3', '4', 'a', 'b', 'e']
     assert _range(history, 'internal-transaction') == (100, 104)
     assert history.database.msg_aggregator.consume_warnings() == [(
         f'TronScan can not list every internal-transaction row of TRON account {ACCOUNT} in the '
@@ -219,11 +230,12 @@ def test_saturated_single_second_keeps_coverage_before_it(history: TronTransacti
 @pytest.mark.usefixtures('small_windows')
 def test_reordered_ties_never_complete_a_window(history: TronTransactions) -> None:
     """Rows of one second may swap order between page requests, so a page repeats a row while
-    another is on none. Such a window is split, and such a single second stays incomplete."""
+    another is on none. Such a window is split, and such a single second keeps what it read
+    but stays incomplete."""
     rows = [_internal('a', 104), _internal('b', 104), _internal('c', 102)]
     _sync(history, feeds := _Feeds({'internal-transaction': rows}, reorder_ties=True), 100, 109)
     assert (104, 104) in feeds.windows['internal-transaction']
-    assert _internal_identities(history) == ['c']
+    assert _internal_identities(history) == ['a', 'c']
     assert _range(history, 'internal-transaction') == (100, 103)
     assert len(history.database.msg_aggregator.consume_warnings()) == 1
 
@@ -232,6 +244,7 @@ def test_reordered_ties_never_complete_a_window(history: TronTransactions) -> No
 def test_rows_of_another_account_fail_on_the_first_page(history: TronTransactions) -> None:
     """A provider that ignores the account filter fails on its first full page instead of
     being paged and split as saturated"""
+    _track(history, [ACCOUNT])
     with (
         patch.object(history.tronscan, 'query_feed_page', side_effect=lambda feed, *args: [INTERNAL_ROW | {'to': OTHER_ACCOUNT, 'timestamp': 105000}] if feed == 'internal-transaction' else []) as page,  # noqa: E501
         pytest.raises(RemoteError, match='Row of another account or window'),
@@ -240,6 +253,40 @@ def test_rows_of_another_account_fail_on_the_first_page(history: TronTransaction
 
     assert [x.args[0] for x in page.call_args_list].count('internal-transaction') == 1
     assert _range(history, 'internal-transaction') is None
+
+
+@pytest.mark.usefixtures('small_windows')
+def test_unprovable_second_still_stores_its_transfers(history: TronTransactions) -> None:
+    """Identical transfers of one transaction repeat their feed row across pages, so their
+    second can not be proven complete, but its transfers are still stored by event index"""
+    rows = tronscan_body(case := 'synthetic-identical-transfers-same-tx', 'trc20-feed-account-a')['token_transfers']  # noqa: E501
+    second, account = rows[0]['block_ts'] // 1000, rows[0]['to_address']
+    with patch.object(history.tronscan.session, 'request', return_value=tronscan_response(case, 'event-logs')):  # noqa: E501
+        _sync(history, _Feeds({'token_trc20/transfers': rows}), second - 10, second + 10, accounts=(account,))  # noqa: E501
+    assert _query(history, 'SELECT event_index FROM tron_trc20_transfers') == {(0,), (1,)}
+    assert _range(history, 'token_trc20/transfers', account) == (second - 10, second - 1)
+
+
+def test_refresh_of_a_removed_account_writes_nothing(history: TronTransactions) -> None:
+    """A refresh that waited for the account's lock while the account was removed finds it
+    untracked, so it neither queries nor restores its history"""
+    with patch.object(history.tronscan, 'query_feed_page') as page:
+        history.query_transactions([ACCOUNT], Timestamp(100), Timestamp(109))
+    assert page.call_count == 0
+    assert _range(history, 'internal-transaction') is None
+
+
+def test_other_token_transfers_complete_without_movements(history: TronTransactions) -> None:
+    """TRC721 transfers and transfers of tokens TronScan does not classify are no TRC20
+    movements (section 3.8). Their parents are kept and their window completes."""
+    rows = [TRC20_ROW | {'contract_type': '', 'tokenInfo': {}}, TRC20_ROW | {'contract_type': 'trc721', 'transaction_id': 'e' * 64}]  # noqa: E501
+    second, account = TRC20_ROW['block_ts'] // 1000, TRC20_ROW['from_address']
+    with patch.object(history.tronscan.session, 'request') as request:
+        _sync(history, _Feeds({'token_trc20/transfers': rows}), second - 10, second + 10, accounts=(account,))  # noqa: E501
+    assert request.call_count == 0  # no event logs to match
+    assert _query(history, 'SELECT COUNT(*) FROM tron_transactions') == {(2,)}
+    assert _query(history, 'SELECT COUNT(*) FROM tron_trc20_transfers') == {(0,)}
+    assert _range(history, 'token_trc20/transfers', account) == (second - 10, second + 10)
 
 
 def test_earlier_history_is_recorded_once_complete(history: TronTransactions) -> None:
@@ -256,7 +303,9 @@ def test_earlier_history_is_recorded_once_complete(history: TronTransactions) ->
 
 @pytest.mark.parametrize(('feed', 'row', 'party'), [
     pytest.param('transaction', tronscan_body('synthetic-reverted-transaction', 'transactions')['data'][0], 'ownerAddress', id='reverted'),  # noqa: E501
-    pytest.param('token_trc20/transfers', tronscan_body('history-zero-holding-token', 'trc20-page0')['token_transfers'][0], 'from_address', id='unresolved'),  # noqa: E501
+    pytest.param('token_trc20/transfers', TRC20_ROW, 'from_address', id='unresolved'),
+    pytest.param('token_trc20/transfers', TRC20_ROW | {'contract_type': 'trc1155'}, 'from_address', id='unknown contract type'),  # noqa: E501
+    pytest.param('token_trc20/transfers', TRC20_ROW | {'event_type': ''}, 'from_address', id='unknown event type'),  # noqa: E501
 ])
 def test_unfinished_rows_end_coverage_before_their_second(
         history: TronTransactions,
@@ -264,8 +313,9 @@ def test_unfinished_rows_end_coverage_before_their_second(
         row: dict[str, Any],
         party: str,
 ) -> None:
-    """A reverted row, and a TRC20 row that no Transfer log of its transaction matches, are
-    stored, but their window is complete only up to the second before them"""
+    """A reverted row, a TRC20 row that no Transfer log of its transaction matches and one of
+    an unknown classification are stored, but their window is complete only up to the second
+    before them"""
     second, account = row[TIME_KEYS[feed]] // 1000, row[party]
     with patch.object(history.tronscan.session, 'request', return_value=tronscan_response('errors-http-200-and-400-bodies', 'unknown-hash-event-logs')):  # noqa: E501
         _sync(history, _Feeds({feed: [row]}), second - 10, second + 10, accounts=(account,))
@@ -322,10 +372,13 @@ def test_later_rows_complete_a_transaction(database: DBHandler) -> None:
 
 def test_identical_transfers_of_one_transaction_stay_distinct(history: TronTransactions) -> None:
     """synthetic-identical-transfers-same-tx: two equal Transfer logs of one transaction are
-    two transfers by event index, stored once although both parties' feeds list them"""
+    two transfers by event index, stored once although both parties' feeds list them. Logs of
+    other contracts are not parsed, as TronScan may leave their results undecoded."""
     rows = tronscan_body(case := 'synthetic-identical-transfers-same-tx', 'trc20-feed-account-a')['token_transfers']  # noqa: E501
+    logs = tronscan_body(case, 'event-logs')
+    logs['event_list'].append(logs['event_list'][0] | {'contract_address': OTHER_ACCOUNT, 'event_index': 2, 'result': {}})  # noqa: E501
     second = rows[0]['block_ts'] // 1000
-    with patch.object(history.tronscan.session, 'request', return_value=tronscan_response(case, 'event-logs')):  # noqa: E501
+    with patch.object(history.tronscan.session, 'request', return_value=MockResponse(200, json.dumps(logs))):  # noqa: E501
         _sync(history, _Feeds({'token_trc20/transfers': rows}), second - 10, second + 10, accounts=(rows[0]['from_address'], rows[0]['to_address']))  # noqa: E501
 
     assert _query(
@@ -369,6 +422,7 @@ def test_unexpected_rows_fail_their_window(
     """Every row must be a well formed row of the queried account and window (section 3.6),
     so a malformed one is neither skipped as unsupported nor completes the window"""
     second = INTERNAL_ROW['timestamp'] // 1000 if 'window' in error else row[TIME_KEYS[feed]] // 1000  # noqa: E501
+    _track(history, [party])
     with (
         patch.object(history.tronscan, 'query_feed_page', side_effect=lambda queried, *args: [row] if queried == feed else []),  # noqa: E501
         pytest.raises(RemoteError, match=f'Unexpected TronScan {feed} data for {party}: {error}'),
@@ -386,7 +440,6 @@ def test_removed_account_keeps_the_history_of_other_accounts(history: TronTransa
     _sync(history, _Feeds({'internal-transaction': [INTERNAL_ROW]}), second - 10, second + 10, accounts=(ACCOUNT, OTHER_ACCOUNT))  # noqa: E501
     database = history.database
     with database.user_write() as write_cursor:
-        database.add_blockchain_accounts(write_cursor, [BlockchainAccountData(chain=SupportedBlockchain.TRON, address=x) for x in (ACCOUNT, OTHER_ACCOUNT)])  # noqa: E501
         database.remove_single_blockchain_accounts(write_cursor, SupportedBlockchain.TRON, [ACCOUNT])  # noqa: E501
 
     assert _query(history, 'SELECT address FROM tron_tx_address_mappings') == {(OTHER_ACCOUNT,)}

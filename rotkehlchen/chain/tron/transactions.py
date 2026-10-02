@@ -50,6 +50,9 @@ TRON_HISTORY_FEEDS: Final[dict[TronFeed, _FeedSpec]] = {
     'token_trc20/transfers': _FeedSpec('tokentxs', 'block_ts', ('from_address', 'to_address'), ('transaction_id', 'contract_address', 'from_address', 'to_address', 'quant')),  # noqa: E501
     'internal-transaction': _FeedSpec('internaltxs', 'timestamp', ('from', 'to'), ('internal_hash',)),  # noqa: E501
 }
+# TRC20 feed rows that carry no TRC20 movement (section 3.8): TronScan also lists TRC721
+# transfers, and transfers of tokens it does not classify, without token information.
+OTHER_TOKEN_TRANSFER_TYPES: Final = ('', 'trc721')
 # TronScan may still index rows of the latest seconds, so these are never marked complete
 RECENT_HISTORY_MARGIN: Final = 60
 
@@ -117,6 +120,10 @@ class TronTransactions:
         end_ts = Timestamp(min(to_ts, ts_now() - RECENT_HISTORY_MARGIN))
         for address in addresses:
             with self.address_locks[address]:  # one sync of an account at a time, as for EVM
+                with self.database.conn.read_ctx() as cursor:  # removed while this one waited
+                    if address not in self.database.get_blockchain_accounts(cursor).tron:
+                        continue
+
                 self._send_status(address, (from_ts, end_ts), TransactionStatusStep.QUERYING_TRANSACTIONS_STARTED)  # noqa: E501
                 try:
                     for feed, spec in TRON_HISTORY_FEEDS.items():
@@ -158,9 +165,10 @@ class TronTransactions:
         """Traverse the missing part of a feed's range oldest window first.
 
         A window that can not be listed completely is split into its older and newer half,
-        both inclusive whole seconds. Rows of later windows are still stored after coverage
-        stopped, but only the contiguous complete part is recorded. Such a single second keeps
-        the range incomplete across it, as no other filter is verified to subdivide it.
+        both inclusive whole seconds. Such a single second can not be split, as no other filter
+        is verified to subdivide it: its rows are stored, but it keeps the range incomplete
+        across it. Rows of later windows are still stored after coverage stopped, but only the
+        contiguous complete part is recorded.
         """
         dbranges = DBQueryRanges(self.database)
         with self.database.conn.read_ctx() as cursor:
@@ -177,19 +185,19 @@ class TronTransactions:
             covering = True
             while len(windows) != 0:
                 low, high = windows.pop()
-                if (rows := self._read_window(feed, address, low, high)) is None:
-                    if low == high:
-                        covering = False
-                        self.database.msg_aggregator.add_warning(
-                            f'TronScan can not list every {feed} row of TRON account {address} '
-                            f'in the second {low}: they fill its '
-                            f'{TRONSCAN_MAX_START + TRONSCAN_FEED_LIMIT} row window or change '
-                            f'order between pages. Its history stays incomplete from that second.',
-                        )
-                        continue
-
+                rows, complete = self._read_window(feed, address, low, high)
+                if not complete and low != high:  # the halves are read again
                     windows.extend(((Timestamp((low + high) // 2 + 1), high), (low, Timestamp((low + high) // 2))))  # noqa: E501
                     continue
+
+                if not complete:
+                    covering = False
+                    self.database.msg_aggregator.add_warning(
+                        f'TronScan can not list every {feed} row of TRON account {address} '
+                        f'in the second {low}: they fill its '
+                        f'{TRONSCAN_MAX_START + TRONSCAN_FEED_LIMIT} row window or change '
+                        f'order between pages. Its history stays incomplete from that second.',
+                    )
 
                 window = self._resolve(feed, address, rows, high)
                 with self.database.user_write() as write_cursor:
@@ -214,11 +222,11 @@ class TronTransactions:
             address: TronAddress,
             low: Timestamp,
             high: Timestamp,
-    ) -> list[dict[str, Any]] | None:
-        """All rows of a window, or None if they can not be proven complete. Only a page
-        shorter than the page size ends a window: a full page at the last start means more
-        rows may exist. A row repeating from an earlier page means the order changed between
-        pages, so another row may be on none of them (section 3.6).
+    ) -> tuple[list[dict[str, Any]], bool]:
+        """The rows of a window read so far, and whether they are proven complete. Only a
+        page shorter than the page size ends a window: a full page at the last start means
+        more rows may exist. A row repeating from an earlier page means the order changed
+        between pages, so another row may be on none of them (section 3.6).
 
         May raise MissingAPIKey, RemoteError, DeserializationError.
         """
@@ -232,14 +240,13 @@ class TronTransactions:
                 if address not in parties or type(timestamp := row.get(spec.time_key)) is not int or not low <= timestamp // 1000 <= high:  # noqa: E501
                     raise RemoteError(f'Unexpected TronScan {feed} data for {address}: Row of another account or window in {row}')  # noqa: E501
 
-            if not seen.isdisjoint(identities := {tuple(str(row.get(x)) for x in spec.identity_keys) for row in page}):  # noqa: E501
-                return None
+            repeated = not seen.isdisjoint(identities := {tuple(str(row.get(x)) for x in spec.identity_keys) for row in page})  # noqa: E501
             seen |= identities
             rows.extend(page)
-            if len(page) < TRONSCAN_FEED_LIMIT:
-                return rows
+            if repeated or len(page) < TRONSCAN_FEED_LIMIT:
+                return rows, not repeated
 
-        return None
+        return rows, False
 
     def _resolve(
             self,
@@ -261,6 +268,7 @@ class TronTransactions:
         parents: dict[bytes, TronTransaction] = {}
         internal: list[TronInternalTransfer] = []
         trc20_rows: dict[bytes, list[tuple[TronAddress, TronAddress, TronAddress, int]]] = {}
+        unknown: set[bytes] = set()  # parents of rows with an unknown classification
         try:
             for row in rows:
                 if feed == 'transaction':
@@ -269,7 +277,9 @@ class TronTransactions:
                     parent = _parent(row, 'transaction_id', 'block_ts', 'contractRet')
                     if not all(type(row[x]) is str for x in ('contract_type', 'event_type')):
                         raise DeserializationError(f'Invalid TRC20 row classification in {row}')
-                    if row['contract_type'] == 'trc20' and row['event_type'] == 'Transfer':
+                    if row['event_type'] != 'Transfer' or row['contract_type'] not in ('trc20', *OTHER_TOKEN_TRANSFER_TYPES):  # noqa: E501
+                        unknown.add(parent.tx_hash)
+                    elif row['contract_type'] == 'trc20':
                         trc20_rows.setdefault(parent.tx_hash, []).append((
                             deserialize_tron_address(row['contract_address']),
                             deserialize_tron_address(row['from_address']),
@@ -295,10 +305,11 @@ class TronTransactions:
             raise RemoteError(f'Unexpected TronScan {feed} data for {address}: {e!s}') from e
 
         trc20, unresolved = self._trc20_transfers(trc20_rows)
-        if len(unresolved) != 0:
+        if len(unresolved := unresolved | unknown) != 0:
             log.warning(
-                'TronScan event logs show no Transfer for TRC20 rows of the TRON transactions '
-                '%s of %s, so their window stays incomplete before them',
+                'TronScan rows of the TRON transactions %s of %s have an unknown '
+                'classification or no matching Transfer log, so their window stays incomplete '
+                'before them',
                 [x.hex() for x in unresolved], address,
             )
         limits = [
@@ -341,20 +352,22 @@ class TronTransactions:
         transfers: list[TronTRC20Transfer] = []
         try:
             for event in self.tronscan.query_event_logs([x.hex() for x in trc20_rows]):
-                if event['event_name'] != 'Transfer' or (tx_hash := _hash(event['transaction_id'])) not in trc20_rows:  # noqa: E501
+                if (  # only these contracts' logs are parsed: others may lack decoded results
+                    event['event_name'] != 'Transfer' or
+                    (tx_hash := _hash(event['transaction_id'])) not in trc20_rows or
+                    (contract := deserialize_tron_address(event['contract_address'])) not in {x[0] for x in trc20_rows[tx_hash]}  # noqa: E501
+                ):
                     continue
-                transfer = TronTRC20Transfer(
+                if type(event_index := event['event_index']) is not int:
+                    raise DeserializationError(f'Invalid event index in {event}')
+                transfers.append(TronTRC20Transfer(
                     tx_hash=tx_hash,
-                    event_index=event['event_index'],
-                    contract_address=deserialize_tron_address(event['contract_address']),
+                    event_index=event_index,
+                    contract_address=contract,
                     from_address=deserialize_tron_address(event['result']['from']),
                     to_address=deserialize_tron_address(event['result']['to']),
                     amount=deserialize_raw_amount(event['result']['value']),
-                )
-                if type(transfer.event_index) is not int:
-                    raise DeserializationError(f'Invalid event index in {event}')
-                if transfer.contract_address in {x[0] for x in trc20_rows[tx_hash]}:
-                    transfers.append(transfer)
+                ))
         except (DeserializationError, KeyError, TypeError, ValueError, AttributeError) as e:
             raise RemoteError(f'Unexpected TronScan event logs: {e!s}') from e
 

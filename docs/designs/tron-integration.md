@@ -367,6 +367,13 @@ Live facts, reconciled exactly:
   `confirmed == true`. For internal rows the conditions are `result == "SUCCESS"`,
   `rejected == false`, `revert == false` and `confirmed == true`.
 - TRC20 movements also need `event_type == "Transfer"` and `contract_type == "trc20"`.
+  The endpoint also lists TRC721 transfers (`contract_type == "trc721"`, as documented) and
+  transfers of tokens TronScan does not classify. The latter have an empty `contract_type` and
+  no token information; live on 2026-10-02 they were 3 of 38 rows of an hour of the official
+  burn address `T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb`. Both are no TRC20 movements. Any other
+  classification leaves its parent unresolved, which keeps the window incomplete before it.
+- Only logs of the feed's TRC20 contracts are parsed. Live, a `Transfer` log of such an
+  unclassified token had an empty `result`.
 - `trc20TransferInfo` and `tokenTransferInfo` are never movement evidence.
 - Zero-value internal calls carry no money.
 
@@ -861,14 +868,16 @@ Plan:
 - A page that repeats a row of an earlier page of its window proves nothing. Tied rows changed
   order between the requests, so another row may be on no page. The window is split like a
   saturated one.
-- A single second that stays saturated or reordered is reported with a `msg_aggregator`
-  warning that names the second. The data-issues inbox has no kind for provider coverage; its
-  kinds are balance and bridge issues, and adding one is outside #10.
+- A single second that stays saturated or reordered keeps the rows it read, but the range
+  stays incomplete across it. It is reported with a `msg_aggregator` warning that names the
+  second. The data-issues inbox has no kind for provider coverage; its kinds are balance and
+  bridge issues, and adding one is outside #10.
 - Every row of every page must belong to the queried account and window, also on a full page.
   Classifications and statuses must be well formed, so a malformed row fails its window and is
   never skipped as unsupported.
 - One sync of an account runs at a time. Account removal cancels refreshes of the account and
-  waits for its running sync, as for EVM. Every sync of an account sends `TRANSACTION_STATUS`
+  waits for its running sync, as for EVM. A sync that gets the account's lock checks that the
+  account is still tracked, so a refresh that waited during a removal writes nothing. Every sync of an account sends `TRANSACTION_STATUS`
   start and finish messages with subtype `tron`, also when it fails.
 - TRON joins the transaction tuples. The branches #10 reaches:
   - refresh, with canonical address validation;
