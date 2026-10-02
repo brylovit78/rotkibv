@@ -784,7 +784,7 @@ class RestAPI:
 
     def get_external_services(self) -> Response:
         response_dict = self.external_services_service.get_services()
-        return api_response(_wrap_in_ok_result(response_dict), status_code=HTTPStatus.OK)
+        return api_response(_wrap_in_ok_result(response_dict), status_code=HTTPStatus.OK, log_result=False)  # noqa: E501  # holds the keys
 
     def add_external_services(self, services: list[ExternalServiceApiCredentials]) -> Response:
         success, message, response_dict, status_code = (
@@ -792,11 +792,11 @@ class RestAPI:
         )
         if not success:
             return api_response(wrap_in_fail_result(message), status_code=status_code)
-        return api_response(_wrap_in_ok_result(response_dict), status_code=status_code)
+        return api_response(_wrap_in_ok_result(response_dict), status_code=status_code, log_result=False)  # noqa: E501
 
     def delete_external_services(self, services: list[ExternalService]) -> Response:
         response_dict = self.external_services_service.delete_services(services)
-        return api_response(_wrap_in_ok_result(response_dict), status_code=HTTPStatus.OK)
+        return api_response(_wrap_in_ok_result(response_dict), status_code=HTTPStatus.OK, log_result=False)  # noqa: E501
 
     def get_exchanges(self) -> Response:
         exchanges = self.exchanges_service.get_exchanges()

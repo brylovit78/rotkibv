@@ -102,6 +102,8 @@ class ExternalServicesService:
             self.rotkehlchen.cryptocompare.on_api_key_changed()
         elif service == ExternalService.DEFILLAMA:
             self.rotkehlchen.defillama.on_api_key_changed()
+        elif service == ExternalService.TRONSCAN:
+            self.rotkehlchen.tronscan.on_api_key_changed()
 
     def add_services(
             self,

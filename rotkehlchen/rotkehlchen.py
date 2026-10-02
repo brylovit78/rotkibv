@@ -92,6 +92,7 @@ from rotkehlchen.externalapis.kraken import Kraken
 from rotkehlchen.externalapis.monerium import Monerium
 from rotkehlchen.externalapis.moralis import Moralis
 from rotkehlchen.externalapis.routescan import Routescan
+from rotkehlchen.externalapis.tronscan import Tronscan
 from rotkehlchen.fval import FVal
 from rotkehlchen.globaldb.asset_updates.manager import AssetsUpdater
 from rotkehlchen.globaldb.handler import GlobalDBHandler
@@ -597,6 +598,7 @@ class Rotkehlchen:
         self.etherscan = etherscan
         self.blockscout = blockscout
         self.routescan = routescan
+        self.tronscan = Tronscan(database=self.data.db)  # rotkibv
         Inquirer().inject_evm_managers([
             (chain.to_chain_id(), self.chains_aggregator.get_chain_manager(chain))
             for chain in EVM_CHAINS_WITH_TRANSACTIONS

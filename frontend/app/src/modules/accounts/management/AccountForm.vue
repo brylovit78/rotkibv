@@ -113,7 +113,7 @@ function indexerKeyService(chain: string): 'etherscan' | 'blockscout' | undefine
   return getApiKey('blockscout') ? undefined : 'blockscout';
 }
 
-const missingApiKeyService = computed<'etherscan' | 'helius' | 'beaconchain' | 'consensusRpc' | 'blockscout' | undefined>(() => {
+const missingApiKeyService = computed<'etherscan' | 'helius' | 'beaconchain' | 'consensusRpc' | 'blockscout' | 'tronscan' | undefined>(() => {
   const selectedChain = get(chain);
   const currentModelValue = get(modelValue);
 
@@ -125,6 +125,9 @@ const missingApiKeyService = computed<'etherscan' | 'helius' | 'beaconchain' | '
 
   if (isSolanaChains(selectedChain))
     return getApiKey('helius') ? undefined : 'helius';
+
+  if (selectedChain === 'tron') // TronScan is the only TRON data source and needs a key
+    return getApiKey('tronscan') ? undefined : 'tronscan';
 
   return indexerKeyService(selectedChain);
 });
@@ -158,7 +161,7 @@ type WarningType = 'solana' | 'apiKey' | 'binance' | 'earlyChain';
 
 interface WarningItem {
   type: WarningType;
-  service?: 'etherscan' | 'helius' | 'beaconchain' | 'consensusRpc' | 'blockscout';
+  service?: 'etherscan' | 'helius' | 'beaconchain' | 'consensusRpc' | 'blockscout' | 'tronscan';
   chain?: string;
 }
 

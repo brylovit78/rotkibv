@@ -20,6 +20,7 @@ export const ExternalServiceKeys = z.object({
   moralis: ApiKey.optional(),
   opensea: ApiKey.optional(),
   thegraph: ApiKey.optional(),
+  tronscan: ApiKey.optional(),
 });
 
 export type ExternalServiceKeys = z.infer<typeof ExternalServiceKeys>;

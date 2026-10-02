@@ -77,6 +77,16 @@ function getHeliusRegisterUrl(): ExternalUrl {
   };
 }
 
+function getTronscanRegisterUrl(): ExternalUrl {
+  return {
+    external: externalLinks.tronscanApiKey,
+    route: {
+      name: '/api-keys/external/',
+      query: { service: 'tronscan' },
+    },
+  };
+}
+
 function getBeaconchainRegisterUrl(): ExternalUrl {
   return {
     external: externalLinks.beaconChainApiKey,
@@ -104,6 +114,8 @@ export function getServiceRegisterUrl(service: string): ExternalUrl | undefined 
       return getHeliusRegisterUrl();
     case 'beaconchain':
       return getBeaconchainRegisterUrl();
+    case 'tronscan':
+      return getTronscanRegisterUrl();
     default:
       logger.warn(`Unsupported service: '${service}'`);
       return undefined;

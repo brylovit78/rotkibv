@@ -2,7 +2,7 @@
 import type { RouteLocationRaw } from 'vue-router';
 
 const { service } = defineProps<{
-  service: 'etherscan' | 'helius' | 'beaconchain' | 'consensusRpc' | 'blockscout';
+  service: 'etherscan' | 'helius' | 'beaconchain' | 'consensusRpc' | 'blockscout' | 'tronscan';
 }>();
 
 const { t } = useI18n({ useScope: 'global' });
@@ -19,6 +19,9 @@ const message = computed<string>(() => {
 
   if (service === 'helius')
     return t('external_services.helius.api_key_message');
+
+  if (service === 'tronscan')
+    return t('external_services.tronscan.api_key_message');
 
   return t('external_services.blockscout.api_key_message');
 });

@@ -70,4 +70,5 @@ export const externalLinks = {
   alchemyApiKey: 'https://docs.alchemy.com/reference/api-overview',
   moralisApiKey: 'https://docs.moralis.com/web3-data-api/evm/get-your-api-key',
   beaconChainApiKey: 'https://beaconcha.in/user/settings',
+  tronscanApiKey: 'https://docs.tronscan.org/en/api/api-keys',
 };

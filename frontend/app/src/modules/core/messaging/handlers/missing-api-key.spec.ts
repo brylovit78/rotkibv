@@ -132,6 +132,21 @@ describe('createMissingApiKeyHandler', () => {
     expect(result.i18nParam?.props?.docsUrl).toBeTruthy();
   });
 
+  it('should give tronscan its own message, settings route and key docs', async () => {
+    const handler = createMissingApiKeyHandler(mockT, router);
+    const result = await handler.handle({ service: 'tronscan' });
+
+    assert(result);
+    expect(result.category).toBe(NotificationCategory.TRONSCAN);
+    expect(result.i18nParam?.message).toBe('notification_messages.missing_api_key.tronscan.message');
+
+    await findAction(result, 'missing_api_key.action').action();
+    expect(mockPush).toHaveBeenCalledWith({ name: '/api-keys/external/', query: { service: 'tronscan' } });
+    await findAction(result, 'get_key').action();
+    expect(mockOpenUrl).toHaveBeenCalledWith('https://docs.tronscan.org/en/api/api-keys');
+    findAction(result, 'do_not_show_again');
+  });
+
   it('should fall back to the etherscan config for an unknown service', async () => {
     const handler = createMissingApiKeyHandler(mockT, router);
     const result = await handler.handle({ service: 'unknown-service' });

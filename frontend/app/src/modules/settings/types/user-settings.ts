@@ -26,6 +26,7 @@ export const SuppressibleMissingKeyService = {
   ETHERSCAN: 'etherscan',
   HELIUS: 'helius',
   THEGRAPH: 'thegraph',
+  TRONSCAN: 'tronscan',
 } as const;
 
 export const SuppressibleMissingKeyServiceEnum = z.enum([
@@ -34,6 +35,7 @@ export const SuppressibleMissingKeyServiceEnum = z.enum([
   SuppressibleMissingKeyService.ETHERSCAN,
   SuppressibleMissingKeyService.HELIUS,
   SuppressibleMissingKeyService.THEGRAPH,
+  SuppressibleMissingKeyService.TRONSCAN,
 ]);
 
 export type SuppressibleMissingKeyService = z.infer<typeof SuppressibleMissingKeyServiceEnum>;

@@ -60,6 +60,7 @@ export const NotificationCategory = {
   ETHERSCAN: 'etherscan',
   HELIUS: 'helius',
   THEGRAPH: 'thegraph',
+  TRONSCAN: 'tronscan',
 } as const;
 
 export type NotificationCategory = (typeof NotificationCategory)[keyof typeof NotificationCategory];
