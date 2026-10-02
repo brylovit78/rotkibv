@@ -12,7 +12,12 @@ from rotkehlchen.chain.tron import transactions as tron_transactions
 from rotkehlchen.chain.tron.transactions import TronTransactions
 from rotkehlchen.concurrency.cancellation import TaskCancelledError
 from rotkehlchen.concurrency.tasks import Task
-from rotkehlchen.db.trontx import TronInternalTransfer, TronTransaction, add_tron_history
+from rotkehlchen.db.trontx import (
+    TronInternalTransfer,
+    TronTransaction,
+    add_tron_history,
+    delete_tron_history,
+)
 from rotkehlchen.errors.misc import RemoteError
 from rotkehlchen.externalapis.tronscan import TRONSCAN_API_URL, Tronscan
 from rotkehlchen.tests.fixtures.messages import MockRotkiNotifier
@@ -28,7 +33,7 @@ from rotkehlchen.tests.utils.tronscan import (
 from rotkehlchen.types import SupportedBlockchain, Timestamp, TimestampMS, TronAddress
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
+    from collections.abc import Callable, Iterator, Sequence
 
     from rotkehlchen.db.dbhandler import DBHandler
 
@@ -59,13 +64,13 @@ def fixture_small_windows() -> Iterator[None]:
 
 class _Feeds:
     """TronScan history feeds over the given rows: each page holds the rows of the requested
-    window, newest first, by the page size in use. A failure is raised for its window, and
-    rows of one second can swap order on every other page."""
+    window, newest first, by the page size in use. A failure is raised for its window, or a
+    hook runs before it is read, and rows of one second can swap order on every other page."""
 
     def __init__(
             self,
             rows: dict[str, list[dict[str, Any]]],
-            fail: tuple[tuple[int, int], BaseException] | None = None,
+            fail: tuple[tuple[int, int], BaseException | Callable[[], None]] | None = None,
             reorder_ties: bool = False,
     ) -> None:
         self.rows, self.fail, self.reorder_ties = rows, fail, reorder_ties
@@ -74,8 +79,10 @@ class _Feeds:
     def __call__(self, feed: str, address: str, from_ts: int, to_ts: int, start: int) -> list[dict[str, Any]]:  # noqa: E501
         if start == 0:
             self.windows[feed].append((from_ts, to_ts))
-        if self.fail is not None and self.fail[0] == (from_ts, to_ts):
-            raise self.fail[1]
+        if self.fail is not None and self.fail[0] == (from_ts, to_ts) and start == 0:
+            if isinstance(self.fail[1], BaseException):
+                raise self.fail[1]
+            self.fail[1]()
         rows = [x for x in self.rows.get(feed, []) if from_ts <= x[TIME_KEYS[feed]] // 1000 <= to_ts]  # noqa: E501
         if self.reorder_ties and start // tron_transactions.TRONSCAN_FEED_LIMIT % 2 == 1:
             rows.reverse()  # the stable sort keeps tied rows reversed
@@ -315,6 +322,25 @@ def test_unclassified_token_transfer_waits_for_its_classification(history: TronT
 
     assert _query(history, 'SELECT lower(hex(T.tx_hash)), R.amount FROM tron_trc20_transfers R JOIN tron_transactions T ON T.identifier=R.tx_id') == {(TRC20_ROW['transaction_id'], TRC20_ROW['quant'])}  # noqa: E501
     assert _range(history, 'token_trc20/transfers', account) == (second - 10, second + 10)
+
+
+@pytest.mark.usefixtures('small_windows')
+def test_purge_during_an_import_is_never_covered(history: TronTransactions) -> None:
+    """A purge between two windows of an import deletes what the first one stored and
+    covered. The import then records no coverage, so the next sync reads it all again."""
+    rows = [_internal('a', 100), _internal('b', 102), _internal('c', 104), _internal('c', 104, call='f'), _internal('d', 107)]  # noqa: E501
+
+    def purge() -> None:
+        with history.database.user_write() as write_cursor:
+            delete_tron_history(write_cursor)
+
+    _sync(history, _Feeds({'internal-transaction': rows}, fail=((105, 109), purge)), 100, 109)
+    assert _internal_identities(history) == ['d']
+    assert _range(history, 'internal-transaction') is None
+
+    _sync(history, _Feeds({'internal-transaction': rows}), 100, 109)
+    assert _internal_identities(history) == ['a', 'b', 'c', 'd']
+    assert _range(history, 'internal-transaction') == (100, 109)
 
 
 def test_earlier_history_is_recorded_once_complete(history: TronTransactions) -> None:

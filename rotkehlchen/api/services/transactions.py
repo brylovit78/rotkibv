@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
-from contextlib import ExitStack
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, Literal, cast
 
@@ -410,11 +409,7 @@ class TransactionsService:
             tx_ref: EVMTxHash | Signature | BTCTxId | None,
     ) -> dict[str, Any]:
         dbevents = DBHistoryEvents(self.rotkehlchen.data.db)
-        with ExitStack() as stack:
-            if tx_ref is None and chain in {None, SupportedBlockchain.TRON}:  # rotkibv: else a running TRON import could record coverage over the purge  # noqa: E501
-                for address in sorted(self.rotkehlchen.chains_aggregator.accounts.tron):
-                    stack.enter_context(self.rotkehlchen.chains_aggregator.tron.transactions.address_locks[address])
-            write_cursor = stack.enter_context(self.rotkehlchen.data.db.user_write())
+        with self.rotkehlchen.data.db.user_write() as write_cursor:
             if tx_ref is not None:
                 dbevents.delete_events_by_tx_ref(
                     write_cursor=write_cursor,

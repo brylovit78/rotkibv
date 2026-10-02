@@ -878,9 +878,10 @@ Plan:
   never skipped as unsupported.
 - One sync of an account runs at a time. Account removal cancels refreshes of the account and
   waits for its running sync, as for EVM. A sync that gets the account's lock checks that the
-  account is still tracked, so a refresh that waited during a removal writes nothing. A purge
-  of TRON or of all chains waits for running imports the same way, so none can record coverage
-  over what it deleted. Every sync of an account sends `TRANSACTION_STATUS`
+  account is still tracked, so a refresh that waited during a removal writes nothing.
+- A sync records coverage only while the recorded range is still the one it last saw, checked
+  in the write that would extend it. A purge between two windows therefore stops the sync from
+  recording over what the purge deleted, whichever accounts it covers. Every sync of an account sends `TRANSACTION_STATUS`
   start and finish messages with subtype `tron`, also when it fails.
 - TRON joins the transaction tuples. The branches #10 reaches:
   - refresh, with canonical address validation;

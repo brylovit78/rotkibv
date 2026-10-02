@@ -172,6 +172,7 @@ class TronTransactions:
             saved = self.database.get_used_query_range(cursor, range_name)
             missing = dbranges.get_location_query_ranges(cursor, range_name, from_ts, end_ts)
 
+        expected = saved  # the recorded range as this sync last saw it
         for start_ts, stop_ts in missing:
             # A range after the saved one starts with the saved boundary second, deduplicated
             # by identity (section 3.6). A range before it is recorded only once complete, as
@@ -206,11 +207,16 @@ class TronTransactions:
                         internal_transfers=window.internal_transfers,
                     )
                     if covering and window.complete_until >= joins_at:
-                        dbranges.update_used_query_range(
-                            write_cursor=write_cursor,
-                            location_string=range_name,
-                            queried_ranges=[(start_ts, window.complete_until)],
-                        )
+                        # a purge meanwhile deleted rows this sync covered: record nothing
+                        if self.database.get_used_query_range(write_cursor, range_name) != expected:  # noqa: E501
+                            covering = False
+                        else:
+                            dbranges.update_used_query_range(
+                                write_cursor=write_cursor,
+                                location_string=range_name,
+                                queried_ranges=[(start_ts, window.complete_until)],
+                            )
+                            expected = self.database.get_used_query_range(write_cursor, range_name)
                     covering = covering and window.complete_until == high
 
     def _read_window(
