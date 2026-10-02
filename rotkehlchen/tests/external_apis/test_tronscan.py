@@ -4,6 +4,7 @@ Every HTTP exchange is mocked from the recorded responses. No VCR and no live re
 """
 import json
 import logging
+import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Final
 from unittest.mock import call, patch
@@ -283,3 +284,37 @@ def test_key_change_applies_to_the_next_request(tronscan: Tronscan, database: DB
     ):
         tronscan.query_account(ACCOUNT)
     assert request.call_count == 1
+
+
+@pytest.mark.parametrize('new_key', ['test-tronscan-key-2', None])
+def test_key_change_during_a_lookup_is_not_undone(
+        tronscan: Tronscan,
+        database: DBHandler,
+        new_key: str | None,
+) -> None:
+    """A key lookup that read the old key before a replacement or deletion can not cache it
+    after the hook invalidated the cache"""
+    read_old_key, release = threading.Event(), threading.Event()
+    real_lookup = database.get_external_service_credentials
+
+    def paused_lookup(service: ExternalService) -> ExternalServiceApiCredentials | None:
+        credentials = real_lookup(service)
+        read_old_key.set()
+        release.wait(5)
+        return credentials
+
+    with patch.object(database, 'get_external_service_credentials', side_effect=paused_lookup):
+        lookup = Task(name='key lookup', target=tronscan._get_api_key).start()
+        assert read_old_key.wait(5)
+
+    if new_key is None:
+        database.delete_external_service_credentials([ExternalService.TRONSCAN])
+    else:
+        _set_key(database, new_key)
+    hook = Task(name='key change hook', target=tronscan.on_api_key_changed).start()
+    release.set()
+    lookup.join(timeout=5)
+    hook.join(timeout=5)
+
+    assert lookup.dead is hook.dead is True
+    assert tronscan._get_api_key() == new_key

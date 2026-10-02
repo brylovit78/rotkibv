@@ -755,13 +755,14 @@ Implemented by #8:
 - `rotkehlchen/externalapis/tronscan.py`: `Tronscan`, one instance on `Rotkehlchen` and one
   `TokenBucket`.
   - Transport:
-    - the key goes only in the header;
+    - the key goes only in the header and is read again, under a per-client lock shared with
+      the key-change hook, for every attempt;
     - a missing key raises `MissingAPIKey` before any request and notifies once;
     - 401 and 403 raise `RemoteError` without retrying;
-    - 429 and 5xx are retried up to `query_retry_limit`, waiting `Retry-After` or 1, 2, 4… s
-      (at most 60 s) in cancellable sleeps, and a 429 halves the bucket;
-    - connection errors and timeouts get the bounded retries of the shared `create_session`,
-      then `RemoteError`;
+    - `_query()` is the only retry layer, on a plain `requests.Session` whose adapter does not
+      retry. Connection errors, timeouts, 429 and 5xx are retried up to `query_retry_limit`,
+      waiting `Retry-After` or 1, 2, 4… s (at most 60 s) in cancellable sleeps, and a 429
+      halves the bucket;
     - a body that is not a JSON object raises `RemoteError`.
   - Endpoints:
     - `query_account` (`accountv2`);

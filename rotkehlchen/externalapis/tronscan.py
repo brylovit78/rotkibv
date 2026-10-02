@@ -2,6 +2,7 @@
 import logging
 from http import HTTPStatus
 from json import JSONDecodeError
+from threading import Lock
 from typing import TYPE_CHECKING, Any, Final, Literal
 
 import requests
@@ -12,7 +13,7 @@ from rotkehlchen.db.settings import CachedSettings
 from rotkehlchen.errors.misc import MissingAPIKey, RemoteError
 from rotkehlchen.externalapis.interface import ExternalServiceWithRecommendedApiKey
 from rotkehlchen.logging import RotkehlchenLogsAdapter
-from rotkehlchen.types import ExternalService, Timestamp, TronAddress
+from rotkehlchen.types import ApiKey, ExternalService, Timestamp, TronAddress
 from rotkehlchen.utils.misc import get_chunks, set_user_agent
 from rotkehlchen.utils.rate_limiter import TokenBucket
 from rotkehlchen.utils.serialization import jsonloads_dict
@@ -54,11 +55,18 @@ class Tronscan(ExternalServiceWithRecommendedApiKey):
             rps=TRONSCAN_RATE_LIMIT_RPS,
             capacity=TRONSCAN_RATE_LIMIT_BURST,
         )
+        # a lookup in progress must not cache a key that the hook has just invalidated
+        self._key_lock = Lock()
+
+    def _get_api_key(self) -> ApiKey | None:
+        with self._key_lock:
+            return super()._get_api_key()
 
     def on_api_key_changed(self) -> None:
         """Called from the External Services save/delete hook. The next request reads the new
         key from the DB instead of the cached one and starts from the default rate."""
-        self.api_key, self.last_ts = None, Timestamp(0)
+        with self._key_lock:
+            self.api_key, self.last_ts = None, Timestamp(0)
         self._rate_limiter.reset(rps=TRONSCAN_RATE_LIMIT_RPS, capacity=TRONSCAN_RATE_LIMIT_BURST)
 
     def _query(
