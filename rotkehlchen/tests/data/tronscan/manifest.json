@@ -11,7 +11,7 @@
   "date": "2026-10-02",
   "window_utc": [
    "2026-10-02T11:42:34+00:00",
-   "2026-10-02T12:22:31+00:00"
+   "2026-10-02T13:39:08.126693+00:00"
   ],
   "auth_modes": {
    "none": "anonymous request",
@@ -48,59 +48,121 @@
    "TXM3pBpWRemyMFtpRsXCiXSgPJqmuZG4c4"
   ],
   "synthetic_address_registry": [
+   "TA13EnjwzYWtcpzrTKy7ViuF4ckvEDYRkW",
    "TA3hj6C6aUYCdDPKVtw31y5z8HHuZ6hVZA",
+   "TA5JuR2GnUfnpihhDEnH1UEV6HAPYrFsmB",
+   "TA5b9H1Kxpyookhd7AkqBdR7rEmYUUZiAF",
    "TA6yiHaTAx2DZYvnJtWhA5EshJrnfYBw3h",
+   "TA8QgooA3R6P2YdihmsjojyPauetuibMYQ",
+   "TA9EWx9NGbqq7B19ifwxK3KXA9kSE9Jrat",
+   "TA9dqu6cTGXpnZTgjBHN9GdK1RLuL8RRsb",
+   "TABdb96hZwZHoatuJw1oU7j43AzzeReWh6",
+   "TACxg5jT6UMN1WstuSvLzTGnpy3AbY27Ym",
+   "TADFAzvocF7XMeStbJ1GtfhZZdC1tKMr9o",
+   "TAG2TJFnyoYRosYbzhddV8ziMYXV9bZGZF",
+   "TAGwZVHuwXpBLVuyjHoybYNBnXUNYYQ2k3",
    "TAHhkA1WEkPnSNEp53eVBxmABsbZKWEtn3",
+   "TALpAcNWWk3cEzCj1ahD8FZz4dUNMqQnUQ",
    "TAP7WDMorQw2bt1jhjXfgeh3W5nxaC2NH4",
+   "TAPM1SoH7sfj6sq1RDEL2AqKm3YeYhRx1Q",
+   "TAUE6Up9aDzJ2PDdP8ersuhL8EoeJU7TsL",
    "TAUVZkPtco6rmm32S3c2WdstjH89cVhxr3",
+   "TAVfvgQNocc8td52AXkCvKHDUHinb9XNgT",
    "TAWMgBoKkEMBAfqQg2pbBehc3fF2KwfYNB",
+   "TAXd4EAxucZYt1bMbz7bQ5Uqgme4sSeka1",
    "TAZXhHzrmZ7HNpLGkzV6HWbsiWp1zFhDsk",
    "TAbTnGva38QGDZNw8HUHpgEZ93Judu7NGW",
+   "TAd1umLAN7WF5xDhB5s4GKnxwWURoGbtRd",
    "TAdafhVMgsiMxBZkcgcXfkpLdY2FBxD6pu",
+   "TAdqxGW9pfoMPBhbX9yBy7eyYtfmzAuQ62",
    "TAfc4PkYXWteeuAwTz16tisesVMLMA5QRL",
+   "TAj4qn1VPRMwzSpMyiQCV8trHkzyYfaoFX",
+   "TAkFXGxKrJD63FyZrMLDHddemFjtPzcvze",
+   "TAmmz48ioLEsKHbPveWtppCXQbuRkgAUfr",
    "TAnrG2NfEFfBxz9AZf8tEXBNH4TH13j488",
+   "TApyry6h6iGJ8PeqMwNpx1Jii417TdPWiR",
+   "TAsXMeKsYhy92W9F2vuepnt7Ra6G9JrcMs",
    "TAt8ExXiCfJggJGXdFQyAD5AgwsrB1FvCG",
+   "TAuX4knygEe4D48Bq74peBLmqcNZ2Q4hrT",
+   "TB512EZ35KYkhg3sLvMNjhtTWvCGQ4GaMg",
+   "TB6GZBdYKMtSfhUtFD1cY27f7B8eapnHrn",
+   "TB8FmVrMf16MDSGUFy1AAtnpZRd7VTHuXa",
    "TB8Tf7SeqoGST1hVnmKsH5rCfDxWJwmmyd",
    "TBACpP4KzHJCKU2YHzGHWvj7AX9j5Nvqwr",
    "TBDprZ5HhBLCDuhbgXpguKb5BBccjouPLz",
+   "TBEvaQ99CbohD8dUDX4QuzeonRo3e64Yct",
    "TBF8eTLVFtriixzpc5Rmrbt1xnY5CZNWoh",
    "TBFRFznAS1C662whSTTUGEFC6kgTf432Fc",
+   "TBHyLof78rn4GMjrSnwt3XmXS6FgGVFJZP",
+   "TBJqsL8E9LibLEUvqpNeMkfBQtGGoDeEGM",
    "TBN86FXYP4hK9KURFCEHe2ciX4PawviGEK",
+   "TBND9SdMK2KrtkbZrs7Xve54EEMzdG1GUX",
    "TBPo9Ur76KFF33xwUiGXeBrFCXabrnaiEL",
    "TBR4uwkHBFx34jPf2CghhPw7x3Hr2tNHVM",
+   "TBU4Qr4s3SqhYSz2zdzidXCC6ngtoweSGQ",
    "TBXZTpJvNtnVZp5QNsZPHzsgSgqk6f4S2V",
+   "TBY9YcSAGhpzfHufsv6sMj1XLbWbJRNJER",
+   "TBYCSdTMBHqZpaLxNpSUcSW3pGv9b83oxz",
+   "TBZXptgLCrCfkJN2pBAkWaymAWNhmTvyAv",
    "TBZdVNe3K4PHwngz289EzGZvqyYMTpnbfs",
    "TBcFTvkiniRkD6FLhmm2vaNEF1JZuBXZEb",
    "TBdByuPQHHabSP7XCRF1d7doppNemP4R8K",
+   "TBejDChZiJhKmBSSFrp8Yg2BMpyw8M7C5o",
+   "TBgZKMV7z2vqeNL8Wbwr8qqBEmSVPgp59n",
    "TBhRgNtn6dGdQSfLAjTrVopRDmXqjs1KpY",
+   "TBjHcedELE8yPMssnSXvdMtXkEvTMyqwPU",
    "TBmrHoy5smSWBAxdxW9gQindQJ4mDcyQWh",
+   "TBoUHvSgVUo6egraVeSKXXrZguga8rENud",
    "TBp3c8FPrGK3vPvAG11fFLFzr1ysqsMvvM",
    "TBuD6Qckb3qzjwJt7MYHgrdLroxBUp3BJo",
    "TBx3DPXtAmfE8xQ4tpquerVXn5DauL41hC",
+   "TBxHRFErV5RRcB2T9DayPB6QQV9aApS58i",
    "TC14SThUTByXgYeDn4TX16FkNc7EwZUZSB",
+   "TC1LsKGA99DjjLF5iixTbcMLb17rCHEP1t",
+   "TC1QwgiyUK8yoWTf85BAEn1tZh6HZ1TGwv",
    "TC5ACsx8pjcPGN8SknSVbSoAiac9K2yJWd",
+   "TC89fHH71sNpEviPRTJTnUnqDKAYLkE5KD",
    "TCDViGJvAMyMhBh2isWLvfoKLZGjRE2RSP",
    "TCEPz2rDRejZwyzDu9cNnjZccSswK15FzZ",
+   "TCFboj1XgTLBRKk51XFrrSu27YjvyoXTiV",
    "TCL2Uv6pyYS1jpdx6k8W7SPtF8DnVAAxWQ",
    "TCLvWYn8iw92knVmb2skfUmH7Y2FwxuMjB",
+   "TCRKnvaVHRjkDg5TiL3reavjZgwNnk5c2a",
    "TCRoHftDjwiwNvqS9w9GQgmx9CJPYrjEV8",
    "TCTQ4GF9sGBuGrKVFsir1M5XAUvtowqd7f",
+   "TCTmFAyNap2qBNAu4f39NsfCkzt6yH7BFP",
    "TCWaN3xk1FAZkPgSpYurSW1fCVSSgVBJzi",
+   "TCamUDxnqcZbi3RZGNpfU2mTZmqcaGuDyQ",
    "TCfcDKqXm82q5MNfBX2v4BJSPJtPy6DTtH",
+   "TCgKhmvYB9DnX3ifYqKkbxsH3bFhiT7vLB",
    "TCi8ot1QLYTmYdo7aqg1baeyKWaADpqs9F",
+   "TCjFtfxVvoxKyV4ZNXK7mrNDhTtfRNb3Dk",
+   "TCm5UdJiKM1Bfm4qehvwk6J75UrjhM5k27",
+   "TCmYcJV3PxdT7XC1qeEC8k268AxVN7SBwe",
+   "TCmqZSmEZoaHujjiRPDLX5jkYNBkkWCp3Y",
    "TCnkgWusjq92aSWuAr1SE9WrzyjTA6ZA38",
+   "TComGf6CDsM6o5SD8ZzZPvVFvfFCjiLCJw",
+   "TCpGPBMLXRt4ppq2z9KetEqY3DYqSqUxvQ",
    "TCpPzg3JfnXjPtbPCaCWmfwE5SXhPgs5wB",
    "TCpaYhvUKnZtx5timCCoeHjDVrE42CvGcp",
    "TCq724oySx821CaApPHWZXxKQF7qbDBiuV",
    "TCqmJjR6ftR2nAXnFWcf96VSmbYSyYrQcd",
+   "TCvPAsByWQmNq9pd6icYdx9aACi7tVehGU",
+   "TCw1hrSw4nQ5NnGGsmXpoyXdSzySzh7VPn",
    "TD2J6fG2tcNPipaAccvyrdQMGuLkw5QERv",
+   "TD5L53EKVdAmSMKmXouG1qkNPdVnTkPH2t",
+   "TD6RfkCRPmBtxf9F8aCaYyD6pBdqiM2JZX",
+   "TD8SDdpL3t255zYdJit8eTRnbCiPfvVQ8Q",
    "TD9JdDruno4em2MZEqawb9uaRqRffnsZrs",
+   "TD9uF8nJdCdUy4GMg1cAK4EeiTmfS6sHGj",
+   "TDB6gqLrLYEvEhq6nFjWQhLEJPnCuPiJtU",
    "TDBQaxaqf4VZeGiVaqzSWUVvnUFKY1Rr5S",
    "TDCmqy7hdqXm17y5gY5qMKdfgcFHEWLrk1",
    "TDCswY51wJiKsm4BHgwCiA7V9W17UQqDrG",
    "TDDdQqaEskbuVu2xLGGrUothWhpaBcbyQ7",
    "TDE4kq41ETAyZ4aEkm9do4A6dZLJn6zUce",
    "TDFhGEvjxzLKyym1RqazKqmED5A7bvLH9T",
+   "TDGAqTb5EjeGCE1k1kX8Gz83VpVGQEJw7H",
    "TDL3Qbeb4QU83XqtGyRgVAxuBg3DbrAKdu",
    "TDMEU9SkYimpbEvgCDKwdZdfuFrmXnfraY",
    "TDNUhqkUKrQ7jrUYaUfL3dzjaZdMpSvV4H",
@@ -109,158 +171,328 @@
    "TDYB1FMwbvV64thT1LEio5hoLWPKqtg9wN",
    "TDYEtGsoHm4YfGnFLXF2C4Wj8zZyMmVrdw",
    "TDYgxPYDNhYbhkfKHQzmZmoxHcvTeZ3XDJ",
+   "TDa92m7ksMdfJ1UrYyhqNztB976v7yJrj5",
    "TDbmBgcVTEyprWQzj1i7RmY4RFakJELFK8",
+   "TDbsF25X6gof7Q1ofpeZYJ8GtTkMKRPqih",
+   "TDej8YgxN822LBPygrNrB5kfPLHrkD7JKd",
    "TDg3yLKtd3aCg9Z5xeBD3fgQjErg5KDQsp",
+   "TDhhm9FQJU99Syn3X2r23i1bGj7Gb4Z93N",
    "TDiBGsmJvBw6xRfXJfeLHzSLXkgs5gEdJi",
    "TDiV3njgtrFyamYVMkudBx8RP9JcZ1dvbT",
    "TDj2gq3GnzGteKQkogmBVRHAFtj4vuZGvd",
+   "TDjQbxu4L2tSN2osKf1rUwra3RpAaPEPrD",
+   "TDjT9C2MGg7VBDrYosnmSUTW5eWrKnHu4r",
    "TDn2ACJc3JatbQrbfPVQEbXxNH2sQooEyN",
    "TDoFZtwvk13wHVQP8EqPwr66jmYrF1zMCw",
+   "TDqmQ6BeTuY1u3Mt8g3Euv86tA1vRomg7K",
    "TDryZKaLBNPztDTgT7W982eoMnaLAgTPrU",
    "TDtNmUheESRWefSoqVeqMdDjQJSwU82wjG",
+   "TDuspi3TnAoq1LNYg3gwFpP1upfegxBRSe",
    "TDuzksuBcimAiSuxvEsaDDocNooK223c9T",
+   "TDzULPkmouQXUa6bqrV7HbfrfNnsSBP1s3",
    "TDzuNDzAy3UDReuKubwLsG5K43gafy1XDt",
+   "TE16ZBbDUhAYBDkrHopwXzndDHGrjfidyA",
    "TE2vaHNFeqgbZEuHxrMNSxgKxQfKaZSnxZ",
    "TE3G4e15VnuuFsXAMtJ65KPJFFzdzbarhy",
    "TE3Hp8weXyQr1Vn7sjtr1NbDNLj6Ye6Cjf",
+   "TE4gGPDxVQZE9DiymKVjxdEzf9d3K9hDex",
    "TE6zSbd38ipt2yEGoFq1qbh8fQqJgLHex5",
    "TEEo5JrZimXpFhZsiMdqjL1d8FPaiVwDyf",
    "TEEtSCp78UVbCWDQcbuEsFVxgL4Kbjiudn",
    "TEGEUx1e9r4cizWFp39hUDoXP6HA6yfFKU",
    "TEGnUYXTZXZn8SX5R95PhyLTfzDLWgJsNU",
+   "TEK8uKo574uJ5iQbSHQEREio8NvR46nDhw",
    "TEKNBrLqN283KMn6h7JnAqDb9q3DvmX1Ub",
    "TEPeZt1qDo6UF2KinpxkX85BYmBn6DTa36",
+   "TESNoTNVxz4CaCE449T6uXKUdfnhgRxAX3",
    "TETWqiivpLGxoBSmTJK8cDhAEZu1CsMK2U",
    "TEVrHLW4x4S3Xb9VfLuXR2HXsNPS671uhn",
    "TEVyaYXgP2A2XyitSXcTKNo1e7XfowgNwS",
+   "TEWk9fQaRz3ap2dr1kEoPWjoLQkL3xcaCV",
+   "TEZvUkbPRFco1e2yQmNQdxAc3Mdv8UasXa",
+   "TEavBxCL3fYEymCsUwf58i8wBTVNw2SaSC",
    "TEbz7fhBJ9Vs2syzhKnqyecCZNCThgDYLS",
+   "TEfdzNRqiraYmt27Q5hoAqZtmtPTuDfRPH",
    "TEhSntWmBsf4u2feAn1GdNDiNeA99tdmLd",
+   "TEi6ThveM9mRUcTkKqBdiwkuGqdkfhjW5u",
+   "TEjPFLQUmm6x2o38vz54HtbuWP58agnA2J",
    "TEkLUM26E8aYLZ4EUuCAuMspChjXkNSj9s",
+   "TEkNBtU5zC2PdZaFrE6VzujhRX18AUMUiP",
+   "TEnCKypMuUkFTTbeNf53nFawhFwubmS7tu",
    "TEo2DGX9omFTwfd3KsaX47NiZHxgRQE8MB",
    "TEoMeiTU6s3N9TXh457xRuX83jjrzro9Lu",
    "TEscyg2Lrs5oEBTbck3jH993GKXYniuZ4J",
    "TEsuGk1jCh11u5V3L9DvsHMSK5nTKW6PqZ",
+   "TEuUgqJZqXemoZDKr26jrjKkBx53y5255M",
+   "TEvShJCo8wFpzRdfq6bL34UFEn4wob1tFT",
+   "TExwUjCCSyLYwxLanHZNU3sn9KNDEzVSkY",
+   "TEySgkeFqSxJUCwTjrtkL7K5tq17LAva6B",
+   "TEzaESxiLwCnmdkkDr6cGoKdiQYqtNtaGq",
    "TF27pWABQr3bjMvbK8Be91NEzybnrhAhpG",
+   "TF79s1AcQ1P4XhATCjJ43nr1CACM5r4A8A",
+   "TF9d5kzk12cVPfPHAXte3hjJUBMN8KJe1j",
+   "TFALfbBuXq3AqoDuGgcJJCmeSjTZAyTZ2N",
    "TFGqsUFYL3dcnyVi4fWrar6i6KRQ7wzBhS",
    "TFJCVThkWyAEiRDvP3mrDs8QRgPH8C97fu",
    "TFKbxtGCanyveHEQK8TrTi56aRKqUSds6b",
+   "TFM6NUcc5hY6cdpyosTUGkWVFtcaB2Nn4r",
+   "TFQYWm2Xa4YPZfD8a9CN1yvUqJh8NHrxgf",
    "TFQaxga3pqUo4Pb38enkB5paMXt1ypqgv6",
    "TFbC89dN9dcgxCvbDHtrzWiNWc9D5C3cm1",
    "TFd7JAGjdFJWYF3sBU5pyfoTrupJPrsFZ7",
+   "TFeHN4k8oths1MswEPPKWnBP7qYTyYit5d",
+   "TFf6H2guRYRWY38TdgjS7LWF29KjJkkJ3N",
+   "TFk9yqEnTq4fm734hTuSWeo5rGsnVRGbdU",
+   "TFnndVVhSBup4FNsMzgHkGqgJMVqLAFXHE",
+   "TFpZWiz1fo14Y2K8QHN49kxVMrLRBg67Tz",
    "TFtVfsqr42grqmFnTAfwidysx3gdnC36S3",
    "TFuHjc5sajZxhLxbWUUqT5Bj96e7sMwTsF",
+   "TFugwvoBy1YkWdtK5xKj2iJaz5g7nSGenr",
+   "TFv94gByQ5XA3BPtFjhL7faw2cwmevoHpq",
    "TFyPSLq9GMXhMbWkSjRxiMaoRdwLfkxxV7",
    "TG27o1iqRC6TGmyCzpPWJHcqSrpsZZBZAn",
    "TG4ry7zxJ8sphTqDnzFpXq6JFbMTozqKGa",
+   "TG52rJkcoeAW4zWQYGToerD88PQEGxU6pL",
    "TG7bTUtvpcY14AvBwNoXNkmJTXeiL8EVbT",
    "TG8VMW4YYkr48zwJ7wAyrSGjsjKDfMNhyf",
    "TGChfzxnQnDqtwAPrJiu4kFwCtYLqZBak6",
    "TGCp8prK9HprFnzTJ7RDFmdm1uVwt2WcoT",
    "TGE265fzkAowdDsR4hyYDxEdeMyzqygY6T",
    "TGEwj22HGmB5bwSzGyzVnVLYVz7Wj5TGAo",
+   "TGFVSDouaZkXFATiVkCvjfKMnTBQPoeRyG",
+   "TGGZeDYyQzRyqFjxaEnkQd2MtcvpHt7Svi",
    "TGLqi6zjurfC8NDFVZK74mUcEbjMvcGh4H",
    "TGSk5DeCdVjAKzBQenVHmMwNeg4MRc9gyG",
    "TGU2Wvaek2NXd3T31QeXRq6jkzKnuN79oP",
+   "TGWTP5fY8NaSPgTYyuM6LcW6ToHaZHgy2Q",
    "TGWVXCy8uTcRPaaRSnCmaHR62NwBPW4AuU",
+   "TGXNW25d7qhRvK7bMNj4BmqJeJ57qG3tg9",
    "TGdLqXowongHuJJjiTK6f8g8SyFzS6KuxU",
+   "TGfL2G9hDgqMJtvQJkjyMaZzymDzJf33Ju",
    "TGfQS5LchUaX8GA88mKoeWVTTTSmGCLcSS",
+   "TGgCKD22LphmZrGwW7QL3AioGrB4PuDzhm",
+   "TGgwpGtE6Rk3VS4DHPyq3V3VjUUEqzWEir",
    "TGhz4iwRnys2syLiPdQUwrnq42BhDDxzYT",
+   "TGiPcjQF3eFSgsuK5UG1WbXZhHC8gWnusP",
+   "TGjjjK8uABuGh5Bi7iXwixR1vY2BzT9LZH",
+   "TGjumNYjKsP5dYitKsoNsKhS4BpDpDVCLZ",
    "TGpKoQ1VFYCKX3NNFGjHhgmSu5DDb8WvSQ",
+   "TGqQLENLSaxXYQvk3vzVP1ACaKxbb5ffx6",
+   "TGtcEg4x943447Ak8iyhyhQe56f1VwGHVr",
+   "TGxMwuQQizSDZ5eKTTNed7HKJaCvNsHq61",
+   "TGxbeWyk3txFyAkdULWJFSmmv7EhaEPNKD",
+   "TH136QwbjCGNnkK4ch6Jyv4WY6reSoBHdP",
+   "TH1iT8PrnjnEPbHTDCSzTt9V8pDwk3tCG1",
+   "TH1pm4ecr232qHsGQ92RKwpBeEn7kY2o4a",
+   "TH8otyPk5X9UKK131QcSqz7uGNuRkKh4Ln",
+   "THCf37AgkUKiC82iPDbvggzWfVsNFZXqrT",
    "THDvqmtdhUSQkTcH4nzgHMR29FfMYbXcZh",
+   "THDwrtDYyAQ2LPkQ3Jjmr1dWKgXR9Ysd51",
    "THGp75VZhvSkaLLAwvDZfCr4npEHUKJc44",
+   "THHwE4qgqrGfy5RdSWUguosimQozFXMP5b",
+   "THJTEuPGcLufZtxieYcMGJ33bQ9ZC2AXCM",
+   "THN6kRSKMHMM5CqsTmXqTDFzyLeycfHaLC",
    "THNCZmdeHfTnXYANPAqNcg5c4RQoEWEZ9B",
    "THP5xt3RN3xvAumUy5hm21dJY7QE2QvmWG",
+   "THRCNbnuQRQHgJW41Antv81VTpAV4ooJAg",
+   "THRqA6Jt8QGu7ESBY4xsBpkMMDc15j5Scg",
+   "THS9pstWziBV9Y7vTdgXkqnd6965ZrWKFY",
+   "THSVvPJruMNsNDpbCC8GRebbMp2kyq7Ke7",
    "THSW4dFGr3qtmdoCnoGiytZ2PsbkMV8sjo",
+   "THUD6uXKzFA3rbdqdJ1q7WF7fDrXUt2o8W",
+   "THV7ATQGc2kvuyb1s7QyvwHquD83TrotFN",
+   "THZYLHKtmGhrnPY9qoceYnqNduuQ2JtTA4",
    "THa2RQeXknb8MMJ3cnojHCPTfA18h8xyXC",
+   "THaWrCdrVndab17kJDCygzF4zps3NW9VKx",
+   "THahShGqrsDqXmMD8JbpgcYw381iyTtRf7",
+   "THepkPUDZ1XqBodkyFLAuwBiBw585SuwYd",
    "THesvzTMZx44qU4WH62YshQrrUyaafj27C",
+   "THftqLxPQaFTXQdKQ5H8KpE48u9D7DoT2r",
    "THhmvTn4QDojbKxcdWmE4amSNorScjdPGd",
+   "THm5LkqzAGhWBeTpHGivVr9aMEMGScQDZb",
+   "THnd8XuWCNvApbBE61NnouYoJAvzx9kT66",
+   "THnxoDJrohcCWfrsvvsmXyuykCoza8tpa5",
+   "THt6YH9HrBcbnuPaSox181PFwA5VtKMnL5",
    "THupBaoDfQq1nThvPTcoaJJFzUyWuBL64m",
+   "THvgjyTqABXZUmMTt6FqsGf9y3qbwCNwkj",
    "THwRxRQqB6Swthc2WPuVhjpSze4Cjz8LCQ",
+   "THxx2KQa9Ta1fcRHzFjGeFSQ5MwQB8WkQT",
+   "THy7VsLZBNkq7SrMAZTyeeYxkYczG5XXDm",
+   "TJ3qyN69ZcTKJtbP1MEwaHRhU2JMpk6Fwz",
+   "TJ4VTzmUwJhmHaPLG392k2SfNXcoAjgijr",
+   "TJ4fiWbWKA28GjJFfzyef8GVebt3uePZTs",
+   "TJ4vf2tTKJ3vw3S7tc44q9qwKFR4kX6Jfe",
    "TJ9oFXb5PVx2tR9QmYAPNRschbJEuyMy3B",
    "TJ9rTiJ126hAbEf6EXvva2QRbsswuQwCTP",
    "TJG7ry5S1DyjYvfD3dQbDNL2tDsMrCtRc6",
    "TJJhWSb9kKqyT2bbR996JiXeWSx6V5GQ8g",
+   "TJLZYYByu4ZzCy2cnrQttcuJV4ebYsbfCy",
    "TJLZm2USMxGhHiRGPeZnLDXDAB447pRvhc",
+   "TJTyuT1r2Q4dDxb2Bcc256zGqESvz2gij2",
+   "TJU1LaqmSjWf5gHYnZmUs6eGUgsvmwTAUA",
+   "TJUNmbXXzhsaPSzVZryC3J2yeCQpLxYyi5",
    "TJYQ5qcbBH4enmXFh7F1itV3YgCeA124hU",
+   "TJafrW1LC4HmxtUj5UFNtuJMQH4iAvTpAt",
+   "TJbbVrDNpznLi4nMTcYgR5B71xG8bZy9i4",
    "TJcgs2nUdUrtW8zXBjyqG9mEuNJw35N5u7",
+   "TJdyHFFC33qCAeyLqeXG3e9b13hacfX2hQ",
    "TJeYYLA9QTpToyBefGKrh2CDhKN9KZdzbK",
+   "TJgV6FxHiqLfzwiRD7VawgQ7anAkSP57QY",
+   "TJj2bRHDK6FBAsG1484UTHGg1EDpaW5dze",
+   "TJkb95wcbzCgn7DEkie1tDfoFUzg3HRA5u",
    "TJm1Nn8wMRvHkn8YZbKa62y7SspLC9Sksk",
+   "TJnA1QtcwwDTS1C3QMQumgGq5pNScXh2qt",
    "TJnf8iLTJUKsMQJPwcugxXL3AGC3rSWTHf",
+   "TJqKBDVf6YRvc4NwtMMHknpT9ebQ9fLhZk",
    "TJrtuv4hXfXoHdXv1eZPVEbAUhht5H5mTa",
    "TJtXayjPoYdFG95hQNYMd6mWrSQ5vt6Fdw",
+   "TJuz6QUx7WfLcRWwjDrC35mpbHk86doJqv",
    "TJvabbMLaaGYop1xmizuLmRtDia454Y1hq",
    "TJyVDsifLRbUVaaNYpMpAULgJjAfFSexTh",
+   "TJyWyspBz44bhgyfqCATVmGHwAK5TfLSWq",
+   "TK1euNnGG3fSbUSrdTWkQz5Gkxon1VHsAS",
    "TK2qFPVrDq3TFgefKZwnaxRBZBzexYB5oZ",
    "TK6kQ3Am58jkdmHySEH2LdWr2946iF3Nce",
+   "TK7g6AVLavrfY7TzgmrJaDyoEks4BfrA1j",
+   "TK7nXugZ7DyLYMFQ2o8qenGPGgkGRbABjD",
+   "TK8GCC362gSUuzuT4gyuR8kqRYvgiWFx7K",
+   "TK99iPAtXEKtA4XJrzJ7n1TpVTGdVoMdLB",
    "TKC6Nuns57ZJ6Z7oXmdiV6934MnWbf1iMQ",
+   "TKDRWe1wdxosSrA4wMFHmhib2VXpPCSfwd",
    "TKH6G79Tgx4gZmSSsH35uqaY2yJ2rj8cF2",
    "TKJAKjcdQrFtJ7DtxGRU5Hn5FyT2FHuFwW",
+   "TKK6uwn6Sk9nws9qCnjY6AKvLGtc5mf6S2",
+   "TKKKYkS4doBXofjPadQawNrVryCduxL6MP",
+   "TKMeqU8KDwPoggrBS3p6WDgC3hcvRaAtt8",
+   "TKScE9SXdcBgZn7iXcjaRVd6vH9hB3xXf1",
+   "TKT7CGFsmYFDVekRVGdcvHbpVWxGPgd8U2",
+   "TKTjqMzwc6wLxKig2BiSEzMJhspTg5F4rd",
    "TKTzorJH3Nv3hKhvzG6gCk1EMztMX4jMm6",
+   "TKW82muLUXf6MX7LoQhPxTNoy2ziYZPMjF",
    "TKZBj4MCfN24JbJk5H1gvumoueZmdsaZHY",
    "TKa7PsWLkNnhTpYzcx1aSxANJYPYeEffer",
+   "TKbe3noFocDyNArE3u13MKrxkPhzUXBBRX",
    "TKcymUpwq6X6QcEuLGorkqZeHG4MKKoEWe",
    "TKe7eBTU4MDbKt6XDwhmYH5E7yWqP6TJaz",
+   "TKeTwGZbAT74RD8S37DuR5HxNFCAeh1vTQ",
+   "TKetGDHeRwb11zUTtCuYDgYCUS4JdgKf4K",
    "TKfMSqDHe7Xf152Eot1b3HUwVWp8fb3F9V",
+   "TKfShJAPTD1shs6ocZTuFdbg8QFdbmSxtS",
+   "TKjkHVNHpEkWi1etNPEcrEyPXNjEtozxJp",
+   "TKk9pQstnuxx18RNxZJWLN8WenzJKBsPhL",
    "TKkWdw6u3Mq4u38fEDED1Gan39WUoDCsX2",
+   "TKkfekxjWtyQyembvpAUYfccEnFAKau8ZS",
+   "TKpAhPh9b1qkm1RGo7vaMP9cMyuhjU5ZvY",
+   "TKqswxWefodNBgLk53HMxM7L7PyhodL88v",
+   "TKu1CfioxpXYkrcVMHhroZao4aJxKvgUd3",
    "TKucAMRpffH9LLWt7MytjzUhrE25XAuABe",
    "TKuzqtHbHc1co853X2HdgYZqHRosjvCxoP",
    "TKvuNfLsyZiWzFze5PRAPdZngx4NSmSbHj",
+   "TKxgbxRC4jNhrsJCQg3mjzyM5KJwrqs8Cz",
    "TKzhKhuvNoYYbb7UWYRoD7F2P9jgE4rhek",
    "TL41jpWKXyDHzidjPsCStShP9gkGRCkBAd",
    "TL4wSFp5zkA2HQ7iZzmH229C4zSxqQMyet",
    "TL6utATadpvuNTo8B4UiBwdFweYNrwZEfr",
+   "TLBuzdMqyjgie9zryj58jgx2oogEPXwNSk",
    "TLEv3TwTNPK2KpceLUu1pw3Qp3RiQnf5TQ",
+   "TLF8TWEoV7ae3bC1jtkkzRMm3Zh2K8b8LC",
    "TLFg6KecMv9HTrX6ef6i5ZuRUWEJBopd8D",
+   "TLH3XuCfLDworEYL2dtep7hBeFqx9N3QUy",
    "TLHZhKitRnPGT2FMTm8YpawrQBtbwHaHTS",
+   "TLHcGqEdVScqQccKcFLobpNo95xtbDn1tK",
+   "TLMqk9YTQvDa8vCDeSsxmc6pRWSLueYsGa",
+   "TLPwgazqWTFfMLUbvPEvCnZEDpwqB29iw1",
    "TLQkM6HAxEMVWuPpp2BZaBdeUq7UGBNzVq",
    "TLTgJbFrNHVoM3rpDAh71Saw1PPxmY8crb",
    "TLYieX1JtMuvFVTfK39DFvjFEJngaTYwgv",
    "TLYmcRkwYPTBLcfKzN9GMY5f99Rd7L48x2",
    "TLZ4BUnUQbzCwUckNb1S9WeMCopCWDKA44",
+   "TLZ56SSddGUbmSsgA8YVzxQ99yVUCjqn7M",
    "TLbzJQMVdiLJk6pNduRaaH6HRZwJasrZ1F",
    "TLeJrb3iSsoHgwgbyQDz88hataUEf5k517",
+   "TLfG8t1Lh89LXxyDnCdwB6z1h1mbQK3QrX",
+   "TLfHNk5Gbub1yWnhQFNRw835JwVZkgNSXx",
    "TLfPGVArmq1S9nnmzW2VunZ2wR2cNEACPj",
    "TLg1KnULM4ZReY5zx3JC2K19vydgg3DUoR",
+   "TLj2juFkemp8weggkJV9VHtT21edZYNKtZ",
+   "TLj5z3K5PUcWPd9utNaGaDpGvCNamKUu5u",
    "TLk1ffniwit3UdfFQCDM2V41R9nM2116pM",
    "TLkv1ata4KJPBWGq8q5ourJBVAApda4re8",
+   "TLmVzqqnWyteTVuFidz4bq1nX15BnhjHLq",
    "TLmicLRc8oQABRiHwRwub3LFJSMPxGMW6t",
+   "TLnKpCcXYfUUQYiNafLfqVtZQEg8CSy1rG",
    "TLuJZiZgB9Ae1cHhYvBnqJf9hNTYndGPzT",
    "TM5U9TmP3jm49qZLnxinB15C1V9WVYXsy9",
    "TMACDagrbCe9TA63xdGpcJvmm18VRBDR2M",
+   "TMBXqAnqRMHH4KNAbDprBERZCUt2Jo6gch",
    "TMDasbqojJxkNN5KFEDJ9K2RgosbRrSnnr",
    "TMGbZLbrt4PPtPdPd1BEenov1vRmMCgF7R",
+   "TMLX1hvuG5V9JSnXcRPNYKLSnWr32C7xPK",
+   "TMMhTJLr8JFYJ1yc43FztJYUuEyfF9PLSY",
    "TMV8iHb8bvatokVKCCbHUXLiVQjLrCo3Sk",
    "TMVz9WgfaKhU22hC31Pb1XPhR5ASEfiMQc",
    "TMZJ5tCMH9specYbQjknX1ejQWGH6dCTbk",
+   "TMZJYpUzajgoWiDJ5F9YDWwFkFwCVDbzKh",
+   "TMbgUcp5MpxiavD6o9LxvSzSaNs8RUoirC",
+   "TMcnmR7yMcZSdGQXPyeheshYKWBETqNfpf",
+   "TMdSGsmYowJ4z2hAY73tDqpxPX7zpZqwbW",
    "TMgnfhCD2ac9apFq3dzyVtbKzLJMBCY6B9",
    "TMhmDdoFhJGPjvCWrEJURiUM38RKBRRP2i",
    "TMjabL71g9YhnCtM6tY1tbbijNF184uruH",
+   "TMmZ3zGmWJR9SqK2ipMNEEdjzrrLM2wyNu",
+   "TMo4CwRfsvnp4Fb54whwqUfmuyHjH8fLpc",
    "TMsQ8wU4Yq7b8MB4jsqMbhLizrjEP5AxD5",
+   "TMtu1UZqbdiaZSGZrSNpmaoyqV1wubKtS8",
    "TMu6Fz9TVzX3e7Vck4BX7XiyoLpvgBx3Lm",
    "TMunqbbyBDrKSjUVnL9eoqnHNEJzajEDVu",
+   "TMusP1KxPATEvPzy9Z9kPQqSZifaLb46LH",
+   "TMybx2NXdnaA3U3jXSc7umrNsyZ1VfLsNR",
    "TMzmAo3gJdNeXbuwnZrsqcAJaRuW2VV7Nm",
+   "TN1Dj9Z1V1GstuWtM9U6SQAaBMK65diajq",
    "TN1QeRqJDYZwNDinDnLBnSDXWmm29ccno9",
+   "TN2QCuuJB6ZfzA8drrZVy9he7EmAcxGVwk",
    "TN7X8yxgGAAAipCKhAHcsxiANXdiFznnsZ",
+   "TN7pTxWcuvkpb93oDtnHUMH8BzpCrgfLX5",
+   "TN7xywAPRP4vzSV9Tj7pYCV9Qimq3F9adT",
    "TN82Rbv6iDbuULRwS5FhEhFmFJdJJPeAZt",
+   "TNBXka6bicDPdWMCDXnZMRKX1jetRjWAkF",
    "TNBtxtF4SC5UnP8xhdXsphSndiCT54xnPx",
    "TNGTdgpjyvwgCmbsEiqRKZyiK2MDDGRq8J",
    "TNKw1aYrjMG3CQpa7Qp5npnkGs7kNMRwmJ",
+   "TNL8XFZmJMLy4y7pZUbn8SmG49ZGdedyiN",
    "TNLQMUqDjDuaRUnmdf2vAJpD94yyczrEX2",
+   "TNMJJM296WC1UxuMVudQX2MeixVDZdasUx",
    "TNMphUDxSB4RBpB1zZNxCvv3X1nJG7HjVV",
    "TNUMTK7PaXMzZGS1sAbmhgqJ5D5jhMRVn9",
+   "TNVMAAK3yQSNjLhXU2TWMHiw6XY2Nuuo7s",
    "TNWTCyTListYbDT7VzWjMaAvaBtEdCEKLB",
+   "TNXks3YH7tbDi4RWgvyGP993mF6ofEvyRS",
+   "TNYYwNjZwWBMtoq1BSqghB8Ldhvx93aP6C",
+   "TNYbhjSYNLBpxvKQEqbUKijjZZUx6PBxoe",
+   "TNa2L5QLJWdBctUbWJTTAt7Ggm9GcPmT3x",
    "TNa3UWE6SbAL6QaJ2f4xktYn6mK49aGjBE",
+   "TNd8sd1N5toM2fP1LAsXtCp7qwtMvwJUiD",
    "TNgQ5RBySqXzDEq74a7BC4FQP9kLztXadp",
    "TNh1DzX4BbWLVctjMUCHMmMt5n28pn68gt",
+   "TNiPbNoDkno23fuazGfdnK9vBUF187aGeJ",
    "TNjS169bVwd73duUzZC3y3x7fFkahR8pyv",
    "TNjyTnj3A63vM5j1ZBRjJd7u6BuAUAgMvo",
+   "TNkKaveYFBo3gnMRuu1jfbDzuRAAsgTJS9",
+   "TNmW9cXNdUgVTM93y6Kw9RbJCyNkuvANnm",
+   "TNptE65xnZxULZuC4geGUx3gwNaeAhWmQF",
+   "TNqT5eXe8UU1YxQYyZNyZs595kx12mZj8e",
+   "TNqhhvdoXrJLbLEPXTTzgUxBGuXPfAfpCT",
    "TNrbUDdeWFgNNjmsAHQu3fS4RF5LKTM7Xi",
    "TNuHT7DK5Tpzf3LkbQXZAzANu68SPb1YGC",
    "TNudwVND7Vw3x3RjUaesc2Mx5KzmxZLRtF",
+   "TNw2pmFFoYqzsw8yaJGNx1i93DqsMbc7X6",
    "TNwzDHkJHMRqRPRmW39NbKiK6bipdNja9y",
    "TP1KHevEAaX5nwqzYNpEgk1tmtgyKEvkbP",
    "TP29Aurgxh4WUccgRHdkhz9RQVm5K7JiVA",
    "TP2T2fmrUDvn9pHyTySWu1Tqw2V11Aqa98",
+   "TP3ahsinwkZ9KHwVQ7JU9Dednz1oG49vtH",
+   "TP3gvorUGaiKA6WKRgcAoUoRxtxGVmuukE",
+   "TP7Ma2nNCjA9raL3VVE7Udy5AzDWw4LLdv",
    "TP81tF7Sq3nDqRgiXUZTYaunTRaQ7YxBAL",
    "TP8tGEvsEnbRK9S5ezbD2XpWQzzmtAj6tr",
    "TP94E8xctTVSA8huz6xhvXz9px2AP9AFZN",
@@ -270,48 +502,90 @@
    "TPJCebzC9HrkjoXjXRjKkabgwLQjBnGaTL",
    "TPKfyRC6UeQJasjjbKbBXAKtAQMkLYCy7g",
    "TPLzXfGjaQjJUYsSg73JAhCat4c4cJRGDZ",
+   "TPMuqn2V8LQE8ntiC9HLvTuHsYwAEWUCnM",
    "TPNeL4oJF5Zk92Efce1Lzxf4e259KYF5tP",
+   "TPU5xKnMgiXh9GN1ZdQm8uiBoUcA5zKMaH",
    "TPUaqfZu5zWfBMH1ywzHixWGhSDovCSSiX",
    "TPVC8tL6c1D3xzzqcYV4NmYTwPtVASWrVz",
    "TPVFiW79Sos6ARQhLa8m1TUsLs18odP6dR",
+   "TPWMWCtktBvswxdNwiGrJci9bKW1DtUoGU",
+   "TPWz4ETxoajpBwzt5cSW9LSytkfh6gn66G",
    "TPX5exKAHg7TeCHBZFLbtZH3i9KeQBmxRS",
    "TPYiCYiav3EEfZL3H7aS7vqSwxCiPFz7SV",
    "TPYuKR94BuiUV8tJZLpAmNfJXJbcsXKCDW",
+   "TPZAC3aGX49EQ6dgRH4wGTcXhayETfZvvF",
    "TPZddubYhhsG1813Dkj458qYvzwnJfQteE",
    "TPZtLhZWtE9knQv9KXod5MBZXaTci6Zznf",
+   "TPaBCB38DGQpezK9k1BCECMykh58tjTuBJ",
    "TPabeW8tdxihgFVf8umHmNiEytv1tgESCZ",
+   "TPcWo7TG4u9th7DZW4WJgQj5nk8KRJTS4z",
+   "TPcdJJh3xW6b1oRDgEgjNqweou9we8RNJn",
    "TPg8bhuYQg2zsuvdpdUhWCNECvyme8TuGG",
    "TPiqEVV4UpHpxGm6HHQZ4edQDgHGmQfUwi",
    "TPkHML9VXu8PkHYXRTCiCcex4PtriPMjRR",
    "TPmkxRAJczchKNWVpy2x7eDusAUtboHSZW",
+   "TPn8CvZ8jM7y9HRAoXuv7BNE91qwK3nHhj",
    "TPnCRz2MgzXaWtrhUCRtYpcvbroGuBBHBL",
+   "TPnukYEBgRNUJ24dUpg6WFMnYr3TkevUGC",
+   "TPp9UJfrtKoQLrSpXm2unZvQ9BAzQJ8quu",
    "TPuk5couxKqU7XxnMV8EZuf1UCLu9uitWg",
+   "TPuyuy7mHt5taW7U5KRohoGR5LEyof7Nx5",
    "TPvyyoXHADnHkyCuHDACJirxvC6PK9zJjv",
    "TPwEsbQaJNBFiK68xeDnJP2qDtZySYGPWX",
    "TPwYtuyuk9wqgLYZsWXzVdyrMHvwKQepqH",
    "TPxxwZBKDFYZuSzRiYkWXp8opS51FGcjzv",
+   "TPzKCJ9wkexHZesaGUfE71pTeWgVzcmKTS",
+   "TQ2LZpWpqvX75P7UXjasoDNF34dtZpDycN",
    "TQ3Ev74SqkxBD9UU4BQSYDPqgQqNkY6eV4",
+   "TQ3WFayRcXn4J78iZCgSJwKMHhvuT3zGFT",
    "TQ5VHCf5tZPS2xEkH4AJiPNZmXDm72V9V9",
    "TQ7GgFVQq91zUkm9H3rLHJGGD434zUn8Lg",
    "TQ8yJ8ouGsH8h148EeUBBvg9151cmPg2b7",
+   "TQBMdFMHXtbiATwtvNUSDRUtg5MHxNqkBt",
+   "TQDaupgHVZrkXPy8yTFcW8ouWQrfSjkzPB",
+   "TQDzp5c7c8AZqJmzt3geyMgiXwuhums1Yt",
+   "TQExUaSPXs9Y1rqjS28U4g5rUEf6yF1JJz",
+   "TQKr5o97HrmtN9NGiEiAvdgsx4LbetzrdW",
+   "TQLkyubMNz8RtSTJeVNV4djdQ4wriHs7We",
+   "TQWnhkdpbHZeamzxmGtXvkfhFS6QArGTc9",
+   "TQXhkNrTvKuT6hZmZh6Bi4mSGNqsKC5JGc",
+   "TQYEkAEHJFgMzsDpnCnWNmQ37nS76VL5wc",
    "TQgFARTeQZDqwnrjLV13LrjHAd2TRPeAgh",
    "TQiBp8jngpAuNJtrkjCCcxZazhLWQfGiaz",
+   "TQjA9qdVTubKRFmRskQAoAPm9tZJ5c64Cr",
+   "TQjkcqPwFEniWA8CCSYJARZHV9yxFisshg",
    "TQmbFDRSvMusEcq8o7UYQ39FxQBK5qHKC1",
+   "TQmzdPvzaKFtE29winszNRXyijygvMRYJc",
+   "TQoUGmb6CsVWZb9Hbog3VexX5Fs4LBH8ni",
+   "TQpWmdLB66xcsJFKYBfqwQLbMLBoHyVHyH",
+   "TQrtDKyHikPeT39nbQDc6uU5K9ozSQMRMi",
    "TQsXZ1mNsa1kDTLqNVjJ7ezBDrFcVYB3vR",
    "TQuMtwN7NCjnLL4u8cCW3QWKL7b81mEVnP",
+   "TQv5XRMTZWWnSbgEaz1mC2pU7em4YmHQh9",
+   "TQwcpH6zW9bVNYfVJmLN26DUSCzTJcSR9s",
    "TQyPpQKd5UzRvwXzaKqL7DBBiMBQQHqdN5",
    "TQzY3RZUAfowaxRDjQKLqXNqkmTW14t7ZH",
+   "TR1hZQeXyYpME8cpqtFfpiZrUn9jKeGMLT",
    "TR3zjK9kbX1x6M67ubQGfawU1z9BKmM3ZR",
    "TR43xZo6FXSiMxyLD6qGQTmjdSPqxjrnUo",
+   "TR5vjrSJciYfKdF3kCCWn1Q2pofK8Zmu3i",
+   "TR83TkUmXG9MUPLdC4b1Grcwc9rHaKavVi",
    "TRACqMfpRq7NchtrFtCwqHuYztr9rChGNS",
    "TRDnt6NFUzXbBcsg7bL7iJguNS2z9zbzDj",
+   "TRG9EmUMEvfbXTkRd4BV1CR5bXaxrgSSEY",
+   "TRHdPtNBz8kaX3ReZEq1prijAodeaDahGj",
    "TRJ7x3sFxa3oi1cufPRdMGW6xi2SkiBeM3",
    "TRP8bmSiVyTqFWgtGv7Dz44tNQTjb6aevF",
    "TRPGbh3t33ZX553jgoqmypBgUCSaENNPgP",
    "TRPX6NmDd5H7htRW9txF2hMwuPbGRSfpdf",
+   "TRSh1DFGAPrfwPrERnG1xjX8xiR9QGSugX",
+   "TRUokTzGsz2Nxy54e58urRFKS8noVSRcBa",
    "TRWJUG9f31JSDMsNo6SvG5sqzYWJCwxhgZ",
    "TRWny9qCPhuFTqQintRGwBQ2sfKCFaExxT",
+   "TRZ4cyayjfXULkAraWHdrT3zBCr5AgHaYt",
+   "TRZU1yGFedLLEP1Xy3zqBQcUZuF8imy82C",
    "TReK65342QCMSNSPEHGoyZoZ9iRR1R9ayv",
+   "TRgPnjKSN9NXhJ8Xf2WpsgnEM4hxdhnekb",
    "TRi7JHh2tsjMVtjha56jVYnokbTHsB5M2M",
    "TRiccwsfhjuVN7HmVh81BD868eBb2ik3gg",
    "TRj6oebS6DneV5rSPxNrMy8UXQwcq4qqdM",
@@ -320,121 +594,270 @@
    "TRoyMvZ3zGec6XuaeddyDukL3sjFsZFhep",
    "TRqhVHp7zXDHAnK81iucPk7uXPXvcjgd1q",
    "TRr6EDGfLVxDiSdDMRa8scx3fr8vkNCsp3",
+   "TRuL75mNWWvF8FvRreskbyfT724m1DssNe",
+   "TRvVqTQCvimiP3SqS3hP2N3GR3yYpsuhhj",
+   "TRzxk7ruPkuWd8tpVKZCKHiNgtpyd8trh5",
    "TS2DeySatEuWJRTqeQSnXw1q16qtr2uDPG",
+   "TS2YZpviwctX7ycMTLqGn7DgaqkDgKanzM",
+   "TS3Hb7owSE6wxn4Enj8kHGhEuZiJcjJ838",
+   "TS5h448S1xPhbG44RhFS1qvUMJi6tmE3tD",
    "TS7cEzW65KRt8TBGh3nqovvZpAc7RGKG2T",
    "TS8XrqmHpggtWzFC5QuBghNiC7yhBENgjv",
+   "TSA4NALhuU1TMDgezkmajqGJgJuvkvsmFs",
    "TSAZ7gMgpZUPpj9uAa7vv1EX5MLFxA9opC",
    "TSBLcTngVSw9MkyCLSy6yUtpQhUHx79sPx",
+   "TSGQC5qiMQvkDUr69H3YjVb3VB9qQQF9fF",
+   "TSTtc1zYPvBRM8SvZwTRCXz2uJcTrLH2VP",
    "TSUDrUeFfzhygQqrmHASbawunC6rWjUQYU",
+   "TSZGmxBLjMR8hPg1qz6Gydv7oEuPxXXmCo",
    "TSZWcnp5rL9iUzEMRgk1P8v7E9SXegMKyC",
+   "TSa1DAqrpipgtD4twcko8sgMjgMBzTLa5V",
    "TSb9em9dPZAeTjqTCyqPL21JJuVu1btZQ9",
+   "TSfVyhaBPrg7y1XyFpsRaDqXGC6zu8Ur5x",
+   "TSgavtfMY4akU7ihknUg6QKvLnAyLJkgGp",
+   "TShGkNpB8tx7vbWeWpPCao12UZNF7LXVxE",
+   "TSieUhm7u9ExRUVY3XjPNQ41LFYRRNDyaV",
+   "TSkrHMRWr1RF66GYFGUBof931N7UKAC7Vb",
+   "TSp4kR79LKxK3HLUsfope53vhExT8Gj1QA",
+   "TSpRe3kCh6A7qfqBn6o2Vqiz9iYmBmE2mG",
    "TSqsZ53nNJuCd7yzG95Vdv6Kjj1Xomgc6J",
+   "TSrbFwCF1eSYy7rMCL136RPfyv2ZezTro5",
+   "TSsTKQxMnFcLmByBm7EruKsBXyCUHU3mez",
    "TSsgTGpWrYqbzs1NPZ63oVe8yTQmB8wGdx",
    "TSttzRFXmmZrw5fxCF7dxTACwvNQu24Tqw",
+   "TSvKAx3akjprBFjHUcWVFBp3sEWC5muo78",
+   "TSz1iWkVUhWcYF7bv9UgNjGZyjEjjBkYep",
+   "TT2c5RQG53wJ2s5a2F4e7YtTkiG1ZSgLt1",
    "TT5FcetQDJFp8fuQr6TStYYa4q38QDtAwg",
+   "TTBEGDyvxV1Lrwbi898q3TBuYf5JLcijtF",
+   "TTC3JWqKRtdVe4wb4PVQiAwoSPVRrWT5SZ",
+   "TTFWDpk1QQWjDsjvKTZgu8Fmmf5VCawHio",
+   "TTG5fUDgd2gs2KTqDNeCmJH6w3piVtcdXb",
+   "TTGFY9r2hoo5uKn9iN317338t1zVyR1G8M",
+   "TTHN4zM4RyeBHbhxgcdyBTYEEj6PJ1YzxT",
    "TTHfeeWr1Mtp1qzyxps2yEWkL7J7VeaUJT",
+   "TTJz7fmKDYHzmMqdrNkLmgemiDBqZxs7of",
    "TTKL4sauTULxV275ABD927xgxYXdqKLznt",
+   "TTMEUkVN8gGt2Tohq4umjbENKvosB7n9qU",
    "TTMKGas4Yqzrzkc58S3G2eQauGqjwaSo2F",
    "TTNhf7R4ms4aDfgiEzAD2sn3fWfZhxGxt9",
+   "TTPfHRDbBqX6aDXQj26U5o3PQ6JtN7HCM9",
    "TTUJ4yfZPrLVqD3Uiiv2KLxgSuDZaz7ynf",
+   "TTV3R4WU91uTrkbtF2cJohSjC8nzmeRFeg",
    "TTWpZ8waHDsg4XM9oGbbLG3TfsLCaRNhG3",
+   "TTXBMnNmYeHyKD5HpnxKCakJcTUTSAV9SD",
+   "TTXh7xo4wKCzQzEDQn9LzvUGrwQkyVFKhc",
    "TTY165UGJkxnWr9fTL9HFo3HLUb9NLwVNa",
    "TTYCn6y9Fs2d6uxDTjZLTG5JgmJJ4WsuGg",
+   "TTYH3JCP6tSg7j7LpFUcC5giBJVfTAGdtL",
+   "TTYgdeFHf8BMW8YVhuy3fY69vcMCuLzaaQ",
+   "TTZmdpTzUM2NTTPULuR2rB32RmmQy7wH7G",
+   "TTZutN1q6QrCHEfbrFFogDwSnmLJzKhfYS",
    "TTaBxWYasHyxkWS8bRryRAGHFMjKCwy6sS",
+   "TTcP3M5KAdx85wNgFmv6bS9xAFFgwT28Lu",
+   "TTcothjSjhk4ekRK8cTt97SFGwtbZfU3aM",
    "TTdJ6AvSgpzL8MVZBpwAk9i2LnMV9dZAk7",
    "TTgropnsXv5582AmsAxYdywihzmaZc3Qrj",
    "TThEioh1aGfZXRaxgaVQjV3MVzxQz8gJ2P",
    "TTiHAD4yoWiwzoAwvhJjPRMCL7i2dBBrRR",
    "TTm9738779bmiZarQPiV8sYcYNqS35phrV",
+   "TTmV8dxNZmnmSvV84big1i3bMrf9oz1m2A",
+   "TTs6wH3C2BwUhRXRtPcayUfDgWvs99F4oP",
    "TTs79aAci5dDNFNynSzqZS7Ea2iLjmZeyC",
+   "TTvBmGRPFt6MhQwELD8QkKjE83XPYeuRwt",
    "TTvKPxkfJA1gXkpEa3XiNtSx1PoioqCdQf",
+   "TTyo8V8mG6M1gU86hgJ6pwuuW8WntVWbbN",
+   "TU3GbT1BSJNgvR6QnWZjqUT5iJRBL3sw2e",
    "TU6tdjfii7YpQiaEzsMuEhhXjegWsKV7M6",
    "TU7MG9suMYMKrxKahJmabyaCSe5Ncg2PYF",
+   "TUAXNGo9smVDSfiihQWY8JtKn6A77sRood",
    "TUAc9QjxynpZuQHaG5TKCEqtuZSBxVpcng",
+   "TUD1z6cbcujHe8f1arC8eL64g5V8hZdffZ",
    "TUDBZ9P9xWeYSrZSy2scZShyyRVWkTdvuE",
+   "TUDwqzkt7AXE5Mb72bF7TXbHX9DNjgvuW6",
+   "TUE3q2baHzEm53eAht8YMrqxsEni13soVw",
    "TUEivgsXUexCKNVfckSxYCunCWaw2foqja",
+   "TUGJdwgWFAGq6qgrdd5UBym8EKhNV3h3eX",
    "TUH7qmwgrzb2DCBnVA1HyERfy17uRRYkPF",
    "TULvRtNsTXnRLRXkhQxXHx3sYn9c5sFSA9",
+   "TUPDSRY5846dMFQuS6PoKoeSH5qRUvB5tV",
+   "TURnHp1MYKyKdQ3rynpmhNpQuGkC5jUMys",
    "TUWj4sdaVg5S3T5REuEUT3z4RX7fsMH4kH",
    "TUWwBhSgV1Ee8hPLicVr1CLGvQtFN7RtM9",
    "TUX3q8Z8GwJLkfGcz8PgLnwchRQ5nFugpi",
    "TUYb9HdJrCDeWiCrBiErk4BP1Z86qWBvAn",
+   "TUaNcZJiqGkKfPBXWGkHsPDE1FzhnjYS9b",
    "TUeED157AnPQSUiQUawRckQYkJ5kVBfNGr",
+   "TUhA8uPRdHkNDLh9P4BTFQ3WzxkWruR7nL",
+   "TUhhY9anH8TDweqSAUswPgaaTRrpyWpbEe",
    "TUjtqnMH4xDrn98cb7HG7BKpfFbZEWmr1C",
+   "TUmDXAAJ3VKKND4ahW82qkLK4AEgkfJ7BV",
+   "TUmNg4EiwojYUKdWcoQCPBxE1UWaQVZcmK",
    "TUmNkPb3MYTzBw9cC8ukeGcgr5WHx33PUG",
    "TUnZDxwCjDSdNixCCp6aH1M2Ldyj19PJTr",
+   "TUoCJBThMtsWdequ9WpoWDEpgwbw1Kz9qT",
    "TUq4fRBVwgcgL2xa1fE9GifSZqnyNZf8x4",
+   "TUqGjwMzKZfFfG1Y5eAjeRF7Li8QcAArDP",
+   "TUqRh2fURobtozYUC2YYTcyKkVAE1n2mmn",
    "TUquYPuBua2zBtvK1yHJbDLNo9twrjEA4J",
+   "TUtQVUqwc39WWqHPyiUhcrbu5RLLY8Rgsn",
+   "TUuEkRh1jGLkdTTA9y179w56VgbjBQNzkm",
    "TUvgu57RusCTcGFWkMWZ2E1c3yXtqr9hUS",
+   "TUyXcPujsTCYtHztAKwY5TKTqPVEgdjwh4",
    "TV46UzAu6VjNnLB3kh7J9rUo7Lx5qFL2gc",
+   "TV4mkbamVzKRu5iYUX3hmSbCD2NiMboCi1",
    "TV8fncfFMnSZ1Ak3G9c1DU5MCuQGJUHD6w",
+   "TV98eqaLhKzcomBKBi6SLiLwnG79AjzkUW",
    "TV9jE3XGYJb342dNek7TBLJ777qYJYzpNx",
    "TVACmi4BXkGz6hVoax83GsPzExy6rmVuwb",
+   "TVE2Tkwb1222XMzhNKWRC9N7zTyjbWQLka",
    "TVKVTEfTaFP6ewYhQs64aF6EmuqvygXPmv",
+   "TVL8NdDSkkz7MZN9gm9F6ztN9eHvwf19j9",
+   "TVMC3X5NZEw173j1cteXAPwiJmTmz5YH1r",
+   "TVNHsL3jSNzYWaj2VHjgrFaKUHzSTSW6HA",
+   "TVPvd9oYXoF3TCwmvohf6vtRrJac3VLLry",
    "TVR4GtL6mkkPEfWyFyzUq62LmYF6pp6fX2",
+   "TVS7V6q9nMpXzKF9KqrafL7u4eTbzdc7a9",
+   "TVUdkkvXMH49VnfGxjX8oWDJzvErvqMJY4",
    "TVYjLwoUEvTBte7XWLRTcSeybQAB2sWg75",
+   "TVZgYtQ2cbCyiytondz6Q3z3BUAHjD69T2",
+   "TVaAPjJ55WdQ8Qya4RjFKjXJ3rJGQFUbmn",
+   "TVcpSNQPzddjjLQc8bRXJcyjj3xmmzaTiB",
+   "TVdasdPPquAh2ANcmFmaZFjz4sMJ3xUiWj",
+   "TVeTxDKLZNfNAH5VQoWBa1FqjDhHMbw6pB",
+   "TVfxaDdD2KA7RPYrNEveWybJANL1LKs7E2",
+   "TVgMQGvpWpqHJBVdyQfphB49h8PtUugDdh",
+   "TVhvjsZ22eDMCBvezjuprGYqGhmoaidRay",
+   "TViX951NWzJTFH4xtHqXf81RoGM8nTT6X6",
    "TVnfwVHybkfwRsG8Bv8t7qJrdQXG9FB3Wh",
    "TVnjofZ6EGhKVuaFsw38E4c5fN4KVVH7hQ",
+   "TVo8nLuMWEnpgsV77u1QJmEegBykaU3KfC",
    "TVsTHpc6i1MczScTwSuzrMuiJrgWVJggBe",
    "TVuYbcofzKX3JPFxUc7CDeHdhYHu3HCXgJ",
    "TVvUE8eLn8Wwo8N81kcQjmrPNwqPhFZCGN",
+   "TVvetCoA7XoFGpgSoVPwpWrPPKwjUvBqJm",
    "TVwxnomQGq5sB2oYDmZdcUqy6xeLH3zHaA",
+   "TW48yQXjQSJmw4Qfu2HDsV7M7VC8mYe1HK",
    "TWB4zF2qBuxdzF3L9fSKnZtiF563JtRDft",
+   "TWCnA4WLLPsReg53T9mWS3X33szwLqSfdt",
+   "TWGgohj1Nh1CuSf3pyFWw4dvTbDY64KLux",
+   "TWK7GiMjVR7HExFipc5EWDk5dGBie6ZPHP",
    "TWKk4xLJijb28sewNa83e15YEj4U25wbca",
    "TWL73VUvEwobs8oLkM4BGTPrMTL1hDo181",
+   "TWNdxjNaijta56zXhuVQ4PJyeX8aFDzoNo",
+   "TWPHP433xfsVf69vLHkwnQibeGnqBimwSc",
+   "TWPcXyi9EWc2ALCafJ966Cp6ECukUSrFD5",
+   "TWPfymK9yLESZpwucPjsA7Fj7HP16tKbP9",
+   "TWQXJXmcZoSns5C1vqJYLr7AnPTqUF7Eji",
    "TWRkjWCbxKRTYd3g95bpkRegnmhkBj4pgC",
+   "TWRkonABZ3j53Bsw4yW8HpXao3QGfhNoZd",
+   "TWSWNu9U5mkJgjXU7vYYystToofVimpt3F",
    "TWTBNLaDe7n7kSLv19Ujv2KsWBBFyjwGjS",
+   "TWTcrDmyZhrJG3HVgmZyzmStkmRMkCttqH",
+   "TWV4VJZZhnfyH2skUhDLVmNzevHjGMTfoH",
+   "TWVZYrheaYwG3AHBqxesCVCbwnvbRC8AMF",
+   "TWZop2eYXjGSVoLq6kLTUcVTpZY7jVSnsz",
    "TWcbp74yaddDdn9mrugFaQ3MXPWRhQ2mbk",
    "TWe8oqWmR3YJJwGieKJHUry3S4FTS4d9H8",
    "TWedjeTaSumrECiL8AMNhFRiAAchguh5zR",
    "TWiu34WB8cYPgZGHvTUAKELdfXiFDJM87C",
    "TWjJGXpaPiBNaBWxi2fuDSgmZUwHi1GQxo",
    "TWnmExeR1CrnNyySKYoG9bd1pXrUP7LPqx",
+   "TWqS4yTxfZ8Bm6ubXcVDM1LPATrLed8G9x",
+   "TWrsw5wyacGyQDBkNvQkvppvKTBGpCf7Pg",
+   "TWsuMbknzWGM7wecDyHZxZckMmVdewdZmT",
+   "TWvEUreExQdbdLK2ei3a3i8CyQsT11VUUk",
    "TWvM9tEyGUzKhA9rd7L7gp2n7AscZPGqrC",
+   "TWw533ewGSYz9ogPzCxF5MALuSZsTYZjjj",
+   "TWxaTvLBTuCACtoGa4vs3fkXbVHQthUZMy",
    "TWxxKUukQCDtKfdp3dZVToMaXmuiUiizzi",
    "TWy16Wd5X9oiAMUgH6CWeXSVDS9fuhSwL1",
    "TX1AXo7rsi16KiMyU5oMYGvSsotsRtU7bu",
+   "TX1XxuS7cHPS4yHuXrU6xhBRvMK33eMhRz",
    "TX9Cp5LVDP4yNm8KqRrC4dEtX7NsHYxjpx",
+   "TX9kyNAsF6Wq6ELRWSdav8CYHxxeivgs7K",
+   "TXB8FmRW7TdaQc48vjbTv4hBe5K4EpxCqX",
    "TXCYW5DVRcrZYrnMuHWEuDXMT39YWAQZvP",
    "TXDxYK4PMcRhd4FwTufduXN6ipAq2N2tda",
    "TXFj8KpbFkSJCTqkfRCZVqLpvmj6XLB8pj",
    "TXGfcMPUUpF55hUrVi5WpTDsKsubdpX7ED",
+   "TXJWXtde5PpvYuuYydi7p2UdZfGLcrUtzT",
+   "TXMCuB5q4RHnNnd1P3W7LaPsqEySQqnKuC",
+   "TXNxR99aEdeU8rsyqcZiEiy4QHL21HpMCE",
+   "TXQobhWv7hNAixdsEcWJfJUZLXvccw7GMB",
+   "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
    "TXU3LgfBmBaiHZ4UWnuANPJCmFssUrF7z5",
    "TXUKpeLbVs7vAG8rbsKYi17kBneFQMsF8V",
+   "TXVckn6wiNnDgt5GQxsZisLj6cKHKFznai",
    "TXVd4owVBMucMYE8Ym3F3DQgfLDWr3pmoG",
+   "TXXTGH1i2NS78JKHhyyaikzX8cyP5jxjhr",
+   "TXXsDmMtq8BTyt4qJohwL3cy55Zx8Xt1uU",
+   "TXZYpzXB5ZWXQMXgmdyVTY1Y61JXnY58aB",
    "TXbyJ5RgjgfsVqt7vbkPKyUmtpSrr4GRid",
+   "TXiQqpcSbbr9xQUe4ereRcVbVoxZuSGrMy",
    "TXiYkcEJPG7NnqRmHpEUrZda1D5AdWggAL",
    "TXj19k9dbAQk6CwggucdrkdyXNRKmjMLgH",
    "TXjFjBHnL9C2xFonwJvkct88AiUUoSz796",
+   "TXrrUPSXiHZHDFL54pSBuGFnF76roNdjdw",
    "TXv2j3kFoxBjFMVxaFXNerpwZZafzBMg47",
    "TXvE52shmzFJJaXeEUQmYKSa1z2QTjaNfC",
+   "TXwcM9LJsJi3YyHrhTynka7sNE7KNrsMn8",
    "TXwnZzuLTv4163H6m4USE45sc7VxJEDgKm",
+   "TXz1LTYk6bJccQ61FGeLq3tJkPjS4A7cZi",
    "TY3TT77MKLXar9mDp74Lj2BSnQVcR9SWJJ",
    "TY43BmVCBVDUeJQ8YJ1FuTbbxjfAmp4eJL",
+   "TY43n2fYZ4yx9mBXzEhTW7j7E6M4DRRLzi",
+   "TY4okoiHe2mLfLsxaJ3LCAM8B8etdm6tSm",
+   "TY5MjCCe8MFfWHgbyvv9Md2SMXfA5Hfucu",
+   "TY6cGHNNzQ4Ffes8MqMFGbC3VY3vxw4DLd",
+   "TY7AGhG4PyzuHkizaxunQuZMQ8QoNWvPk4",
+   "TY7BmjBeeafWyGD1x1JvSyz17EvFah3SfK",
+   "TY7t76ksvVoCLUmoE8wtXrzFqzRYN5bu9i",
    "TY9Tp3VeY55JV7b2pyLBAnAwsmGRAbFcoZ",
+   "TYADoABd2u8gq5Wuy8mdMz4kqXmwJi65Zo",
    "TYB8riyxb9kdgCVehyPq3Mu6cB1a3tbvfg",
    "TYBGKL2jtvdPfxAhYT9ELYorMc2gm8qpFQ",
+   "TYCy87f7Va1qNi4XiYdCQRFpBp24J1B3nM",
+   "TYEEmqjVdXxJXrAsniwJisshFC3xtiQoYV",
    "TYH8caV66StPiCAmkiAhLf3wNxwXfcJjxa",
    "TYHGgyPZLD2Ltexnqasub5pWp5BrLDXtYW",
    "TYMCaip8L4iAnzDft9k2rstXbrNP4bbYfn",
+   "TYPeDerPWxeEhfsoYu4vzXcWpauE1knLQV",
    "TYT64rRRLgu5MNGZ531yxoVawGqXGKHKMV",
    "TYUBjaeHJ9sdghtrQim9TgU4UtxeyJAy5f",
    "TYUn5AuqfL7TwiQwywEum7gqcvaf2Ef4NL",
+   "TYWdJ5qW6M9FQKBCSQRfpFS8f3Zx7zz5U5",
    "TYWeKijM25Pk9MjqGjRYnsD1WZ9byDpNKh",
    "TYYsE47XNENgyxz1q7jaQjAvVmUk8wCYUf",
    "TYaoM31JYww2BwBGuFxJGp2yb43kN4Bypx",
    "TYdBbvHLCdWZLKAnuxnSYTUXb5V8dSweec",
    "TYeSAnT9Rqfa6FKpRg1t4yMr1cUZdKV1Q5",
    "TYepMSj5kdAei4Xbj9whA6AUCkWhvspg6y",
+   "TYfVvnsDKWY1oNY74FfK4he2x4hFYLcTDn",
+   "TYib7nUwCwnLKxMsztQPbxYWe9V2qAWB7U",
+   "TYimJbsFGDXLb9pq2Zq3KLmTgpa1swW5Pq",
    "TYimXEh5J7PYebVzQQcuckcCr1QSKy1it1",
+   "TYjuCCD4zvcyXxCi6NgqRSXyCKUgLTWZSj",
    "TYn4y3PMYXmS1eQpmmhw89nwRovjj7EYmd",
+   "TYoJHeXBdpAqNA5oLGzXAVVLx8qrNAayMf",
+   "TYp9NEjquSzg14vciQLCZ7cxrDevsdsU8g",
+   "TYs1MYk9SgpvorPYGfRBrpYi6f79BNySA3",
    "TYs9py84RuzUA4xghc2psuDK9nVcRH8Mg3",
+   "TYvUhU9rQJCDfk3vAPPfkNVfHDqQEjj3iF",
    "TYvvtKNhPRWW2rsS7AoX4HZgPWvY65f8X7",
    "TYxjWnCUk3zN59ErRVvNGeSVtZY984Bu65",
+   "TYyva31tMgj1PoZL5nQFbpPDQSUyNuv8pE",
    "TZ1Bi9FCuPS82LMEgHoeec4etNZ91Gvihy",
+   "TZ1gpZcYs95LnLvBc5z6jfUR58q9CKWRTf",
    "TZ3x4o9DZRqi7kbcDmHGHagQzVdWGrZHQ1",
+   "TZ5yyoRidZuGMRGVYus9KaBwZaPv8JgNEk",
+   "TZ6XgtzeQpCYcfvX8RYMvZ6Fn8hBh1G8Fm",
    "TZ6hDhzyKjD6RYYw2rmngYeoMr8yGQSYSE",
-   "TZ8cUTwtxY4TDD7zY7uPFZBSHZvjDRYar6"
+   "TZ8cUTwtxY4TDD7zY7uPFZBSHZvjDRYar6",
+   "TZAjVkeN7jWL1s6wQnQKTiRmKpitdtA4Dq",
+   "TZDmX3XpobWWWNqXKKMU6GWK5vDH4dGmSc",
+   "TZG8pM3eCvGLB21AmHfzVwJLN6ynBwZveS",
+   "TZJKRDRvFgLrj1BsQfEDdHddamm4rKEVt4"
   ],
   "constructed_fixture_addresses": [
    "TJCx4A1XzNvy32sqbmi86xcURjRi1Etver",
@@ -480,7 +903,8 @@
     "history-zero-holding-token",
     "balances-holdings-filter-matrix",
     "balances-inactive-account",
-    "balances-many-tokens"
+    "balances-many-tokens",
+    "pagination-holdings-endpoint"
    ]
   },
   "discovery": {
@@ -501,8 +925,43 @@
     "history-multi-page",
     "pagination-offset-cap",
     "pagination-time-window-semantics",
-    "pagination-ties-and-block-filter"
-   ]
+    "pagination-ties-and-block-filter",
+    "pagination-trc20-endpoint",
+    "pagination-internal-endpoint",
+    "pagination-holdings-endpoint",
+    "synthetic-pagination-coverage"
+   ],
+   "endpoints": {
+    "/api/transaction": {
+     "status": "verified_live",
+     "cases": [
+      "pagination-offset-cap",
+      "pagination-time-window-semantics",
+      "pagination-ties-and-block-filter"
+     ]
+    },
+    "/api/token_trc20/transfers": {
+     "status": "verified_live",
+     "cases": [
+      "pagination-trc20-endpoint"
+     ],
+     "limits": "No live saturated one-second window; stop incomplete if subdivision cannot exhaust it."
+    },
+    "/api/internal-transaction": {
+     "status": "verified_live",
+     "cases": [
+      "pagination-internal-endpoint"
+     ],
+     "limits": "limit=100 truncation not proven by the 17-row sample; always request documented limit=50."
+    },
+    "/api/account/tokens": {
+     "status": "verified_live",
+     "cases": [
+      "pagination-holdings-endpoint"
+     ],
+     "limits": "583 holdings across 200/200/183/0 rows; offset >10000 is not proven. Refuse a partial snapshot on unresolved saturation."
+    }
+   }
   },
   "identity": {
    "status": "partially_verified",
@@ -7535,6 +7994,964 @@
    "expected": {
     "retryable": true,
     "rule": "bounded retries using the shared retry limit, then RemoteError; cancellation must interrupt waits"
+   }
+  },
+  {
+   "id": "pagination-trc20-endpoint",
+   "title": "Independent trc20 endpoint pagination and filter probes",
+   "origin": "live_capture",
+   "gates": [
+    "pagination"
+   ],
+   "tracked_accounts": [
+    "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH"
+   ],
+   "exchanges": [
+    {
+     "role": "reference",
+     "method": "GET",
+     "endpoint": "/api/token_trc20/transfers",
+     "auth": "api_key",
+     "params": {
+      "relatedAddress": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 0,
+      "end_timestamp": 1790947990000,
+      "limit": 50,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:35:10.883257+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-trc20-endpoint/01-reference.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "page0",
+     "method": "GET",
+     "endpoint": "/api/token_trc20/transfers",
+     "auth": "api_key",
+     "params": {
+      "relatedAddress": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 0,
+      "end_timestamp": 1790947990000,
+      "limit": 2,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:35:12.326117+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-trc20-endpoint/02-page0.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "page1",
+     "method": "GET",
+     "endpoint": "/api/token_trc20/transfers",
+     "auth": "api_key",
+     "params": {
+      "relatedAddress": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 0,
+      "end_timestamp": 1790947990000,
+      "limit": 2,
+      "start": 2
+     },
+     "captured_at": "2026-10-02T13:35:13.448147+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-trc20-endpoint/03-page1.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "whole-second",
+     "method": "GET",
+     "endpoint": "/api/token_trc20/transfers",
+     "auth": "api_key",
+     "params": {
+      "relatedAddress": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 1786003560000,
+      "end_timestamp": 1786003560000,
+      "limit": 50,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:35:14.719876+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-trc20-endpoint/04-whole-second.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "fractional-second",
+     "method": "GET",
+     "endpoint": "/api/token_trc20/transfers",
+     "auth": "api_key",
+     "params": {
+      "relatedAddress": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 1786003560999,
+      "end_timestamp": 1786003560999,
+      "limit": 50,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:35:15.853188+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-trc20-endpoint/05-fractional-second.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "after-second",
+     "method": "GET",
+     "endpoint": "/api/token_trc20/transfers",
+     "auth": "api_key",
+     "params": {
+      "relatedAddress": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 1786003561000,
+      "end_timestamp": 1786003561000,
+      "limit": 50,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:35:17.265711+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-trc20-endpoint/06-after-second.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "empty-window",
+     "method": "GET",
+     "endpoint": "/api/token_trc20/transfers",
+     "auth": "api_key",
+     "params": {
+      "relatedAddress": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 0,
+      "end_timestamp": 0,
+      "limit": 50,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:35:18.893706+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-trc20-endpoint/07-empty-window.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "start9990",
+     "method": "GET",
+     "endpoint": "/api/token_trc20/transfers",
+     "auth": "api_key",
+     "params": {
+      "relatedAddress": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 0,
+      "end_timestamp": 1790947990000,
+      "limit": 50,
+      "start": 9990
+     },
+     "captured_at": "2026-10-02T13:35:20.332046+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-trc20-endpoint/08-start9990.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "start10000",
+     "method": "GET",
+     "endpoint": "/api/token_trc20/transfers",
+     "auth": "api_key",
+     "params": {
+      "relatedAddress": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 0,
+      "end_timestamp": 1790947990000,
+      "limit": 50,
+      "start": 10000
+     },
+     "captured_at": "2026-10-02T13:35:21.442031+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-trc20-endpoint/09-start10000.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "start10001",
+     "method": "GET",
+     "endpoint": "/api/token_trc20/transfers",
+     "auth": "api_key",
+     "params": {
+      "relatedAddress": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 0,
+      "end_timestamp": 1790947990000,
+      "limit": 50,
+      "start": 10001
+     },
+     "captured_at": "2026-10-02T13:35:22.556653+00:00",
+     "http_status": 400,
+     "content_type": "application/json",
+     "response": "responses/pagination-trc20-endpoint/10-start10001.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "limit100",
+     "method": "GET",
+     "endpoint": "/api/token_trc20/transfers",
+     "auth": "api_key",
+     "params": {
+      "relatedAddress": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 0,
+      "end_timestamp": 1790947990000,
+      "limit": 100,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:35:24.062415+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-trc20-endpoint/11-limit100.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "empty-positive-window",
+     "method": "GET",
+     "endpoint": "/api/token_trc20/transfers",
+     "auth": "api_key",
+     "params": {
+      "relatedAddress": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 1000,
+      "end_timestamp": 1000,
+      "limit": 50,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:36:23.996908+00:00",
+     "http_status": 400,
+     "content_type": "application/json",
+     "response": "responses/pagination-trc20-endpoint/12-empty-positive-window.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "empty-subsecond-window",
+     "method": "GET",
+     "endpoint": "/api/token_trc20/transfers",
+     "auth": "api_key",
+     "params": {
+      "relatedAddress": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 1,
+      "end_timestamp": 1,
+      "limit": 50,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:36:25.107683+00:00",
+     "http_status": 400,
+     "content_type": "application/json",
+     "response": "responses/pagination-trc20-endpoint/13-empty-subsecond-window.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "empty-genesis-window",
+     "method": "GET",
+     "endpoint": "/api/token_trc20/transfers",
+     "auth": "api_key",
+     "params": {
+      "relatedAddress": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 1529891460000,
+      "end_timestamp": 1529891460000,
+      "limit": 50,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:39:06.962865+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-trc20-endpoint/14-empty-genesis-window.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    }
+   ],
+   "expected": {
+    "page_lengths": {
+     "reference": 50,
+     "page0": 2,
+     "page1": 2,
+     "whole-second": 1,
+     "fractional-second": 1,
+     "after-second": 0,
+     "empty-window": 50,
+     "start9990": 0,
+     "start10000": 0,
+     "start10001": 0,
+     "limit100": 50,
+     "empty-positive-window": 0,
+     "empty-subsecond-window": 0,
+     "empty-genesis-window": 0
+    }
+   }
+  },
+  {
+   "id": "pagination-internal-endpoint",
+   "title": "Independent internal endpoint pagination and filter probes",
+   "origin": "live_capture",
+   "gates": [
+    "pagination"
+   ],
+   "tracked_accounts": [
+    "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH"
+   ],
+   "exchanges": [
+    {
+     "role": "reference",
+     "method": "GET",
+     "endpoint": "/api/internal-transaction",
+     "auth": "api_key",
+     "params": {
+      "address": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 0,
+      "end_timestamp": 1790947990000,
+      "limit": 50,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:35:25.247561+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-internal-endpoint/01-reference.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "page0",
+     "method": "GET",
+     "endpoint": "/api/internal-transaction",
+     "auth": "api_key",
+     "params": {
+      "address": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 0,
+      "end_timestamp": 1790947990000,
+      "limit": 2,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:35:26.372508+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-internal-endpoint/02-page0.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "page1",
+     "method": "GET",
+     "endpoint": "/api/internal-transaction",
+     "auth": "api_key",
+     "params": {
+      "address": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 0,
+      "end_timestamp": 1790947990000,
+      "limit": 2,
+      "start": 2
+     },
+     "captured_at": "2026-10-02T13:35:27.488703+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-internal-endpoint/03-page1.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "whole-second",
+     "method": "GET",
+     "endpoint": "/api/internal-transaction",
+     "auth": "api_key",
+     "params": {
+      "address": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 1723827468000,
+      "end_timestamp": 1723827468000,
+      "limit": 50,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:35:28.612478+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-internal-endpoint/04-whole-second.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "fractional-second",
+     "method": "GET",
+     "endpoint": "/api/internal-transaction",
+     "auth": "api_key",
+     "params": {
+      "address": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 1723827468999,
+      "end_timestamp": 1723827468999,
+      "limit": 50,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:35:29.905849+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-internal-endpoint/05-fractional-second.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "after-second",
+     "method": "GET",
+     "endpoint": "/api/internal-transaction",
+     "auth": "api_key",
+     "params": {
+      "address": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 1723827469000,
+      "end_timestamp": 1723827469000,
+      "limit": 50,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:35:31.029506+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-internal-endpoint/06-after-second.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "empty-window",
+     "method": "GET",
+     "endpoint": "/api/internal-transaction",
+     "auth": "api_key",
+     "params": {
+      "address": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 0,
+      "end_timestamp": 0,
+      "limit": 50,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:35:32.434397+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-internal-endpoint/07-empty-window.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "start9990",
+     "method": "GET",
+     "endpoint": "/api/internal-transaction",
+     "auth": "api_key",
+     "params": {
+      "address": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 0,
+      "end_timestamp": 1790947990000,
+      "limit": 50,
+      "start": 9990
+     },
+     "captured_at": "2026-10-02T13:35:33.551385+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-internal-endpoint/08-start9990.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "start10000",
+     "method": "GET",
+     "endpoint": "/api/internal-transaction",
+     "auth": "api_key",
+     "params": {
+      "address": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 0,
+      "end_timestamp": 1790947990000,
+      "limit": 50,
+      "start": 10000
+     },
+     "captured_at": "2026-10-02T13:35:34.685049+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-internal-endpoint/09-start10000.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "start10001",
+     "method": "GET",
+     "endpoint": "/api/internal-transaction",
+     "auth": "api_key",
+     "params": {
+      "address": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 0,
+      "end_timestamp": 1790947990000,
+      "limit": 50,
+      "start": 10001
+     },
+     "captured_at": "2026-10-02T13:35:35.799045+00:00",
+     "http_status": 400,
+     "content_type": "application/json",
+     "response": "responses/pagination-internal-endpoint/10-start10001.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "limit100",
+     "method": "GET",
+     "endpoint": "/api/internal-transaction",
+     "auth": "api_key",
+     "params": {
+      "address": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 0,
+      "end_timestamp": 1790947990000,
+      "limit": 100,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:35:37.277532+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-internal-endpoint/11-limit100.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "empty-positive-window",
+     "method": "GET",
+     "endpoint": "/api/internal-transaction",
+     "auth": "api_key",
+     "params": {
+      "address": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 1000,
+      "end_timestamp": 1000,
+      "limit": 50,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:36:26.235743+00:00",
+     "http_status": 400,
+     "content_type": "application/json",
+     "response": "responses/pagination-internal-endpoint/12-empty-positive-window.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "empty-subsecond-window",
+     "method": "GET",
+     "endpoint": "/api/internal-transaction",
+     "auth": "api_key",
+     "params": {
+      "address": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 1,
+      "end_timestamp": 1,
+      "limit": 50,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:36:27.443107+00:00",
+     "http_status": 400,
+     "content_type": "application/json",
+     "response": "responses/pagination-internal-endpoint/13-empty-subsecond-window.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "empty-genesis-window",
+     "method": "GET",
+     "endpoint": "/api/internal-transaction",
+     "auth": "api_key",
+     "params": {
+      "address": "TXTMT37UyN4nrdnCjdf7HWKDAYM4vn76pH",
+      "start_timestamp": 1529891460000,
+      "end_timestamp": 1529891460000,
+      "limit": 50,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:39:08.126693+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-internal-endpoint/14-empty-genesis-window.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    }
+   ],
+   "expected": {
+    "page_lengths": {
+     "reference": 17,
+     "page0": 2,
+     "page1": 2,
+     "whole-second": 1,
+     "fractional-second": 1,
+     "after-second": 0,
+     "empty-window": 17,
+     "start9990": 0,
+     "start10000": 0,
+     "start10001": 0,
+     "limit100": 17,
+     "empty-positive-window": 0,
+     "empty-subsecond-window": 0,
+     "empty-genesis-window": 0
+    }
+   }
+  },
+  {
+   "id": "pagination-holdings-endpoint",
+   "title": "Independent holdings endpoint pagination and filter probes",
+   "origin": "live_capture",
+   "gates": [
+    "balances",
+    "pagination"
+   ],
+   "tracked_accounts": [
+    "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
+   ],
+   "exchanges": [
+    {
+     "role": "page0",
+     "method": "GET",
+     "endpoint": "/api/account/tokens",
+     "auth": "api_key",
+     "params": {
+      "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+      "hidden": 0,
+      "show": 0,
+      "limit": 200,
+      "start": 0
+     },
+     "captured_at": "2026-10-02T13:35:38.657245+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-holdings-endpoint/01-page0.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "page1",
+     "method": "GET",
+     "endpoint": "/api/account/tokens",
+     "auth": "api_key",
+     "params": {
+      "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+      "hidden": 0,
+      "show": 0,
+      "limit": 200,
+      "start": 200
+     },
+     "captured_at": "2026-10-02T13:35:40.601354+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-holdings-endpoint/02-page1.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "page2",
+     "method": "GET",
+     "endpoint": "/api/account/tokens",
+     "auth": "api_key",
+     "params": {
+      "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+      "hidden": 0,
+      "show": 0,
+      "limit": 200,
+      "start": 400
+     },
+     "captured_at": "2026-10-02T13:35:41.913693+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-holdings-endpoint/03-page2.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    },
+    {
+     "role": "page3",
+     "method": "GET",
+     "endpoint": "/api/account/tokens",
+     "auth": "api_key",
+     "params": {
+      "address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+      "hidden": 0,
+      "show": 0,
+      "limit": 200,
+      "start": 600
+     },
+     "captured_at": "2026-10-02T13:35:43.139493+00:00",
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/pagination-holdings-endpoint/04-page3.json",
+     "transformations": [
+      "keyed-HMAC replacement of non-allowlisted addresses and hashes; private salt not retained",
+      "field projection keeps pagination, identities, exact balances, decimals and statuses; labels, valuations and unrelated metadata removed"
+     ]
+    }
+   ],
+   "expected": {
+    "page_lengths": {
+     "page0": 200,
+     "page1": 200,
+     "page2": 183,
+     "page3": 0
+    },
+    "total": 583
+   }
+  },
+  {
+   "id": "synthetic-pagination-coverage",
+   "title": "Compressed saturated-window, overlap, gap and retry expectations",
+   "origin": "synthetic",
+   "gates": [
+    "pagination"
+   ],
+   "notes": "Window outcomes summarize mocked HTTP pages for #10; not live provider evidence or a production pagination implementation. Actual offset cap remains 10000. Committed rows survive cancellation/failure; only a contiguous completed interval advances.",
+   "exchanges": [],
+   "expected": {
+    "start": 100,
+    "provider_offset_cap": 10000,
+    "saturated_parent": [
+     100,
+     109
+    ],
+    "split_core_windows": [
+     [
+      100,
+      104
+     ],
+     [
+      105,
+      109
+     ]
+    ],
+    "scenarios": [
+     {
+      "id": "split-overlap",
+      "windows": [
+       [
+        100,
+        104,
+        "complete"
+       ],
+       [
+        105,
+        109,
+        "complete"
+       ]
+      ],
+      "seen_identities": [
+       "a",
+       "b",
+       "c",
+       "c",
+       "d"
+      ],
+      "completed_range": [
+       100,
+       109
+      ],
+      "unique_identities": [
+       "a",
+       "b",
+       "c",
+       "d"
+      ]
+     },
+     {
+      "id": "cancelled-gap",
+      "windows": [
+       [
+        100,
+        104,
+        "complete"
+       ],
+       [
+        105,
+        109,
+        "cancelled"
+       ],
+       [
+        110,
+        114,
+        "complete"
+       ]
+      ],
+      "seen_identities": [
+       "a",
+       "b",
+       "c"
+      ],
+      "completed_range": [
+       100,
+       104
+      ],
+      "unique_identities": [
+       "a",
+       "b",
+       "c"
+      ]
+     },
+     {
+      "id": "failed-gap",
+      "windows": [
+       [
+        100,
+        104,
+        "complete"
+       ],
+       [
+        105,
+        109,
+        "failed"
+       ],
+       [
+        110,
+        114,
+        "complete"
+       ]
+      ],
+      "seen_identities": [
+       "a",
+       "b",
+       "c"
+      ],
+      "completed_range": [
+       100,
+       104
+      ],
+      "unique_identities": [
+       "a",
+       "b",
+       "c"
+      ]
+     },
+     {
+      "id": "single-second-saturation",
+      "windows": [
+       [
+        100,
+        104,
+        "complete"
+       ],
+       [
+        105,
+        105,
+        "saturated"
+       ],
+       [
+        106,
+        109,
+        "complete"
+       ]
+      ],
+      "seen_identities": [
+       "a",
+       "b",
+       "b"
+      ],
+      "completed_range": [
+       100,
+       104
+      ],
+      "unique_identities": [
+       "a",
+       "b"
+      ]
+     },
+     {
+      "id": "retry-closes-gap",
+      "windows": [
+       [
+        100,
+        104,
+        "complete"
+       ],
+       [
+        105,
+        109,
+        "complete"
+       ],
+       [
+        110,
+        114,
+        "complete"
+       ]
+      ],
+      "seen_identities": [
+       "a",
+       "b",
+       "c",
+       "b",
+       "c",
+       "d"
+      ],
+      "completed_range": [
+       100,
+       114
+      ],
+      "unique_identities": [
+       "a",
+       "b",
+       "c",
+       "d"
+      ]
+     }
+    ]
    }
   }
  ]

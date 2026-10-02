@@ -8,6 +8,7 @@ and that the contract invariants the integration relies on hold on the recorded 
 import hashlib
 import json
 import re
+import sqlite3
 from collections import Counter
 from decimal import Decimal
 from functools import cache
@@ -416,7 +417,24 @@ def test_transfer_identity_uses_log_indexes() -> None:
     assert len(naive) == 1  # hash+from+to+amount cannot tell the two transfers apart
     feed_rows = _body(identical, 'trc20-feed-account-a')['token_transfers'] + _body(identical, 'trc20-feed-account-b')['token_transfers']  # noqa: E501
     logs = _body(identical, 'event-logs')['event_list']
-    seen = {(row['transaction_id'], event['event_index']) for row in feed_rows for event in logs if event['transaction_id'] == row['transaction_id']}  # noqa: E501
+    seen = {
+        (event['transaction_id'], event['event_index'], event['contract_address'],
+         _address_from_hex(event['result']['from']), _address_from_hex(event['result']['to']),
+         int(event['result']['value']))
+        for event in logs
+    }
+    expected = {
+        (move['tx_hash'], move['event_index'], OFFICIAL_USDT, move['from'], move['to'],
+         int(move['amount_raw']))
+        for move in movements
+    }
+    assert seen == expected
+    assert all(_units(move['amount_raw'], 6) == Decimal(move['amount']) for move in movements)
+    assert {(row['transaction_id'], row['contract_address'], row['from_address'],
+             row['to_address'], int(row['quant'])) for row in feed_rows} == {
+        (tx, contract, sender, recipient, amount)
+        for tx, _, contract, sender, recipient, amount in expected
+    }
     assert len(feed_rows) == 4
     assert len(seen) == len({move['identity'] for move in movements}) == 2
 
@@ -520,3 +538,103 @@ def test_call_value_and_contract_owner_energy() -> None:
     assert cost['origin_energy_usage'] > 0
     burned = cost['energy_usage_total'] - cost['energy_usage'] - cost['origin_energy_usage']
     assert cost['energy_fee'] == burned * cost['energy_fee_cost']  # the caller pays only the rest
+
+
+def test_synthetic_amounts_fees_and_reverted_status() -> None:
+    zero = _case('synthetic-zero-decimals-token')
+    token = _body(zero, 'token-trc20')['trc20_tokens'][0]
+    assert token['decimals'] == zero['expected']['decimals'] == 0
+    assert _units(zero['expected']['transfer_raw'], token['decimals']) == Decimal(zero['expected']['transfer_amount'])  # noqa: E501
+
+    memo = _case('synthetic-memo-fee')
+    (row,) = _body(memo, 'transactions')['data']
+    cost = _body(memo, 'transaction-info-cost')['cost']
+    components = sum(int(cost.get(key, 0)) for key in ('energy_fee', 'net_fee', 'multi_sign_fee', 'memoFee', 'account_create_fee'))  # noqa: E501
+    assert components == row['cost']['fee'] == int(memo['expected']['paid_fee_sun'])
+    assert cost['fee'] == cost['memoFee'] == memo['expected']['detail_cost_fee']
+
+    reverted = _case('synthetic-reverted-transaction')
+    (row,) = _body(reverted, 'transactions')['data']
+    final = row['confirmed'] and not row['revert']
+    assert final is reverted['expected']['final_events_allowed'] is False
+    assert final is reverted['expected']['completed_range_may_cover']
+
+
+def test_existing_contract_identity_wins_over_late_legacy_backfill() -> None:
+    """Exercise the DDL and contract-first lookup; no symbol matching or silent aliasing."""
+    root = Path(__file__).resolve().parents[3]
+    design = (root / 'docs' / 'designs' / 'tron-integration.md').read_text()
+    ddl = design.split('Global DB:\n\n```sql\n', 1)[1].split('```', 1)[0]
+    with sqlite3.connect(':memory:') as db:
+        with sqlite3.connect(f'file:{root / "rotkehlchen" / "data" / "global.db"}?mode=ro', uri=True) as packaged:  # noqa: E501
+            packaged.backup(db)
+        db.executescript(ddl)
+        payload = _address_payload(contract := 'TAFjULxiVgT4qWk6UZwjqwZXTSaGaqnVp4')
+        assert payload is not None
+        identifier = f'tron/trc20:{payload.hex()}'
+        db.execute('INSERT INTO assets(identifier, name, type) VALUES (?, ?, ?)', (identifier, 'Candidate', 'P'))  # noqa: E501
+        db.execute('INSERT INTO tron_tokens VALUES (?, ?, ?, ?)', (identifier, contract, 18, None))
+        assert db.execute('SELECT identifier FROM tron_tokens WHERE address=?', (contract,)).fetchone() == (identifier,)  # noqa: E501
+        with pytest.raises(sqlite3.IntegrityError, match='UNIQUE constraint failed'):
+            db.execute('INSERT INTO tron_tokens VALUES (?, ?, ?, ?)', ('BTT', contract, 18, None))
+        assert db.execute('SELECT identifier FROM tron_tokens WHERE address=?', (contract,)).fetchone() == (identifier,)  # noqa: E501
+        assert db.execute("SELECT identifier FROM assets WHERE identifier='BTT'").fetchone() == ('BTT',)  # noqa: E501
+        assert db.execute("SELECT identifier FROM tron_tokens WHERE identifier='BTT'").fetchone() is None  # noqa: E501
+
+
+@pytest.mark.parametrize('kind', ['trc20', 'internal'])
+def test_each_history_endpoint_has_its_own_pagination_evidence(kind: str) -> None:
+    case = _case(f'pagination-{kind}-endpoint')
+    key = 'token_transfers' if kind == 'trc20' else 'data'
+    stamp = 'block_ts' if kind == 'trc20' else 'timestamp'
+    identity = 'transaction_id' if kind == 'trc20' else 'internal_hash'
+    reference = _body(case, 'reference')[key]
+    account = case['tracked_accounts'][0]
+    for row in reference:
+        assert account in ((row['from_address'], row['to_address']) if kind == 'trc20' else (row['from'], row['to']))  # noqa: E501
+    assert _body(case, 'page0')[key] == reference[:2]
+    assert _body(case, 'page1')[key] == reference[2:4]
+    whole = _body(case, 'whole-second')[key]
+    assert len(whole) > 0
+    assert _body(case, 'fractional-second')[key] == whole
+    t = _exchange(case, 'whole-second')['params']['start_timestamp']
+    assert {row[identity] for row in whole} == {row[identity] for row in reference if row[stamp] == t}  # noqa: E501
+    assert _body(case, 'after-second')[key] == []
+    assert _body(case, 'empty-genesis-window')[key] == []
+    assert _body(case, 'empty-window')[key] == reference  # zero bounds are ignored
+    assert _body(case, 'start9990')[key] == _body(case, 'start10000')[key] == []
+    assert _exchange(case, 'start10001')['http_status'] == 400
+    if kind == 'trc20':
+        assert len(_body(case, 'limit100')[key]) == 50
+    else:
+        assert all(_body(case, role)['total'] == -1 for role in ('reference', 'page0', 'page1'))
+
+
+def test_holdings_pagination_is_complete_and_exact() -> None:
+    case = _case('pagination-holdings-endpoint')
+    pages = [_body(case, f'page{index}')['data'] for index in range(4)]
+    assert [len(page) for page in pages] == [200, 200, 183, 0]
+    rows = [row for page in pages for row in page]
+    assert len(rows) == len({row['tokenId'] for row in rows}) == case['expected']['total'] == 583
+    assert all(_body(case, f'page{index}')['total'] == len(rows) for index in range(4))
+    for row in rows:
+        if row['tokenType'] == 'trc20':
+            assert isinstance(row['balance'], str) and int(row['balance']) >= 0
+            assert isinstance(row['tokenDecimal'], int) and 0 <= row['tokenDecimal'] <= 255
+
+
+def test_synthetic_pagination_coverage_keeps_gaps_incomplete() -> None:
+    expected = _case('synthetic-pagination-coverage')['expected']
+    assert expected['provider_offset_cap'] == 10000
+    low, high = expected['saturated_parent']
+    (left_low, left_high), (right_low, right_high) = expected['split_core_windows']
+    assert (left_low, right_high) == (low, high)
+    assert left_high + 1 == right_low
+    for scenario in expected['scenarios']:
+        end = expected['start'] - 1
+        for start, stop, status in scenario['windows']:
+            if status != 'complete' or start > end + 1:
+                break
+            end = max(end, stop)
+        assert scenario['completed_range'] == [expected['start'], end], scenario['id']
+        assert sorted(set(scenario['seen_identities'])) == scenario['unique_identities']

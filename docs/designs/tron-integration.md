@@ -31,7 +31,7 @@ is listed in [section 3.10](#310-documentation-discrepancies).
 | Quotas | No published numbers, no rate-limit headers | Open | none |
 | Balances | `accountv2.balanceStr` + `account/tokens?hidden=0&show=0`, TRX recognised by `tokenId == "_"` | Live | `balances-*`, `history-*` |
 | History discovery | Three account feeds are required: transactions, TRC20 transfers, internal transactions | Live | `history-*` |
-| Pagination | `start+limit` cap 10000, HTTP 400 beyond, whole-second inclusive time bounds, counts unusable | Live | `pagination-*` |
+| Pagination | Endpoint-specific pages, bounds and caps; zero bounds are ignored by TRC20/internal; unresolved saturation never completes a range | Live + Doc + Decision, per endpoint below | `pagination-*`, `synthetic-pagination-coverage` |
 | Stable identity | TRC20: `(tx hash, event_index)` from the event-log endpoint; internal: `internal_hash` | Live (identical-transfer case synthetic) | `identity-*`, `synthetic-identical-transfers-same-tx` |
 | Finality | TronScan `confirmed` flag; pending rows never produce final events | Live (`revert=true` synthetic) | `status-*`, `synthetic-reverted-transaction` |
 | Actual fees | `cost.fee` of `/api/transaction` is the paid total; `transaction-info` `cost.fee` is not | Live, reconciled to the sun on 9 accounts (5 committed) | `fees-*`, `history-*` |
@@ -39,7 +39,7 @@ is listed in [section 3.10](#310-documentation-discrepancies).
 | Addresses | Canonical Base58Check, 0x/41 hex forms convert to it | Live | all |
 | DB and upstream | No fork bump of either DB version; versioned fork schema extension; reserved enum values with a collision guard | Decision on live upstream state | n/a |
 
-Nothing in this table blocks #7. The open items in section 11 limit tuning and later parts only.
+The identity policy and enum error handling below are required by #7. Section 11 names the remaining provider ceilings; no unresolved ceiling may be reported as completed coverage or a successful balance snapshot.
 
 ## 2. Evidence
 
@@ -72,7 +72,8 @@ Other sources: [TRON address encoding](https://developers.tron.network/docs/enco
 ### 2.2 Live captures
 
 All captures were taken on 2026-10-02 against the mainnet base URL. The committed exchanges span
-11:42–12:23 UTC (`capture.window_utc` in the manifest).
+the original 11:42–12:23 UTC window and a later independent endpoint pass
+(`capture.window_utc` and each exchange timestamp in the manifest).
 Requests before about 12:00 UTC were anonymous. After that the owner supplied a TronScan key
 locally. It was sent only as the `TRON-PRO-API-KEY` header and is absent from every capture,
 log and fixture. The manifest records each exchange's auth mode (`none`, `api_key`,
@@ -84,8 +85,8 @@ reconciliation, and one busy exchange wallet for pagination limits. None belongs
 
 ### 2.3 Fixture corpus
 
-`rotkehlchen/tests/data/tronscan/manifest.json` lists 30 cases: 21 `live_capture` cases, one of
-which also holds the `documented_sample`, and 9 `synthetic` cases. Each case records:
+`rotkehlchen/tests/data/tronscan/manifest.json` lists 34 cases: 24 `live_capture` cases, one of
+which also holds the `documented_sample`, and 10 `synthetic` cases. Each case records:
 
 - origin and the gates it covers;
 - per HTTP exchange: method, endpoint, documentation page, auth mode, sanitized parameters,
@@ -118,7 +119,7 @@ test).
 
 ### 2.4 Executable check
 
-`rotkehlchen/tests/unit/test_tronscan_contract.py` has 26 tests. It reads only the corpus: no
+`rotkehlchen/tests/unit/test_tronscan_contract.py` has 32 tests. It reads only the corpus: no
 network, no VCR, no production TRON code. Its checks:
 
 - **Manifest integrity**: no orphaned or missing files; labels and gate coverage are consistent.
@@ -235,48 +236,53 @@ Treat `code != 200` as a provider error.
 
 ### 3.6 Pagination, windows and counts
 
-All facts here are **Live** (`pagination-*`, `history-multi-page`):
+Evidence is endpoint-specific. The later independent pass uses a fixed upper timestamp,
+small pages and a single public account (sanitized); it is not a load test.
 
-- `limit` above 50 is silently truncated to 50.
-- `start=9990&limit=50` returns 10 rows and `start=10000` returns 200 with an empty page.
-  `start` of 10001, 10050, 11000 or 12000 returns **HTTP 400**. An empty or short page at the
-  cap therefore does not mean that history ended.
-- `start_timestamp` and `end_timestamp` are floored to whole seconds and **both bounds are
-  inclusive**. For example, `[t+999, t+999]` returns the transaction at `t`; `[t+1000, …]` does
-  not.
-- `total` is capped at 10000. Under a time filter, `total` and `rangeTotal` equal the number of
-  rows in the **whole UTC days** containing the bounds (7 of 7 probes), not the rows in the
-  window.
-- `internal-transaction` returns `total: -1` whether or not rows exist.
-- `token_trc20/transfers` with `relatedAddress` and `contract_address` returned `total: 10000`
-  for 2 to 37 rows.
-- **Counts are never a completeness signal.**
-- Only newest-first order is served: `sort=timestamp` and `sort=+timestamp` are ignored.
-- Order within one second was identical across two runs, but this is not guaranteed and must
-  not be relied on.
-- `address` combined with `block` on `/api/transaction` ignores the address and lists the whole
-  block.
+| Endpoint | Live evidence | Doc / Open ceiling |
+|---|---|---|
+| `/api/transaction` | `pagination-offset-cap`, `pagination-time-window-semantics`, `pagination-ties-and-block-filter`: limit 50, 9990 returns 10, 10000 empty, 10001 HTTP 400; second-floored inclusive bounds; day-rounded counts; newest first; address+block ignores address | Saturated one-second windows not observed |
+| `/api/token_trc20/transfers` | `pagination-trc20-endpoint`: account filter, first/second small pages, limit 100 truncated to 50, 10000 empty and 10001 HTTP 400; whole/fractional-second equality, excluded adjacent second and empty genesis window | The 2457-row account does not prove truncation at 9990 for a saturated account; documented window cap is 10000; one-second saturation not observed |
+| `/api/internal-transaction` | `pagination-internal-endpoint`: 17 account-related rows, first/second small pages, 10000 empty and 10001 HTTP 400; whole/fractional-second equality, excluded adjacent second and empty genesis window; total -1 | Documented limit 50; a 17-row sample cannot prove truncation of limit 100; one-second saturation not observed |
+| `/api/account/tokens` | `pagination-holdings-endpoint`: fixed filter hidden=0/show=0, four pages 200/200/183/0, 583 distinct holdings, exact raw balances and decimals | Offsets beyond 10000 and larger-than-cap portfolios not verified; #9 must fail the snapshot if completeness cannot be established |
 
-**Decision: window algorithm (#10).** Per account and feed:
+The [TRC20](https://docs.tronscan.org/en/api/transactions-and-transfers/token-trc20-transfers)
+and [internal](https://docs.tronscan.org/en/api/transactions-and-transfers/internal-transaction)
+docs specify a 50-row page and a 10000 offset window. Always request limit=50; do not extrapolate
+one endpoint's live behavior to another. Holdings use their separately verified 200-row pages.
 
-1. The window ends at the current time floored to a second. The first window starts at 0. There
-   is no artificial start date: TRC20 receipts can predate account activation.
-2. Page newest-first with `limit=50` while `start + 50 <= 10000`. A window is exhausted only when
-   a page shorter than 50 arrives below the cap.
-3. A window that reaches `start == 10000` without a short page is **saturated**. Split it in two
-   by time and process the **older half first**. Depth is bounded by the window length in
-   seconds.
-4. Process windows oldest-first and advance the contiguous query range after each fully paged
-   window. A page that fails leaves its window incomplete: committed rows stay, and the range is
-   not advanced.
-5. The next older window ends at the oldest timestamp already read, inclusive. The boundary
-   second is re-read and deduplicated by stable identity.
-6. A saturated one-second window cannot be split by time. Splitting by `direction` is possible
-   on the transaction and transfer feeds. If it is still saturated, record a data issue with
-   the second and do not complete the range across it.
+**Zero bounds are not an empty window.** Both TRC20 and internal endpoints ignore 0..0 and return
+history. Small positive pre-genesis bounds return HTTP 400, while the genesis second returns an
+empty page. Logical coverage starts at 0, but queries start no earlier than TRON block 0
+(1529891460 seconds, section 5.2). The earlier interval contains no TRON blocks, not omitted
+account history. Never send end_timestamp=0. Validate every returned row against the requested
+account and second-floored window; unexpected rows make that window incomplete.
 
-Saturation was not observed. One account would need more than 10,000 rows of one feed inside
-one block.
+**Counts are never a completeness signal.** Transaction total/rangeTotal count whole UTC days;
+TRC20 counts differ under filters; internal total is -1. Order of tied rows is not guaranteed.
+Never use address+block as an account-preserving filter without checking its own endpoint.
+
+**Decision: one window traversal (#10).** Per account and feed:
+
+1. Start with the whole available chain interval, ending at the current second. Logical
+   coverage has no artificial account start date; the provider query lower bound is genesis.
+2. Page newest-first with limit=50 below the documented 10000-row window. Only a short page
+   strictly below the cap exhausts a window. An empty page at start=10000 is saturation,
+   not proof of exhaustion; never send a larger offset.
+3. Split a saturated core interval [low, high] into [low, mid] and [mid+1, high] in whole
+   seconds and process the older half first. Both endpoints are inclusive: these children
+   cover every second without a hole and strictly shrink. Do not add a second backwards walk.
+4. Advance the contiguous completed range only after all pages, parent details and statuses
+   of a core window are resolved. Failure/cancellation retains committed rows and leaves a
+   gap; a completed later window cannot jump it. Retry the last completed boundary second
+   with stable-identity deduplication, including across tracked accounts.
+5. A saturated one-second core cannot shrink. Only an independently verified additional
+   endpoint filter may subdivide it; direction filtering is not assumed to solve this.
+   Otherwise use the shared data-issue/error path and keep the range incomplete across it.
+
+`synthetic-pagination-coverage` records compressed split, overlap, cancellation, failure,
+single-second saturation and retry expectations. #10 must replay them against its actual pager;
+the offline consistency check is not live saturation evidence or a production pager test.
 
 ### 3.7 Fees
 
@@ -443,7 +449,7 @@ Live facts, reconciled exactly:
 |---|---|---|
 | Native TRX | `TRX` (`OWN_CHAIN`, `'B'`) | name `TRON`, symbol `TRX`, CoinGecko `tron`, CryptoCompare `TRX`, `started` 1529891460 (block 0 time, **Live**). Add it to the TRON collection without changing that collection's main asset. |
 | Official USDT | `tron/trc20:41a614f803b6fd780986a42c78ec9c7f77e6ded13c` (`TRON_TOKEN`) | name `Tether USD`, symbol `USDT`, decimals 6, CoinGecko `tether`, CryptoCompare `USDT`, `started` 1555400628 (`token_trc20.date_created`, **Live**). Add it to the USDT collection. |
-| Any other TRC20 | `tron/trc20:41<lowercase hex of the 20-byte body>` (`TRON_TOKEN`) | Created on first encounter with validated metadata; no oracle ids. |
+| Any other TRC20 | existing verified contract mapping, otherwise `tron/trc20:41<lowercase hex of the 20-byte body>` (`TRON_TOKEN`) | Contract lookup precedes identifier creation; validated metadata, no inferred oracle ids. |
 | Legacy `TRON_TOKEN` rows | unchanged identifiers | A contract is attached only after verification (below). |
 
 - **Identifier rule.** `tron/trc20:` followed by the lowercase hex of the 21-byte payload
@@ -454,6 +460,15 @@ Live facts, reconciled exactly:
   - It is a local deterministic format, not a CAIP identifier.
   - The Base58 contract is stored separately with binary collation.
   - Code never parses identifiers; it looks contracts up in `tron_tokens`.
+- **One canonical asset per contract (#7).** Look up `tron_tokens.address` before creating an
+  identifier. Apply the reviewed legacy map during the extension before account sync can
+  expose balances. An existing contract mapping always wins. If a later verified legacy pair
+  points to an already-mapped contract, retain the mapped identifier, leave the legacy asset
+  generic and report the conflict through the shared data-issue path. Never INSERT OR IGNORE
+  away the conflict, re-key user references or overwrite oracle ids/edits automatically. A
+  future targeted reconciliation requires a separately reviewed migration using the existing
+  asset-replacement facilities; this release does not need an alias engine. The offline DDL
+  check covers encounter-before-backfill with BTT as an illustrative, unverified candidate.
 - **Unknown tokens:**
   - metadata comes from `token_trc20?contract=&showAll=1` with the contract-match check;
   - decimals must be an integer from 0 to 255;
@@ -475,7 +490,8 @@ Live facts, reconciled exactly:
   so user references, location mappings and oracle ids stay valid. Unverified rows stay
   generic and are never used for TRC20 balances. BTT, `TAFjULxiVgT4qWk6UZwjqwZXTSaGaqnVp4`,
   TronScan-verified with 18 decimals, is a candidate until its CoinGecko platform entry is
-  checked.
+  checked. A conflicting already-mapped contract follows the canonical policy above; do not
+  attach the legacy row to the same contract or infer identity by symbol.
 - **Updater, reset and Colibri (#7):**
   - add `tron_tokens` to `required_tables` in `rotkehlchen/globaldb/asset_updates/manager.py:64`
     and to both reset table lists in `rotkehlchen/globaldb/handler.py` (hard reset 1947,
@@ -543,7 +559,11 @@ Instead:
 
 Python enums silently alias duplicate values. #7 adds a guard test asserting that no
 `Location`, `HistoryBaseEntryType`, `AssetType` or `TokenKind` value is aliased and that the
-TRON members are last-defined.
+TRON members are last-defined. Use stdlib uniqueness validation where applicable. Because
+reserved value 100 leaves unused gaps, #7 also catches ValueError from cls(number - 64) in
+the existing DBCharEnumMixIn.deserialize_from_db and raises DeserializationError instead.
+Add one absent-gap value check and a valid TRON round trip in the shared enum tests; callers
+already handling DeserializationError must keep that contract. No TRON-only deserializer.
 
 ### 6.4 DDL (#7 implements, #10 fills)
 
@@ -789,6 +809,7 @@ content type per exchange. Compare results with `expected`.
 | Identical TRC20 transfers in one transaction not observed live | Identity uses event logs; only feed multiplicity is unknown | nothing |
 | `revert: true` never observed | Treated as non-final | nothing |
 | Memo fee and 0-decimal TRC20 not observed live | Covered by synthetic cases | nothing |
-| Saturated one-second window not observed | Handling specified; a data issue if it ever happens | nothing |
+| Saturated one-second history window not observed | Shared data issue; incomplete range; no claim that direction resolves it | completion across that window in #10 |
+| Holdings offset ceiling beyond the 583-row capture unverified | Refuse unresolved partial snapshot; retain previous cache | successful snapshot for a saturated account in #9 |
 | Legacy `TRON_TOKEN` contract verification list not produced | Only legacy backfill waits; TRX, USDT and new tokens do not | the backfill part of #7 |
-| Owner acceptance of the roadmap (issue #2 checkbox) | Successor tasks stay in Backlog | starting #7 |
+| Successor implementation | Owner authorized this contract remediation, merge and image preparation; successors start through their own tasks | no successor was implemented by this PR |
