@@ -1,0 +1,203 @@
+{
+ "contractRet": "SUCCESS",
+ "data": "",
+ "contractType": 31,
+ "event_count": 2,
+ "project": "",
+ "toAddress": "TAP7WDMorQw2bt1jhjXfgeh3W5nxaC2NH4",
+ "confirmed": true,
+ "trc20TransferInfo": [
+  {
+   "icon_url": "https://static.tronscan.org/production/logo/usdtlogo.png",
+   "symbol": "USDT",
+   "level": "2",
+   "to_address": "TAP7WDMorQw2bt1jhjXfgeh3W5nxaC2NH4",
+   "tokenType2": "trc20",
+   "contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+   "type": "Transfer",
+   "decimals": 6,
+   "name": "Tether USD",
+   "vip": true,
+   "tokenType": "trc20",
+   "from_address": "TYMCaip8L4iAnzDft9k2rstXbrNP4bbYfn",
+   "amount_str": "180000000",
+   "status": 0
+  }
+ ],
+ "transfersAllList": [
+  {
+   "icon_url": "https://static.tronscan.org/production/logo/usdtlogo.png",
+   "symbol": "USDT",
+   "level": "2",
+   "to_address": "TAP7WDMorQw2bt1jhjXfgeh3W5nxaC2NH4",
+   "tokenType2": "trc20",
+   "contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+   "type": "Transfer",
+   "decimals": 6,
+   "name": "Tether USD",
+   "vip": true,
+   "tokenType": "trc20",
+   "from_address": "TYMCaip8L4iAnzDft9k2rstXbrNP4bbYfn",
+   "amount_str": "180000000",
+   "status": 0
+  }
+ ],
+ "block": 86756686,
+ "riskTransaction": false,
+ "timestamp": 1790942682000,
+ "info": {},
+ "cost": {
+  "net_fee_cost": 1000,
+  "date_created": 1790942682,
+  "fee": 0,
+  "energy_fee_cost": 100,
+  "net_usage": 0,
+  "multi_sign_fee": 0,
+  "net_fee": 603000,
+  "energy_penalty_total": 56535,
+  "energy_usage": 90765,
+  "energy_fee": 0,
+  "energy_usage_total": 90765,
+  "memoFee": 0,
+  "origin_energy_usage": 0
+ },
+ "noteLevel": 2,
+ "revert": false,
+ "confirmations": 27,
+ "fee_limit": 39936600,
+ "tokenTransferInfo": {
+  "icon_url": "https://static.tronscan.org/production/logo/usdtlogo.png",
+  "symbol": "USDT",
+  "level": "2",
+  "to_address": "TAP7WDMorQw2bt1jhjXfgeh3W5nxaC2NH4",
+  "tokenType2": "trc20",
+  "contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+  "type": "Transfer",
+  "decimals": 6,
+  "name": "Tether USD",
+  "vip": true,
+  "tokenType": "trc20",
+  "from_address": "TYMCaip8L4iAnzDft9k2rstXbrNP4bbYfn",
+  "amount_str": "180000000",
+  "status": 0
+ },
+ "contract_type": "trc20",
+ "trigger_info": {
+  "method": "swap(address fromToken,string toToken,string destination,uint256 fromAmount,uint256 minReturnAmount)",
+  "parameter": {
+   "fromAmount": "180000000",
+   "destination": "TYMCaip8L4iAnzDft9k2rstXbrNP4bbYfn",
+   "minReturnAmount": "533777377",
+   "fromToken": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+   "toToken": "TRX|zvcm92|0.015|bridgers|0"
+  },
+  "methodId": "9ddf93bb",
+  "contract_address": "TAP7WDMorQw2bt1jhjXfgeh3W5nxaC2NH4",
+  "call_value": 0
+ },
+ "signature_addresses": [],
+ "ownerAddress": "TYMCaip8L4iAnzDft9k2rstXbrNP4bbYfn",
+ "hash": "30976be0624e653e408296398b26c955cc5f69ec1964770bc55ca3faf732142b",
+ "contractData": {
+  "data": "",
+  "owner_address": "TYMCaip8L4iAnzDft9k2rstXbrNP4bbYfn",
+  "contract_address": "TAP7WDMorQw2bt1jhjXfgeh3W5nxaC2NH4"
+ },
+ "internal_transactions": {
+  "1": [
+   {
+    "transaction_id": "30976be0624e653e408296398b26c955cc5f69ec1964770bc55ca3faf732142b",
+    "note": "call",
+    "rejected": false,
+    "value_info_list": "[{\"token_id\":\"_\",\"call_value\":0,\"tokenInfo\":{\"tokenId\":\"_\",\"tokenAbbr\":\"trx\",\"tokenName\":\"trx\",\"tokenDecimal\":6,\"tokenCanShow\":1,\"tokenType\":\"trc10\",\"tokenLogo\":\"https://static.tronscan.org/production/logo/trx.png\",\"tokenLevel\":\"2\",\"vip\":true}}]",
+    "date_created": 1790942682000,
+    "contract": "TAP7WDMorQw2bt1jhjXfgeh3W5nxaC2NH4",
+    "token_list": [
+     {
+      "token_id": "_",
+      "call_value": 0,
+      "tokenInfo": {
+       "tokenLevel": "2",
+       "tokenId": "_",
+       "tokenName": "trx",
+       "tokenDecimal": 6,
+       "tokenAbbr": "trx",
+       "tokenCanShow": 1,
+       "tokenType": "trc10",
+       "vip": true,
+       "tokenLogo": ""
+      }
+     }
+    ],
+    "confirmed": true,
+    "transfer_to_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "result": "SUCCESS",
+    "caller_address": "TAP7WDMorQw2bt1jhjXfgeh3W5nxaC2NH4",
+    "block": 86756686,
+    "hash": "2a1d01530bd324c13143c21f7667611c4ae79ddbdb9f21f8e91dc583fbaf2239"
+   },
+   {
+    "transaction_id": "30976be0624e653e408296398b26c955cc5f69ec1964770bc55ca3faf732142b",
+    "note": "call",
+    "rejected": false,
+    "value_info_list": "[{\"token_id\":\"_\",\"call_value\":0,\"tokenInfo\":{\"tokenId\":\"_\",\"tokenAbbr\":\"trx\",\"tokenName\":\"trx\",\"tokenDecimal\":6,\"tokenCanShow\":1,\"tokenType\":\"trc10\",\"tokenLogo\":\"https://static.tronscan.org/production/logo/trx.png\",\"tokenLevel\":\"2\",\"vip\":true}}]",
+    "date_created": 1790942682000,
+    "contract": "TAP7WDMorQw2bt1jhjXfgeh3W5nxaC2NH4",
+    "token_list": [
+     {
+      "token_id": "_",
+      "call_value": 0,
+      "tokenInfo": {
+       "tokenLevel": "2",
+       "tokenId": "_",
+       "tokenName": "trx",
+       "tokenDecimal": 6,
+       "tokenAbbr": "trx",
+       "tokenCanShow": 1,
+       "tokenType": "trc10",
+       "vip": true,
+       "tokenLogo": ""
+      }
+     }
+    ],
+    "confirmed": true,
+    "transfer_to_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "result": "SUCCESS",
+    "caller_address": "TAP7WDMorQw2bt1jhjXfgeh3W5nxaC2NH4",
+    "block": 86756686,
+    "hash": "32291f83dc220017767ae33b3f5cb092f035c74937db079402ad98e47d8c8aaf"
+   },
+   {
+    "transaction_id": "30976be0624e653e408296398b26c955cc5f69ec1964770bc55ca3faf732142b",
+    "note": "call",
+    "rejected": false,
+    "value_info_list": "[{\"token_id\":\"_\",\"call_value\":0,\"tokenInfo\":{\"tokenId\":\"_\",\"tokenAbbr\":\"trx\",\"tokenName\":\"trx\",\"tokenDecimal\":6,\"tokenCanShow\":1,\"tokenType\":\"trc10\",\"tokenLogo\":\"https://static.tronscan.org/production/logo/trx.png\",\"tokenLevel\":\"2\",\"vip\":true}}]",
+    "date_created": 1790942682000,
+    "contract": "TAP7WDMorQw2bt1jhjXfgeh3W5nxaC2NH4",
+    "token_list": [
+     {
+      "token_id": "_",
+      "call_value": 0,
+      "tokenInfo": {
+       "tokenLevel": "2",
+       "tokenId": "_",
+       "tokenName": "trx",
+       "tokenDecimal": 6,
+       "tokenAbbr": "trx",
+       "tokenCanShow": 1,
+       "tokenType": "trc10",
+       "vip": true,
+       "tokenLogo": ""
+      }
+     }
+    ],
+    "confirmed": true,
+    "transfer_to_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "result": "SUCCESS",
+    "caller_address": "TAP7WDMorQw2bt1jhjXfgeh3W5nxaC2NH4",
+    "block": 86756686,
+    "hash": "96860205d4adfd713ed316c7953db0b2cb4132357ea1c3799dab26d52492d0f1"
+   }
+  ]
+ }
+}

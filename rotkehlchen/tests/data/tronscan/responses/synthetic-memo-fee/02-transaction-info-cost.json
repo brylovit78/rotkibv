@@ -1,0 +1,16 @@
+{
+ "cost": {
+  "fee": 1000000,
+  "net_fee": 267000,
+  "energy_fee": 0,
+  "memoFee": 1000000,
+  "multi_sign_fee": 0,
+  "net_usage": 0,
+  "energy_usage": 0,
+  "energy_usage_total": 0,
+  "origin_energy_usage": 0,
+  "energy_penalty_total": 0,
+  "net_fee_cost": 1000,
+  "energy_fee_cost": 100
+ }
+}

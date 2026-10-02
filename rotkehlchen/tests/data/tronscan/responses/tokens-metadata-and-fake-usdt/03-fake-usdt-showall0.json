@@ -1,0 +1,28 @@
+{
+ "total": 1,
+ "rangeTotal": 1,
+ "trc20_tokens": [
+  {
+   "issue_ts": 0,
+   "symbol": "USDT",
+   "contract_address": "TYimXEh5J7PYebVzQQcuckcCr1QSKy1it1",
+   "inTvcToken": false,
+   "fromThirdParty": false,
+   "total_supply_with_decimals": "100000000000000000000000000000",
+   "specific_token": false,
+   "vip": false,
+   "icon_url": "",
+   "total_supply": 0,
+   "level": "0",
+   "date_created": 1648027695,
+   "total_supply_str": "",
+   "symbolShow": true,
+   "contract_name": "Token",
+   "issue_address": "TU6tdjfii7YpQiaEzsMuEhhXjegWsKV7M6",
+   "decimals": 18,
+   "name": "USDT",
+   "issue_time": "2022-03-23 01:28:15",
+   "tokenType": "trc20"
+  }
+ ]
+}

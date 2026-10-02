@@ -1,0 +1,30 @@
+{
+ "total": 1,
+ "rangeTotal": 1,
+ "trc20_tokens": [
+  {
+   "issue_ts": 0,
+   "symbol": "ZDEC",
+   "fromThirdParty": false,
+   "vip": false,
+   "icon_url": "",
+   "level": "0",
+   "name": "Zero Decimals Fixture",
+   "white_paper_level": 0,
+   "tokenType": "trc20",
+   "contract_address": "TJCx4A1XzNvy32sqbmi86xcURjRi1Etver",
+   "inTvcToken": true,
+   "total_supply_with_decimals": "1000000",
+   "specific_token": false,
+   "total_supply": 0,
+   "date_created": 1555400628,
+   "total_supply_str": "",
+   "symbolShow": true,
+   "contract_name": "TetherToken",
+   "issue_address": "TJJFw6rH3Vo7RWVooNqFTK7RRRLzHiatqB",
+   "home_page_level": 0,
+   "decimals": 0,
+   "issue_time": "2019-04-16 20:41:20"
+  }
+ ]
+}

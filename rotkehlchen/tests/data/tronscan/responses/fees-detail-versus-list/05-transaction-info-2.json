@@ -1,0 +1,41 @@
+{
+ "contractRet": "SUCCESS",
+ "data": "",
+ "contractType": 1,
+ "toAddress": "TF27pWABQr3bjMvbK8Be91NEzybnrhAhpG",
+ "confirmed": true,
+ "cheat_status": 0,
+ "block": 86720250,
+ "riskTransaction": false,
+ "timestamp": 1790833338000,
+ "info": {},
+ "cost": {
+  "net_fee_cost": 1000,
+  "date_created": 1790833338,
+  "fee": 1000000,
+  "energy_fee_cost": 100,
+  "net_usage": 0,
+  "multi_sign_fee": 0,
+  "net_fee": 100000,
+  "energy_penalty_total": 0,
+  "energy_usage": 0,
+  "energy_fee": 0,
+  "energy_usage_total": 0,
+  "memoFee": 0,
+  "origin_energy_usage": 0,
+  "account_create_fee": 1000000
+ },
+ "noteLevel": 2,
+ "revert": false,
+ "confirmations": 36023,
+ "trigger_info": {},
+ "signature_addresses": [],
+ "ownerAddress": "TDL3Qbeb4QU83XqtGyRgVAxuBg3DbrAKdu",
+ "hash": "7a35654b725917bb8f7967640566a01be72b88bb3c580f2cf88398b6b8d1b5ee",
+ "contractData": {
+  "amount": 22500000,
+  "owner_address": "TDL3Qbeb4QU83XqtGyRgVAxuBg3DbrAKdu",
+  "to_address": "TF27pWABQr3bjMvbK8Be91NEzybnrhAhpG"
+ },
+ "internal_transactions": {}
+}

@@ -1,0 +1,72 @@
+{
+ "total": 10000,
+ "rangeTotal": 200000,
+ "data": [
+  {
+   "block": 86756686,
+   "hash": "30976be0624e653e408296398b26c955cc5f69ec1964770bc55ca3faf732142b",
+   "timestamp": 1790942682000,
+   "ownerAddress": "TYMCaip8L4iAnzDft9k2rstXbrNP4bbYfn",
+   "toAddressList": [
+    "TAP7WDMorQw2bt1jhjXfgeh3W5nxaC2NH4"
+   ],
+   "toAddress": "TAP7WDMorQw2bt1jhjXfgeh3W5nxaC2NH4",
+   "contractType": 31,
+   "confirmed": false,
+   "revert": false,
+   "contractData": {
+    "data": "",
+    "owner_address": "TYMCaip8L4iAnzDft9k2rstXbrNP4bbYfn",
+    "contract_address": "TAP7WDMorQw2bt1jhjXfgeh3W5nxaC2NH4"
+   },
+   "id": "",
+   "data": "",
+   "fee": "",
+   "contractRet": "SUCCESS",
+   "result": "SUCCESS",
+   "amount": "0",
+   "cheatStatus": false,
+   "noteLevel": 2,
+   "cost": {
+    "net_fee": 603000,
+    "energy_penalty_total": 56535,
+    "energy_usage": 90765,
+    "date_created": 1790942682,
+    "fee": 603000,
+    "energy_fee": 0,
+    "energy_usage_total": 90765,
+    "origin_energy_usage": 0,
+    "net_usage": 0
+   },
+   "tokenInfo": {
+    "tokenId": "_",
+    "tokenAbbr": "trx",
+    "tokenName": "trx",
+    "tokenDecimal": 6,
+    "tokenCanShow": 1,
+    "tokenType": "trc10",
+    "tokenLogo": "",
+    "tokenLevel": "2",
+    "vip": true
+   },
+   "tokenType": "trc10",
+   "trigger_info": {
+    "method": "swap(address fromToken,string toToken,string destination,uint256 fromAmount,uint256 minReturnAmount)",
+    "data": "",
+    "parameter": {
+     "fromAmount": "180000000",
+     "destination": "TYMCaip8L4iAnzDft9k2rstXbrNP4bbYfn",
+     "minReturnAmount": "533777377",
+     "fromToken": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+     "toToken": "TRX|zvcm92|0.015|bridgers|0"
+    },
+    "methodId": "9ddf93bb",
+    "methodName": "swap",
+    "contract_address": "TAP7WDMorQw2bt1jhjXfgeh3W5nxaC2NH4",
+    "call_value": 0
+   },
+   "riskTransaction": false
+  }
+ ],
+ "wholeChainTxCount": 15686879349
+}
