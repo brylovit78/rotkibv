@@ -16,7 +16,12 @@ from rotkehlchen.constants import ZERO
 from rotkehlchen.db.constants import HISTORY_MAPPING_KEY_STATE, HistoryMappingState
 from rotkehlchen.db.filtering import HistoricalBalancesFilterQuery, HistoryEventFilterQuery
 from rotkehlchen.db.history_events import DBHistoryEvents
-from rotkehlchen.db.trontx import TronTransaction, TronTRC20Transfer, add_tron_history
+from rotkehlchen.db.trontx import (
+    TronInternalTransfer,
+    TronTransaction,
+    TronTRC20Transfer,
+    add_tron_history,
+)
 from rotkehlchen.errors.misc import RemoteError
 from rotkehlchen.externalapis.tronscan import Tronscan
 from rotkehlchen.fval import FVal
@@ -185,7 +190,7 @@ def test_identical_transfers_between_tracked_accounts(manager: TronManager) -> N
 
     assert [(x.sequence_index, x.event_type, x.location_label, x.address, x.amount) for x in _events(manager.database)] == [  # noqa: E501
         (index, HistoryEventType.TRANSFER, x['from'], x['to'], FVal(x['amount']))
-        for index, x in enumerate(tronscan_case(case)['expected']['movements'])
+        for index, x in enumerate(tronscan_case(case)['expected']['movements'], 1)  # after the fee
     ]
 
 
@@ -204,7 +209,8 @@ def test_events_wait_for_confirmation(manager: TronManager) -> None:
 
 
 def test_failed_call_moves_nothing_but_pays_its_fee(manager: TronManager) -> None:
-    """A failed call sends none of its TRX or tokens, and its paid fee is a failed fee"""
+    """A failed call sends none of its TRX, tokens or internal TRX, and its paid fee is a
+    failed fee"""
     track_tron_accounts(manager.database, [ALICE])
     with manager.database.user_write() as write_cursor:
         add_tron_history(
@@ -212,6 +218,7 @@ def test_failed_call_moves_nothing_but_pays_its_fee(manager: TronManager) -> Non
             address=ALICE,
             transactions=[TronTransaction(tx_hash=(tx_hash := b'\x02' * 32), block_number=1, timestamp=TimestampMS(1700000000000), confirmed=True, reverted=False, contract_ret='REVERT', owner_address=ALICE, to_address=BOB, contract_type=31, native_amount=5 * 10**6, fee=300000)],  # noqa: E501
             trc20_transfers=[TronTRC20Transfer(tx_hash=tx_hash, event_index=0, contract_address=deserialize_tron_address('TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'), from_address=ALICE, to_address=BOB, amount=10**6)],  # noqa: E501
+            internal_transfers=[TronInternalTransfer(tx_hash=tx_hash, internal_hash=b'\x06' * 32, from_address=TOKEN, to_address=ALICE, amount=10**6, success=True)],  # noqa: E501
         )
 
     assert manager.decoder.decode_transactions() == 1
@@ -238,12 +245,13 @@ def test_no_movement_without_success(
 
 
 def test_redecode_keeps_customized_events_unless_deleting_them(manager: TronManager) -> None:
-    """A redecode keeps a transaction with a customized event as it is, and replaces it only
-    when told to delete customized events, as for the other chains"""
+    """A redecode keeps a transaction with a customized event as it is, also one moved to
+    another group, and replaces it only when told to delete customized events, as for the
+    other chains"""
     row = tronscan_body('history-internal-only-receipt', 'internal-page0')['data'][0]
     _sync(manager, {'internal-transaction': [row]}, row['timestamp'] // 1000, [row['to']])
     (event,) = _events(manager.database)
-    event.notes, event.sequence_index = 'my own note', 5  # moved away from the decoded index
+    event.notes, event.sequence_index, event.group_identifier = 'my own note', 5, 'my own group'
     with manager.database.user_write() as write_cursor:
         DBHistoryEvents(manager.database).edit_history_event(write_cursor, event, HistoryMappingState.CUSTOMIZED)  # noqa: E501
 
@@ -253,31 +261,42 @@ def test_redecode_keeps_customized_events_unless_deleting_them(manager: TronMana
     assert [x.notes for x in _events(manager.database)] == [f'Receive 0.000001 TRX from {row["from"]} to {row["to"]}']  # noqa: E501
 
 
-def test_removed_account_events_go_and_shared_ones_are_decoded_again(manager: TronManager) -> None:
-    """Removing an account deletes the events of its own transactions. A transfer it shares
-    with a tracked account is decoded again, from a transfer to a receive."""
-    shared = tronscan_body('history-internal-only-receipt', 'internal-page0')['data'][0]
-    removed, kept = shared['from'], shared['to']
-    own = shared | {'hash': 'e' * 64, 'internal_hash': 'e' * 64, 'to': 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'}  # noqa: E501
-    track_tron_accounts(manager.database, [removed, kept])
-    with patch.object(manager.tronscan, 'query_feed_page', side_effect=lambda feed, address, *args: [x for x in (shared, own) if address in (x['from'], x['to'])] if feed == 'internal-transaction' else []):  # noqa: E501
-        manager.query_transactions([removed, kept], Timestamp((second := shared['timestamp'] // 1000) - 10), Timestamp(second + 10))  # noqa: E501
-    assert {(x.tx_ref, x.event_type) for x in _events(manager.database)} == {
-        (shared['hash'], HistoryEventType.TRANSFER),
-        (own['hash'], HistoryEventType.SPEND),
-    }
+@pytest.mark.parametrize('customized', [False, True])
+def test_removed_account_events_go_and_shared_ones_are_decoded_again(manager: TronManager, customized: bool) -> None:  # noqa: E501
+    """Removing an account deletes the events of its own transactions and of one it shares
+    with a tracked account, which waits to be decoded again for that account. A movement keeps
+    its index whichever parties are tracked. A shared transaction with a customized event is
+    kept as it is."""
+    shared, own = b'\x04' * 32, b'\x05' * 32
+    track_tron_accounts(manager.database, [ALICE, BOB])
+    with manager.database.user_write() as write_cursor:
+        for tx_hash, to, accounts in ((shared, BOB, (ALICE, BOB)), (own, CAROL, (ALICE,))):
+            for address in accounts:
+                add_tron_history(write_cursor=write_cursor, address=address, transactions=[TronTransaction(tx_hash=tx_hash, block_number=1, timestamp=TimestampMS(1700000000000), confirmed=True, reverted=False, contract_ret='SUCCESS', owner_address=ALICE, to_address=to, contract_type=1, native_amount=10**6, fee=100000)])  # noqa: E501
+    assert manager.decoder.decode_transactions() == 2
+    fee, transfer = [x for x in _events(manager.database) if x.tx_ref == shared.hex()]
+    if customized:
+        transfer.notes = 'my own note'
+        with manager.database.user_write() as write_cursor:
+            DBHistoryEvents(manager.database).edit_history_event(write_cursor, transfer, HistoryMappingState.CUSTOMIZED)  # noqa: E501
 
     with manager.database.user_write() as write_cursor:
-        manager.database.remove_single_blockchain_accounts(write_cursor, SupportedBlockchain.TRON, [removed])  # noqa: E501
-    assert {x.tx_ref for x in _events(manager.database)} == {shared['hash']}
+        manager.database.remove_single_blockchain_accounts(write_cursor, SupportedBlockchain.TRON, [ALICE])  # noqa: E501
+    kept = [(x.sequence_index, x.event_type, x.location_label, x.notes) for x in (fee, transfer)] if customized else []  # noqa: E501
+    assert [(x.sequence_index, x.event_type, x.location_label, x.notes) for x in _events(manager.database)] == kept  # noqa: E501
     assert manager.decoder.decode_transactions() == 1
-    assert [(x.event_type, x.location_label, x.address) for x in _events(manager.database)] == [
-        (HistoryEventType.RECEIVE, kept, removed),
-    ]
+    assert [(x.sequence_index, x.event_type, x.location_label) for x in _events(manager.database)] == (  # noqa: E501
+        [x[:3] for x in kept] if customized else [(transfer.sequence_index, HistoryEventType.RECEIVE, BOB)]  # noqa: E501
+    )
 
 
-def test_transfer_waits_for_the_metadata_of_its_token(manager: TronManager) -> None:
-    """A transaction moving a new token whose metadata can not be queried stays pending, so a
+@pytest.mark.parametrize('unavailable', [
+    RemoteError('down'),
+    None,
+    {'contract_address': TOKEN, 'decimals': '6', 'name': 'Token', 'symbol': 'TKN'},
+], ids=['failed', 'missing', 'malformed'])
+def test_transfer_waits_for_the_metadata_of_its_token(manager: TronManager, unavailable: Any) -> None:  # noqa: E501
+    """A transaction moving a new token whose metadata is not available stays pending, so a
     later decode retries it, and an explicit redecode of it fails instead of keeping it"""
     track_tron_accounts(manager.database, [ALICE])
     with manager.database.user_write() as write_cursor:
@@ -288,7 +307,7 @@ def test_transfer_waits_for_the_metadata_of_its_token(manager: TronManager) -> N
             trc20_transfers=[TronTRC20Transfer(tx_hash=tx_hash, event_index=0, contract_address=TOKEN, from_address=BOB, to_address=ALICE, amount=1500000)],  # noqa: E501
         )
 
-    with patch.object(manager.tronscan, 'query_token_metadata', side_effect=RemoteError('down')):
+    with patch.object(manager.tronscan, 'query_token_metadata', side_effect=[unavailable] * 2):
         assert manager.decoder.decode_transactions() == 0
         with pytest.raises(RemoteError, match='Could not decode 1 of the given TRON transactions'):
             manager.decoder.decode_transactions([tx_hash.hex()])  # type: ignore[list-item]  # a hex hash
@@ -309,7 +328,7 @@ def test_customized_copy_of_an_event_is_its_duplicate(manager: TronManager) -> N
     with manager.database.user_write() as write_cursor:
         DBHistoryEvents(manager.database).add_history_event(
             write_cursor=write_cursor,
-            event=TronEvent(tx_ref=event.tx_ref, sequence_index=1, timestamp=event.timestamp, event_type=event.event_type, event_subtype=event.event_subtype, asset=event.asset, amount=event.amount, location_label=event.location_label, notes=event.notes, address=event.address),  # noqa: E501
+            event=TronEvent(tx_ref=event.tx_ref, sequence_index=event.sequence_index + 1, timestamp=event.timestamp, event_type=event.event_type, event_subtype=event.event_subtype, asset=event.asset, amount=event.amount, location_label=event.location_label, notes=event.notes, address=event.address),  # noqa: E501
             mapping_values={HISTORY_MAPPING_KEY_STATE: HistoryMappingState.CUSTOMIZED},
         )
 

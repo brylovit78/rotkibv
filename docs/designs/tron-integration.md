@@ -727,6 +727,9 @@ kept, and the removed account's query ranges are deleted.
   2. native transfer or `call_value`;
   3. TRC20 transfers by `event_index`;
   4. internal transfers by `internal_hash`.
+
+  The fee keeps index 0 and each movement its position in this order, whether or not it
+  becomes an event, so tracking another account moves no event.
 - Direction uses `decode_transfer_direction` (`rotkehlchen/chain/decoding/utils.py:20`):
   - tracked to tracked is one `TRANSFER`;
   - TRX an account sends to itself is a `TRANSACTION_TO_SELF`, as for ETH;
@@ -909,14 +912,19 @@ Plan:
 - Fee and identity rules from 3.7 and 3.8; event shape from section 7. The decoder is
   `rotkehlchen/chain/tron/decoding.py`, run after every sync of the manager.
 - It decodes without TronScan, except for the metadata of a TRC20 token seen for the first
-  time. That metadata is queried before the write. A transaction whose token can not be queried
-  stays pending, so a later decode retries it; an explicit redecode of it fails instead.
+  time. That metadata is queried before the write. A transaction whose token metadata is
+  missing, malformed or can not be queried stays pending, so a later decode retries it; an
+  explicit redecode of it fails instead.
+- Internal transfers move value only for a successful parent or one known only from the
+  internal feed, never for a failed parent.
 - Each chunk of transactions is read, decoded and replaced in one write, so a sync, account
   removal or purge meanwhile can not leave events of an older state behind.
 - Redecoding keeps a transaction with a customized event as it is, unless custom events are
-  deleted, as the shared decoder does. Account removal deletes the events of the removed
-  account's transactions and leaves the ones it shared pending, so the next sync or pending
-  decode decodes them for the remaining accounts.
+  deleted, as the shared decoder does. The transaction is found by its reference, so this
+  holds also for an event moved to another group.
+- Account removal deletes the events of the removed account's transactions and the stale
+  events of the ones it shared, keeping customized ones. The shared transactions stay
+  pending, so the next sync or pending decode decodes them for the remaining accounts.
 - Shared registrations: the TRON entry type in the event deserializer and the last-event guard,
   location deletion and redecode reset, the default entry types of the transaction filters,
   TRON addresses in the history filter, the event creation schema, customized-duplicate

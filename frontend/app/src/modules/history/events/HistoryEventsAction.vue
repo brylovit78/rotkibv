@@ -115,27 +115,11 @@ const decodableEvmEvent = computed<EvmHistoryEvent | EvmSwapEvent | undefined>((
 });
 
 const eventWithTxRef = computed<{ location: string; txRef: string } | undefined>(() => {
-  const evm = get(evmEvent);
-  const solana = get(solanaEvent);
-  const tron = get(tronEvent);
-  if (evm) {
+  const chainEvent = get(evmEvent) ?? get(solanaEvent) ?? get(tronEvent);
+  if (chainEvent) {
     return {
-      location: evm.location,
-      txRef: evm.txRef,
-    };
-  }
-
-  if (solana) {
-    return {
-      location: solana.location,
-      txRef: solana.txRef,
-    };
-  }
-
-  if (tron) {
-    return {
-      location: tron.location,
-      txRef: tron.txRef,
+      location: chainEvent.location,
+      txRef: chainEvent.txRef,
     };
   }
 

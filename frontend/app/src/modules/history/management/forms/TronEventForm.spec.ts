@@ -1,5 +1,6 @@
 // Seam: what the TRON event form (rotkibv #11) saves. It sends a tron event to the shared history
-// endpoint, edits keep the identifier, and only a TRON transaction hash passes validation.
+// endpoint with the account and address the user enters, edits keep the identifier, and only a
+// TRON transaction hash passes validation.
 import type { TronEvent } from '@/modules/history/events/schemas';
 import { bigNumberify, HistoryEventEntryType } from '@rotki/common';
 import { createMock } from '@test/utils/create-mock';
@@ -92,16 +93,20 @@ describe('forms/TronEventForm.vue', () => {
     });
   }
 
-  it('should save an edited tron event with its identifier', async () => {
+  it('should save an edited tron event with its identifier and the entered addresses', async () => {
     wrapper = createWrapper({ event, nextSequenceId: '1', type: 'edit' });
     await vi.advanceTimersToNextTimerAsync();
+    await wrapper.find('[data-testid=location-label] input').setValue(event.address);
+    await wrapper.find('[data-testid=address] input').setValue(event.locationLabel);
     await wrapper.find('[data-testid=notes] textarea:not([aria-hidden="true"])').setValue('my note');
     editHistoryEventMock.mockResolvedValueOnce({ success: true });
 
     expect(await wrapper.vm.save()).toBe(true);
     expect(editHistoryEventMock).toHaveBeenCalledWith(expect.objectContaining({
+      address: event.locationLabel,
       entryType: HistoryEventEntryType.TRON_EVENT,
       identifier: event.identifier,
+      locationLabel: event.address,
       txRef: event.txRef,
       userNotes: 'my note',
     }));

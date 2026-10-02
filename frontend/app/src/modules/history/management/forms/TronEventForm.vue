@@ -5,6 +5,7 @@ import { Blockchain, HistoryEventEntryType } from '@rotki/common';
 import CounterpartyInput from '@/modules/history/events/mapping/CounterpartyInput.vue';
 import { useHistoryEventCounterpartyMappings } from '@/modules/history/events/mapping/use-history-event-counterparty-mappings';
 import EventDateLocation from '@/modules/history/management/forms/common/EventDateLocation.vue';
+import EvmLocation from '@/modules/history/management/forms/common/EvmLocation.vue';
 import { EVENT_PRICE_INTENT_KEYS } from '@/modules/history/management/forms/eth-block-event-form';
 import HistoryEventAssetPriceForm from '@/modules/history/management/forms/HistoryEventAssetPriceForm.vue';
 import HistoryEventTypeForm from '@/modules/history/management/forms/HistoryEventTypeForm.vue';
@@ -127,6 +128,17 @@ defineExpose({
     />
 
     <RuiDivider class="mb-6 mt-2" />
+
+    <EvmLocation
+      v-model:location-label="state.locationLabel"
+      v-model:address="state.address"
+      :location="location"
+      :error-messages="{
+        locationLabel: form.errors('locationLabel'),
+        address: form.errors('address'),
+      }"
+      @blur="form.touch($event)"
+    />
 
     <div class="grid md:grid-cols-2 gap-4">
       <AmountInput

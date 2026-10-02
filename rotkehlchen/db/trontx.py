@@ -127,9 +127,13 @@ def add_tron_history(
     )
 
 
-def delete_tron_history(write_cursor: DBCursor, address: TronAddress | None = None) -> list[bytes]:
-    """Delete the TRON history of one account or, with no address, of all accounts, and
-    return the hashes of the deleted transactions, whose events the caller deletes.
+def delete_tron_history(
+        write_cursor: DBCursor,
+        address: TronAddress | None = None,
+) -> tuple[list[bytes], list[bytes]]:
+    """Delete the TRON history of one account or, with no address, of all accounts. Return
+    the hashes of the deleted transactions and of the kept ones, whose events the caller
+    deletes.
 
     A transaction that another tracked account also maps to is kept and left pending decoding,
     since its events depend on the tracked accounts. The query ranges of the affected feeds
@@ -147,7 +151,13 @@ def delete_tron_history(write_cursor: DBCursor, address: TronAddress | None = No
 
     hashes = [x[0] for x in write_cursor.execute(f'SELECT tx_hash FROM tron_transactions {where}', bindings)]  # noqa: E501
     write_cursor.execute(f'DELETE FROM tron_transactions {where}', bindings)
+    kept: list[bytes] = []
     if address is not None:
+        kept = [x[0] for x in write_cursor.execute(  # only the shared ones are left
+            'SELECT tx_hash FROM tron_transactions WHERE identifier IN '
+            '(SELECT tx_id FROM tron_tx_address_mappings WHERE address=?)',
+            (address,),
+        )]
         write_cursor.execute(
             'DELETE FROM tron_tx_mappings WHERE tx_id IN '
             '(SELECT tx_id FROM tron_tx_address_mappings WHERE address=?)',
@@ -159,4 +169,4 @@ def delete_tron_history(write_cursor: DBCursor, address: TronAddress | None = No
         "DELETE FROM used_query_ranges WHERE name LIKE ? ESCAPE '\\'",
         (name_pattern,),
     )
-    return hashes
+    return hashes, kept

@@ -2036,11 +2036,19 @@ class DBHandler:
             for address in accounts:
                 solana_tx_db.delete_data_for_address(write_cursor, address)  # type: ignore
         elif blockchain == SupportedBlockchain.TRON:
-            for address in accounts:
-                DBHistoryEvents(self).delete_events_by_tx_ref(
+            dbevents = DBHistoryEvents(self)
+            for address in accounts:  # the kept transactions are decoded again
+                deleted, kept = delete_tron_history(write_cursor, address)  # type: ignore[arg-type]  # TRON accounts
+                dbevents.delete_events_by_tx_ref(
                     write_cursor=write_cursor,
-                    tx_refs=delete_tron_history(write_cursor, address),  # type: ignore[arg-type]  # TRON refs are bytes
+                    tx_refs=deleted,  # type: ignore[arg-type]  # TRON refs are bytes
                     location=Location.TRON,
+                )
+                dbevents.delete_events_by_tx_ref(
+                    write_cursor=write_cursor,
+                    tx_refs=kept,  # type: ignore[arg-type]  # TRON refs are bytes
+                    location=Location.TRON,
+                    customized_handling='preserve_transactions',
                 )
 
         write_cursor.executemany(
