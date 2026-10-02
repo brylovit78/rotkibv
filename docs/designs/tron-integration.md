@@ -633,8 +633,9 @@ Existing tables are reused unchanged:
 - `blockchain_accounts` (`'TRON'`, Base58 account);
 - `external_service_credentials` (`'tronscan'`);
 - `chain_events_info`: `tx_ref` holds the 32 hash bytes;
-- `used_query_ranges`, with names `TRONtxs_<address>`, `TRONtokentxs_<address>` and
-  `TRONinternaltxs_<address>` (`SupportedBlockchain.to_range_prefix`).
+- `used_query_ranges`, with one name per feed and account built by
+  `SupportedBlockchain.to_range_prefix` from the chain value `'TRON'`: the `txs`, `tokentxs` and
+  `internaltxs` prefixes followed by `_<address>`.
 
 Account removal deletes TRON transaction data through `tron_tx_address_mappings`, following
 `rotkehlchen/db/solanatx.py:284-314`.
