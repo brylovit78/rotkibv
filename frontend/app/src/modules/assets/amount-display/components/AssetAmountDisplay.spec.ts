@@ -81,7 +81,7 @@ describe('modules/amount-display/components/AssetAmountDisplay', () => {
 
   describe('scramble data', () => {
     beforeEach(async () => {
-      useSettingsRepo().updateFrontend({ scrambleData: true });
+      useSettingsRepo().updateFrontend({ scrambleData: true, scrambleMultiplier: 2 });
     });
 
     it('should scramble the amount', async () => {
