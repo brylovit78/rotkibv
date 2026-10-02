@@ -374,13 +374,13 @@ class TronTransactions:
                     continue
                 if type(event_index := event['event_index']) is not int:
                     raise DeserializationError(f'Invalid event index in {event}')
-                transfers.append(TronTRC20Transfer(
+                transfers.append(TronTRC20Transfer(  # by position, as tokens name the fields apart
                     tx_hash=tx_hash,
                     event_index=event_index,
                     contract_address=contract,
-                    from_address=deserialize_tron_address(event['result']['from']),
-                    to_address=deserialize_tron_address(event['result']['to']),
-                    amount=deserialize_raw_amount(event['result']['value']),
+                    from_address=deserialize_tron_address(event['result']['0']),
+                    to_address=deserialize_tron_address(event['result']['1']),
+                    amount=deserialize_raw_amount(event['result']['2']),
                 ))
         except (DeserializationError, KeyError, TypeError, ValueError, AttributeError) as e:
             raise RemoteError(f'Unexpected TronScan event logs: {e!s}') from e

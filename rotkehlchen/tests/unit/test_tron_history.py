@@ -420,10 +420,13 @@ def test_later_rows_complete_a_transaction(database: DBHandler) -> None:
 def test_identical_transfers_of_one_transaction_stay_distinct(history: TronTransactions) -> None:
     """synthetic-identical-transfers-same-tx: two equal Transfer logs of one transaction are
     two transfers by event index, stored once although both parties' feeds list them. Logs of
-    other contracts are not parsed, as TronScan may leave their results undecoded."""
+    other contracts are not parsed, as TronScan may leave their results undecoded. A log is
+    read by position, as tokens name its fields differently."""
     rows = tronscan_body(case := 'synthetic-identical-transfers-same-tx', 'trc20-feed-account-a')['token_transfers']  # noqa: E501
     logs = tronscan_body(case, 'event-logs')
     logs['event_list'].append(logs['event_list'][0] | {'contract_address': OTHER_ACCOUNT, 'event_index': 2, 'result': {}})  # noqa: E501
+    result = logs['event_list'][0]['result']  # as WTRX names them, live
+    logs['event_list'][0]['result'] = {'0': result['0'], '1': result['1'], '2': result['2'], 'src': result['from'], 'dst': result['to'], 'wad': result['value']}  # noqa: E501
     second = rows[0]['block_ts'] // 1000
     with patch.object(history.tronscan.session, 'request', return_value=MockResponse(200, json.dumps(logs))):  # noqa: E501
         _sync(history, _Feeds({'token_trc20/transfers': rows}), second - 10, second + 10, accounts=(rows[0]['from_address'], rows[0]['to_address']))  # noqa: E501

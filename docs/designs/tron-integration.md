@@ -337,6 +337,10 @@ Live facts, reconciled exactly:
 - The event-log endpoint returns `event_index` per log. A batch of 100 hashes returned events
   for all 100; for 88 history transactions it returned 109 `Transfer` events. Its `result`
   holds `0x`-prefixed 20-byte addresses: prefix `41` and Base58Check-encode them.
+- `result` keys the fields by the token's parameter names and by position (`0`, `1`, `2`).
+  The names differ between tokens: live on 2026-10-03, WTRX logs carried `src`, `dst` and
+  `wad`, and another token `from`, `to` and `tokens`. The sync reads them by position, in the
+  order of the standard `Transfer(from, to, value)`.
 - Every TRC20 feed row of the history cases maps to exactly one `Transfer` event by
   (contract, from, to, value).
 - Adding `contractAddress` makes the endpoint ignore `hashList` and return unrelated recent
