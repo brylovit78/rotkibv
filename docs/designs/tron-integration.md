@@ -725,7 +725,9 @@ kept, and the removed account's query ranges are deleted.
   4. internal transfers by `internal_hash`.
 - Direction uses `decode_transfer_direction` (`rotkehlchen/chain/decoding/utils.py:20`):
   - tracked to tracked is one `TRANSFER`;
-  - exchanges come only from the address book;
+  - TRX an account sends to itself is a `TRANSACTION_TO_SELF`, as for ETH;
+  - no TRON exchange address is built in, as for Solana and bitcoin, so exchange deposits and
+    withdrawals come from the shared asset movement matching;
   - TronScan labels are never trusted.
 - Zero-value TRC20 transfers follow the ERC20 rule of the EVM decoder.
 - Unconfirmed and `revert: true` transactions have no events. They are still marked decoded,

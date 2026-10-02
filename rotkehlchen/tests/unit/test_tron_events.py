@@ -127,6 +127,43 @@ def test_fee_cases_pay_the_listed_fee(manager: TronManager, case: str) -> None:
     }
 
 
+def test_transaction_to_self(manager: TronManager) -> None:
+    """TRX an account sends to itself is a transaction to self, as for ETH, and it pays the fee"""
+    track_tron_accounts(manager.database, [ALICE])
+    with manager.database.user_write() as write_cursor:
+        add_tron_history(
+            write_cursor=write_cursor,
+            address=ALICE,
+            transactions=[TronTransaction(tx_hash=b'\x03' * 32, block_number=1, timestamp=TimestampMS(1700000000000), confirmed=True, reverted=False, contract_ret='SUCCESS', owner_address=ALICE, to_address=ALICE, contract_type=1, native_amount=2 * 10**6, fee=100000)],  # noqa: E501
+        )
+
+    assert manager.decoder.decode_transactions() == 1
+    assert [(x.event_type, x.event_subtype, x.amount, x.location_label, x.address) for x in _events(manager.database)] == [  # noqa: E501
+        (HistoryEventType.SPEND, HistoryEventSubType.FEE, FVal('0.1'), ALICE, None),
+        (HistoryEventType.TRANSACTION_TO_SELF, HistoryEventSubType.NONE, FVal('2'), ALICE, ALICE),
+    ]
+
+
+def test_relayed_transfers_pay_no_fee(manager: TronManager) -> None:
+    """identity-two-transfers-relayer-paid: a relayer owns the transaction, so its tracked users
+    pay no TRX fee. The USDT service transfer to the relayer is their spend, and the transfer
+    between them one transfer."""
+    rows = tronscan_body(case := 'identity-two-transfers-relayer-paid', 'block-trc20-page1')['token_transfers']  # noqa: E501
+    movements = tronscan_case(case)['expected']['history']['movements']
+    tracked = {x['from'] for x in movements} | {x['to'] for x in movements if x['direction_for_tracked'] == 'transfer'}  # noqa: E501
+    track_tron_accounts(manager.database, tracked)
+    with (
+        patch.object(manager.tronscan.session, 'request', return_value=tronscan_response(case, 'event-logs')),  # noqa: E501
+        patch.object(manager.tronscan, 'query_feed_page', side_effect=lambda feed, address, *args: [x for x in rows if address in (x['from_address'], x['to_address'])] if feed == 'token_trc20/transfers' else []),  # noqa: E501
+    ):
+        manager.query_transactions([TronAddress(x) for x in tracked], Timestamp((second := rows[0]['block_ts'] // 1000) - 10), Timestamp(second + 10))  # noqa: E501
+
+    assert [(x.event_type, x.location_label, x.address, x.amount) for x in _events(manager.database)] == [  # noqa: E501
+        (DIRECTIONS[x['direction_for_tracked']][0], x['from'], x['to'], FVal(x['amount']))
+        for x in movements
+    ]
+
+
 def test_call_value_is_a_movement(manager: TronManager) -> None:
     """fees-call-value-and-origin-energy: the TRX sent with a successful contract call moves to
     the called contract"""

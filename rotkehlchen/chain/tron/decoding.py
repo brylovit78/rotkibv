@@ -218,6 +218,13 @@ class TronTransactionDecoder:
 
             event_type, event_subtype, location_label, address, counterparty, verb = direction
             symbol, other = asset.resolve_to_asset_with_symbol().symbol, counterparty or address
+            if from_address == to_address and asset == self.trx:  # only the owner sends to itself
+                event_type, notes = HistoryEventType.TRANSACTION_TO_SELF, f'Transaction to self of {amount} TRX'  # as for ETH  # noqa: E501
+            elif event_type in OUTGOING_EVENT_TYPES:
+                notes = f'{verb} {amount} {symbol} from {location_label} to {other}'
+            else:
+                notes = f'{verb} {amount} {symbol} from {other} to {location_label}'
+
             events.append(TronEvent(
                 tx_ref=tx_ref,
                 sequence_index=len(events),
@@ -227,7 +234,7 @@ class TronTransactionDecoder:
                 asset=asset,
                 amount=amount,
                 location_label=location_label,
-                notes=f'{verb} {amount} {symbol} from {location_label} to {other}' if event_type in OUTGOING_EVENT_TYPES else f'{verb} {amount} {symbol} from {other} to {location_label}',  # noqa: E501
+                notes=notes,
                 address=address,
                 counterparty=counterparty,
             ))
