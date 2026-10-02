@@ -925,15 +925,17 @@ Plan:
   holds also for an event moved to another group. A full redecode reset and account removal
   keep such a transaction whole the same way.
 - Account removal deletes the events of the removed account's transactions and the stale
-  events of the ones it shared, keeping customized ones. The shared transactions stay
-  pending, so the next sync or pending decode decodes them for the remaining accounts.
+  events of the ones it shared, keeping customized ones. A transaction only another account's
+  feed listed counts as shared when an event of it names the removed account. The shared
+  transactions stay pending, so the next sync or pending decode decodes them for the
+  remaining accounts.
 - Shared registrations: the TRON entry type in the event deserializer and the last-event guard,
   location deletion and redecode reset, the default entry types of the transaction filters,
   TRON addresses in the history filter, the event creation schema, customized-duplicate
   detection, and TRON in the decode endpoints (given, pending, counts).
 - Repull reads the requested range of every feed again, also where a sync covered it, and
   records no coverage, since that range may not join the recorded one. It returns the hashes of
-  the account's transactions in that range that were not stored before.
+  the account's transactions in that range that no account had stored before.
 - Not reached by TRON: add by reference (no single-hash contract in section 3), the yearly
   statistics, and the transaction reference in accounting exports, which bitcoin also lacks.
 - Frontend: the `tron event` entry type and form, the history filters, the row actions

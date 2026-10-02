@@ -204,9 +204,9 @@ def _tron_events(rotkehlchen_api_server: APIServer) -> list[dict]:
     ))['entries']]
 
 
-def _listing(row: dict) -> Callable[..., list[dict]]:
-    """A feed that lists the row in the internal feed windows that contain it"""
-    return lambda feed, address, from_ts, to_ts, start: [row] if feed == 'internal-transaction' and from_ts <= row['timestamp'] // 1000 <= to_ts else []  # noqa: E501
+def _listing(*rows: dict) -> Callable[..., list[dict]]:
+    """A feed that lists the rows in the internal feed windows that contain them"""
+    return lambda feed, address, from_ts, to_ts, start: [x for x in rows if feed == 'internal-transaction' and from_ts <= x['timestamp'] // 1000 <= to_ts]  # noqa: E501
 
 
 @pytest.mark.parametrize('number_of_eth_accounts', [0])
@@ -254,7 +254,8 @@ def test_tron_events_through_the_shared_history_api(rotkehlchen_api_server: APIS
 def test_tron_repull_reads_a_synced_range_again(rotkehlchen_api_server: APIServer) -> None:
     """A repull of a TRON account on its chains reads the range again, also where a sync
     covered it, and decodes what that sync missed. What was recorded as queried stays as it
-    was, and a transaction another account's sync stores meanwhile is not reported."""
+    was. It reports neither a transaction another account's sync stores meanwhile nor one
+    another account stored before."""
     row = tronscan_body('history-internal-only-receipt', 'internal-page0')['data'][0]
     second = row['timestamp'] // 1000
     _track_and_sync(rotkehlchen_api_server, row, lambda *args: [], second + 5)  # missed it
@@ -264,13 +265,15 @@ def test_tron_repull_reads_a_synced_range_again(rotkehlchen_api_server: APIServe
         response=requests.post(refetch_url, json={'chain': 'tron', 'address': row['to'][:-1] + 'u', 'from_timestamp': second - 10, 'to_timestamp': second + 10}),  # noqa: E501
         contained_in_msg='is not a valid EVM, Solana or TRON address',
     )
-    with rotki.data.db.conn.read_ctx() as cursor:
-        ranges = cursor.execute('SELECT * FROM used_query_ranges').fetchall()
+    known = row | {'hash': 'b' * 64, 'internal_hash': 'b' * 64}  # another account stored it
+    with rotki.data.db.user_write() as write_cursor:
+        add_tron_history(write_cursor=write_cursor, address=TronAddress(OTHER_ACCOUNT), transactions=[TronTransaction(tx_hash=bytes.fromhex(known['hash']), block_number=1, timestamp=row['timestamp'], confirmed=True, reverted=False)])  # noqa: E501
+        ranges = write_cursor.execute('SELECT * FROM used_query_ranges').fetchall()
 
     def listing_with_another_sync(*args: Any) -> list[dict]:
         with rotki.data.db.user_write() as write_cursor:
             add_tron_history(write_cursor=write_cursor, address=TronAddress(OTHER_ACCOUNT), transactions=[TronTransaction(tx_hash=b'\x0a' * 32, block_number=1, timestamp=row['timestamp'], confirmed=True, reverted=False)])  # noqa: E501
-        return _listing(row)(*args)
+        return _listing(row, known)(*args)
 
     with patch.object(rotki.tronscan, 'query_feed_page', side_effect=listing_with_another_sync):
         assert assert_proper_sync_response_with_result(requests.post(refetch_url, json={'address': row['to'], 'from_timestamp': second - 10, 'to_timestamp': second + 10})) == {  # noqa: E501
@@ -280,4 +283,4 @@ def test_tron_repull_reads_a_synced_range_again(rotkehlchen_api_server: APIServe
         }
     with rotki.data.db.conn.read_ctx() as cursor:
         assert cursor.execute('SELECT * FROM used_query_ranges').fetchall() == ranges
-    assert [x['tx_ref'] for x in _tron_events(rotkehlchen_api_server)] == [row['hash']]
+    assert {x['tx_ref'] for x in _tron_events(rotkehlchen_api_server)} == {row['hash'], known['hash']}  # noqa: E501

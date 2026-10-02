@@ -150,7 +150,8 @@ def delete_tron_history(
     deletes.
 
     A transaction that another tracked account also maps to is kept and left pending decoding,
-    since its events depend on the tracked accounts. The query ranges of the affected feeds
+    since its events depend on the tracked accounts. So is one with an event of the account,
+    also when only another account's feed listed it. The query ranges of the affected feeds
     are deleted, so a later sync reads the history again.
     """
     bindings: tuple[TronAddress, ...] = ()
@@ -166,16 +167,17 @@ def delete_tron_history(
     hashes = [x[0] for x in write_cursor.execute(f'SELECT tx_hash FROM tron_transactions {where}', bindings)]  # noqa: E501
     write_cursor.execute(f'DELETE FROM tron_transactions {where}', bindings)
     kept: list[bytes] = []
-    if address is not None:
-        kept = [x[0] for x in write_cursor.execute(  # only the shared ones are left
-            'SELECT tx_hash FROM tron_transactions WHERE identifier IN '
-            '(SELECT tx_id FROM tron_tx_address_mappings WHERE address=?)',
-            (address,),
-        )]
+    if address is not None:  # the ones left that the account's feeds or events take part in
+        affected = (
+            'identifier IN (SELECT tx_id FROM tron_tx_address_mappings WHERE address=?) OR '
+            'tx_hash IN (SELECT C.tx_ref FROM chain_events_info C JOIN history_events H ON '
+            'H.identifier=C.identifier WHERE H.location=? AND ? IN (H.location_label, C.address))'
+        )
+        affected_bindings = (address, Location.TRON.serialize_for_db(), address)
+        kept = [x[0] for x in write_cursor.execute(f'SELECT tx_hash FROM tron_transactions WHERE {affected}', affected_bindings)]  # noqa: E501
         write_cursor.execute(
-            'DELETE FROM tron_tx_mappings WHERE tx_id IN '
-            '(SELECT tx_id FROM tron_tx_address_mappings WHERE address=?)',
-            (address,),
+            f'DELETE FROM tron_tx_mappings WHERE tx_id IN (SELECT identifier FROM tron_transactions WHERE {affected})',  # noqa: E501
+            affected_bindings,
         )
         write_cursor.execute('DELETE FROM tron_tx_address_mappings WHERE address=?', (address,))
 

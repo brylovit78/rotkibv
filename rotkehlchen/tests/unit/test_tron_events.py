@@ -261,16 +261,25 @@ def test_redecode_keeps_customized_events_unless_deleting_them(manager: TronMana
     assert [x.notes for x in _events(manager.database)] == [f'Receive 0.000001 TRX from {row["from"]} to {row["to"]}']  # noqa: E501
 
 
-@pytest.mark.parametrize('customized', [False, True])
-def test_removed_account_events_go_and_shared_ones_are_decoded_again(manager: TronManager, customized: bool) -> None:  # noqa: E501
+@pytest.mark.parametrize(('customized', 'listed_by'), [
+    (False, (ALICE, BOB)),
+    (True, (ALICE, BOB)),
+    (False, (BOB,)),
+], ids=['shared', 'customized', 'listed by the recipient only'])
+def test_removed_account_events_go_and_shared_ones_are_decoded_again(
+        manager: TronManager,
+        customized: bool,
+        listed_by: tuple[TronAddress, ...],
+) -> None:
     """Removing an account deletes the events of its own transactions and of one it shares
-    with a tracked account, which waits to be decoded again for that account. A movement keeps
-    its index whichever parties are tracked. A shared transaction with a customized event,
-    also one moved to another group, is kept as it is."""
+    with a tracked account, also one only that account's feed listed, which waits to be
+    decoded again for that account. A movement keeps its index whichever parties are tracked.
+    A shared transaction with a customized event, also one moved to another group, is kept as
+    it is."""
     shared, own = b'\x04' * 32, b'\x05' * 32
     track_tron_accounts(manager.database, [ALICE, BOB])
     with manager.database.user_write() as write_cursor:
-        for tx_hash, to, accounts in ((shared, BOB, (ALICE, BOB)), (own, CAROL, (ALICE,))):
+        for tx_hash, to, accounts in ((shared, BOB, listed_by), (own, CAROL, (ALICE,))):
             for address in accounts:
                 add_tron_history(write_cursor=write_cursor, address=address, transactions=[TronTransaction(tx_hash=tx_hash, block_number=1, timestamp=TimestampMS(1700000000000), confirmed=True, reverted=False, contract_ret='SUCCESS', owner_address=ALICE, to_address=to, contract_type=1, native_amount=10**6, fee=100000)])  # noqa: E501
     assert manager.decoder.decode_transactions() == 2

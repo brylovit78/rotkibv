@@ -174,14 +174,14 @@ class TronManager(ChainManagerWithTransactions[TronAddress]):
 
         May raise RemoteError.
         """
-        query = (  # the account's transactions in the range, not those a parallel sync stores
-            'SELECT T.tx_hash FROM tron_transactions T JOIN tron_tx_address_mappings M ON '
-            'M.tx_id=T.identifier WHERE M.address=? AND T.timestamp BETWEEN ? AND ?'
-        )
-        bindings = (address, from_timestamp * 1000, to_timestamp * 1000 + 999)
-        with self.database.conn.read_ctx() as cursor:
-            stored = {x[0] for x in cursor.execute(query, bindings)}
+        in_range = (from_timestamp * 1000, to_timestamp * 1000 + 999)
+        with self.database.conn.read_ctx() as cursor:  # stored for any account
+            stored = {x[0] for x in cursor.execute('SELECT tx_hash FROM tron_transactions WHERE timestamp BETWEEN ? AND ?', in_range)}  # noqa: E501
 
         self.query_transactions([address], from_timestamp, to_timestamp, refetch=True)
-        with self.database.conn.read_ctx() as cursor:
-            return [TronTxHash(x[0].hex()) for x in cursor.execute(query, bindings) if x[0] not in stored]  # noqa: E501
+        with self.database.conn.read_ctx() as cursor:  # not one a parallel sync stores
+            return [TronTxHash(x[0].hex()) for x in cursor.execute(
+                'SELECT T.tx_hash FROM tron_transactions T JOIN tron_tx_address_mappings M ON '
+                'M.tx_id=T.identifier WHERE M.address=? AND T.timestamp BETWEEN ? AND ?',
+                (address, *in_range),
+            ) if x[0] not in stored]
