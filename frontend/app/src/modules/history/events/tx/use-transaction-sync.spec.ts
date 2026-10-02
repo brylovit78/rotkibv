@@ -10,6 +10,7 @@ import { useTransactionSync } from './use-transaction-sync';
 
 const mockNotifyError = vi.fn();
 const mocks = vi.hoisted(() => ({
+  decodeTransactionsTask: vi.fn(),
   markAddressCancelled: vi.fn(),
   markAddressFailed: vi.fn(),
   removeQueryStatus: vi.fn(),
@@ -49,7 +50,7 @@ vi.mock('@/modules/history/api/events/use-history-events-api', () => ({
 }));
 
 vi.mock('@/modules/history/events/tx/use-history-transaction-decoding', () => ({
-  useHistoryTransactionDecoding: vi.fn(() => ({ decodeTransactionsTask: vi.fn() })),
+  useHistoryTransactionDecoding: vi.fn(() => ({ decodeTransactionsTask: mocks.decodeTransactionsTask })),
 }));
 
 vi.mock('@/modules/history/events/tx/use-history-transaction-accounts', () => ({
@@ -206,6 +207,18 @@ describe('useTransactionSync', () => {
 
       assert(!outcome.ok);
       expect(isCancellation(outcome.error)).toBe(false);
+    });
+
+    it('should sync tron accounts without a decode or evmlike progress', async () => {
+      // TRON has no decoder before #11, and its backend reports progress over the websocket.
+      const tronAccount: ChainAddress = { address: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', chain: 'tron' };
+      const { syncAndReDecodeEvents } = useTransactionSync();
+
+      await syncAndReDecodeEvents('tron', { accounts: [tronAccount], type: TransactionChainType.TRON });
+
+      expect(mocks.submitTask).toHaveBeenCalledWith(expect.objectContaining({ id: makeActivityId(ActivityKind.TX_SYNC, 'tron', tronAccount.address) }));
+      expect(mocks.decodeTransactionsTask).not.toHaveBeenCalled();
+      expect(mocks.setEvmlikeStatus).not.toHaveBeenCalled();
     });
 
     it('should declare the chain activity as a container', async () => {

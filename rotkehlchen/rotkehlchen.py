@@ -1072,7 +1072,7 @@ class Rotkehlchen:
         blockchain_to_addresses, blockchains, accounts_seen = defaultdict(list), chain_type.type_to_blockchains(), set()  # noqa: E501
         for blockchain in blockchains:
             blockchain_accounts = self.chains_aggregator.accounts.get(blockchain)
-            for account in accounts:
+            for account in dict.fromkeys(accounts):  # rotkibv: once, locks are not reentrant
                 if account in blockchain_accounts:
                     accounts_seen.add(account)
                     blockchain_to_addresses[blockchain].append(account)
@@ -1112,6 +1112,10 @@ class Rotkehlchen:
                 stack.enter_context(evm_manager.transactions.missing_receipts_lock)
                 if hasattr(evm_manager.transactions_decoder, 'undecoded_tx_query_lock'):
                     stack.enter_context(evm_manager.transactions_decoder.undecoded_tx_query_lock)
+            elif blockchain == SupportedBlockchain.TRON:  # rotkibv: no sync may write after it
+                self.maybe_cancel_running_tx_query_tasks(blockchain, accounts)  # type: ignore[arg-type]  # TRON addresses
+                for address in sorted(accounts):  # in order, so removals can not deadlock
+                    stack.enter_context(self.chains_aggregator.tron.transactions.address_locks[address])  # type: ignore[index]
             write_cursor = stack.enter_context(self.data.db.user_write())
             self.chains_aggregator.remove_single_blockchain_accounts(
                 write_cursor=write_cursor,

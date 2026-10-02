@@ -3370,6 +3370,7 @@ def test_latest_upgrade_correctness(user_data_dir):
     assert tables_after_creation - tables_after_upgrade == {'evm_internal_tx_conflicts'}
     assert views_after_creation - views_after_upgrade == set()
     new_tables = tables_after_upgrade - tables_before
+    new_tables -= {x for x in new_tables if x.startswith('tron_')}  # rotkibv: on every DB (6.2)
     assert new_tables == {
         'bitcoin_transactions',
         'bitcoin_tx_io',

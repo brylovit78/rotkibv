@@ -96,12 +96,13 @@ const BitcoinTransactionStatusData = z.object({
   subtype: z.literal('bitcoin'),
 });
 
+/** TRON reports the same per-address progress as Solana. */
 const SolanaTransactionStatusData = z.object({
   address: z.string(),
   chain: z.string(),
   period: z.tuple([z.number(), z.number()]),
   status: z.enum(TransactionsQueryStatus),
-  subtype: z.literal('solana'),
+  subtype: z.literal('solana').or(z.literal('tron')),
 });
 
 export const UnifiedTransactionStatusData = z.union([

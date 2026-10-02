@@ -2,6 +2,7 @@
 import json
 from functools import cache
 from pathlib import Path
+from threading import Event, Lock
 from typing import TYPE_CHECKING, Any, Final
 
 from rotkehlchen.tests.utils.mock import MockResponse
@@ -45,3 +46,26 @@ def set_tronscan_key(database: DBHandler, key: str) -> None:
             write_cursor=write_cursor,
             credentials=[ExternalServiceApiCredentials(ExternalService.TRONSCAN, ApiKey(key))],
         )
+
+
+class WaitedLock:
+    """A lock that signals once another thread waits for it, so a test knows that a sync,
+    removal or purge reached the lock instead of guessing from elapsed time"""
+
+    def __init__(self) -> None:
+        self.lock, self.waited = Lock(), Event()
+
+    def acquire(self) -> bool:
+        if not self.lock.acquire(blocking=False):
+            self.waited.set()
+            self.lock.acquire()
+        return True
+
+    def release(self) -> None:
+        self.lock.release()
+
+    def __enter__(self) -> bool:
+        return self.acquire()
+
+    def __exit__(self, *args: object) -> None:
+        self.release()

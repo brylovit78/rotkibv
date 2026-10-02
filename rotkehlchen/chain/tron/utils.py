@@ -25,6 +25,16 @@ def deserialize_tron_address(value: Any) -> TronAddress:
     return TronAddress(address)
 
 
+def deserialize_raw_amount(value: Any) -> int:
+    """May raise DeserializationError if the value is not a whole non-negative number of raw
+    units, given as a plain integer or a decimal string"""
+    if type(value) is int and value >= 0:
+        return value
+    if not isinstance(value, str) or not value.isascii() or not value.isdigit():
+        raise DeserializationError(f'Invalid raw amount {value!r}')
+    return int(value)
+
+
 def tron_address_to_identifier(address: TronAddress) -> str:
     """Asset identifier of a TRC20 contract: lowercase hex of the 21 byte address payload.
 

@@ -5,15 +5,20 @@ from typing import TYPE_CHECKING, Any, Final
 from rotkehlchen.accounting.structures.balance import Balance, BalanceSheet
 from rotkehlchen.assets.asset import Asset, CryptoAsset
 from rotkehlchen.assets.utils import token_normalized_value_decimals
-from rotkehlchen.chain.manager import ChainManager
-from rotkehlchen.chain.tron.utils import deserialize_tron_address, get_or_create_tron_token
+from rotkehlchen.chain.manager import ChainManagerWithTransactions
+from rotkehlchen.chain.tron.transactions import TronTransactions
+from rotkehlchen.chain.tron.utils import (
+    deserialize_raw_amount,
+    deserialize_tron_address,
+    get_or_create_tron_token,
+)
 from rotkehlchen.constants import DEFAULT_BALANCE_LABEL
 from rotkehlchen.errors.misc import MissingAPIKey, RemoteError
 from rotkehlchen.errors.serialization import DeserializationError
 from rotkehlchen.externalapis.tronscan import TRONSCAN_HOLDINGS_LIMIT
 from rotkehlchen.globaldb.handler import GlobalDBHandler
 from rotkehlchen.inquirer import Inquirer
-from rotkehlchen.types import SupportedBlockchain, TronAddress
+from rotkehlchen.types import SupportedBlockchain, Timestamp, TronAddress
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -29,18 +34,12 @@ NON_WALLET_TOKEN_TYPES: Final = ('trc10', 'trc721', 'trc1155')  # TRX is the "_"
 TRON_HOLDINGS_MAX_START: Final = 10000
 
 
-def _raw_amount(value: Any) -> int:
-    """May raise DeserializationError if the value is not a decimal string of raw units"""
-    if not isinstance(value, str) or not value.isascii() or not value.isdigit():
-        raise DeserializationError(f'Invalid raw amount {value!r}')
-    return int(value)
-
-
-class TronManager(ChainManager[TronAddress]):
+class TronManager(ChainManagerWithTransactions[TronAddress]):
 
     def __init__(self, tronscan: Tronscan, database: DBHandler) -> None:
         self.tronscan = tronscan
         self.database = database
+        self.transactions = TronTransactions(tronscan=tronscan, database=database)
 
     def _query_holdings(self, address: TronAddress) -> list[dict[str, Any]]:
         """All token holdings of an account. A short page ends the list, never the total.
@@ -78,8 +77,8 @@ class TronManager(ChainManager[TronAddress]):
 
         if (metadata := self.tronscan.query_token_metadata(contract)) is None:
             raise RemoteError(f'TronScan returned no metadata for TRC20 contract {contract}')
-        if metadata['decimals'] != decimals:
-            raise DeserializationError(f'TRC20 {contract} has {decimals!r} decimals in the holdings but {metadata["decimals"]!r} in its metadata')  # noqa: E501
+        if type(metadata_decimals := metadata['decimals']) is not int or metadata_decimals != decimals:  # noqa: E501
+            raise DeserializationError(f'TRC20 {contract} has {decimals!r} decimals in the holdings but {metadata_decimals!r} in its metadata')  # noqa: E501
         if not isinstance(name := metadata.get('name'), str) or not isinstance(symbol := metadata.get('symbol'), str):  # noqa: E501
             raise DeserializationError(f'Invalid name or symbol for TRC20 contract {contract}')
 
@@ -94,7 +93,7 @@ class TronManager(ChainManager[TronAddress]):
         May raise MissingAPIKey, RemoteError, DeserializationError, KeyError.
         """
         amounts: dict[Asset, FVal] = {}
-        if (sun := _raw_amount(self.tronscan.query_account(address)['balanceStr'])) != 0:
+        if (sun := deserialize_raw_amount(self.tronscan.query_account(address)['balanceStr'])) != 0:  # noqa: E501
             amounts[Asset(SupportedBlockchain.TRON.get_native_token_id())] = token_normalized_value_decimals(sun, TRX_DECIMALS)  # noqa: E501
 
         for row in self._query_holdings(address):
@@ -104,7 +103,7 @@ class TronManager(ChainManager[TronAddress]):
                 raise DeserializationError(f'Unknown TronScan token type in {row} for {address}')
             if type(decimals := row['tokenDecimal']) is not int:  # bool is also an int
                 raise DeserializationError(f'Invalid TRC20 decimals in {row} for {address}')
-            if (raw := _raw_amount(row['balance'])) != 0:
+            if (raw := deserialize_raw_amount(row['balance'])) != 0:
                 token = self._token(deserialize_tron_address(row['tokenId']), decimals)
                 amounts[token] = token_normalized_value_decimals(raw, decimals)
 
@@ -142,3 +141,18 @@ class TronManager(ChainManager[TronAddress]):
                 )
 
         return dict(balances)
+
+    def query_transactions(
+            self,
+            addresses: list[TronAddress],
+            from_timestamp: Timestamp,
+            to_timestamp: Timestamp,
+    ) -> None:
+        """Sync the history feeds of the given accounts, see TronTransactions.
+
+        May raise RemoteError.
+        """
+        try:
+            self.transactions.query_transactions(addresses, from_timestamp, to_timestamp)
+        except MissingAPIKey as e:
+            raise RemoteError('Querying TRON history needs a TronScan API key') from e

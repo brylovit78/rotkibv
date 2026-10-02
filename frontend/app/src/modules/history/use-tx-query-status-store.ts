@@ -45,7 +45,11 @@ interface SolanaTxQueryStatusData extends BaseTxQueryStatusData, PeriodTracking 
   subtype: 'solana';
 }
 
-export type TxQueryStatusData = EvmTxQueryStatusData | EvmlikeTxQueryStatusData | BitcoinTxQueryStatusData | SolanaTxQueryStatusData;
+interface TronTxQueryStatusData extends BaseTxQueryStatusData, PeriodTracking {
+  subtype: 'tron';
+}
+
+export type TxQueryStatusData = EvmTxQueryStatusData | EvmlikeTxQueryStatusData | BitcoinTxQueryStatusData | SolanaTxQueryStatusData | TronTxQueryStatusData;
 
 /** An account plus the subtype its chain queries under, which decides the shape of its entry. */
 export interface SeededAccount extends ChainAddress {

@@ -64,6 +64,7 @@ class TransactionStatusSubType(StrEnum):
     EVM = auto()
     BITCOIN = auto()
     SOLANA = auto()
+    TRON = auto()  # rotkibv
 
 
 class HistoryEventsStep(StrEnum):

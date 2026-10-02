@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { TransactionChainType } from '@/modules/history/events/event-payloads';
 import { useSettingsRepo } from '@/modules/settings/settings-repo';
 import { useHistoryTransactionAccounts } from './use-history-transaction-accounts';
 
@@ -22,6 +23,7 @@ vi.mock('@/modules/balances/blockchain/use-account-addresses', () => ({
       eth: ['0x5A0b54D5dc17e0AadC383d2db43B0a0D3E029c4c', '0x71C7656EC7ab88b098defB751B7401B5f6d8976F'],
       optimism: ['0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199'],
       polygon_pos: ['0xdD2FD4581271e230360230F9337D5c0430Bf44C0'],
+      tron: ['TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'],
       zksync_lite: ['0x2546BcD3c84621e976D8185a91A922aE77ECEc30'],
     }),
   })),
@@ -115,6 +117,14 @@ describe('useHistoryTransactionAccounts', () => {
       const accounts = composable.getBitcoinAccounts(['eth']);
 
       expect(accounts).toHaveLength(0);
+    });
+  });
+
+  describe('tron', () => {
+    it('should sync tron accounts as their own transaction type', () => {
+      expect(composable.getAllAccounts()).toContainEqual({ address: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', chain: 'tron' });
+      expect(composable.getAllAccounts(['eth'])).not.toContainEqual(expect.objectContaining({ chain: 'tron' }));
+      expect(composable.getTransactionTypeFromChain('tron')).toBe(TransactionChainType.TRON);
     });
   });
 

@@ -912,6 +912,80 @@ CREATE TABLE IF NOT EXISTS solana_ata_address_mappings (
 );
 """  # noqa: E501
 
+# rotkibv: TRON history, see docs/designs/tron-integration.md sections 3.8 and 6.4. The feeds
+# only discover parent transactions: TRC20 movements come from event logs and internal TRX from
+# the internal feed. Columns that only an owner's or recipient's transaction row has are
+# nullable, and so is the result of a parent seen only through the internal feed.
+DB_CREATE_TRON_TRANSACTIONS = """
+CREATE TABLE IF NOT EXISTS tron_transactions (
+    identifier INTEGER NOT NULL PRIMARY KEY,
+    tx_hash BLOB NOT NULL UNIQUE,
+    block_number INTEGER NOT NULL,
+    timestamp INTEGER NOT NULL,
+    confirmed INTEGER NOT NULL CHECK (confirmed IN (0, 1)),
+    reverted INTEGER NOT NULL CHECK (reverted IN (0, 1)),
+    contract_ret TEXT,
+    owner_address TEXT,
+    to_address TEXT,
+    contract_type INTEGER,
+    native_amount TEXT,
+    fee TEXT
+);
+"""
+
+DB_CREATE_TRON_TRC20_TRANSFERS = """
+CREATE TABLE IF NOT EXISTS tron_trc20_transfers (
+    tx_id INTEGER NOT NULL,
+    event_index INTEGER NOT NULL,
+    contract_address TEXT NOT NULL,
+    from_address TEXT NOT NULL,
+    to_address TEXT NOT NULL,
+    amount TEXT NOT NULL,
+    PRIMARY KEY(tx_id, event_index),
+    FOREIGN KEY(tx_id) REFERENCES tron_transactions(identifier) ON DELETE CASCADE ON UPDATE CASCADE
+);
+"""
+
+DB_CREATE_TRON_INTERNAL_TRANSFERS = """
+CREATE TABLE IF NOT EXISTS tron_internal_transfers (
+    tx_id INTEGER NOT NULL,
+    internal_hash BLOB NOT NULL,
+    from_address TEXT NOT NULL,
+    to_address TEXT NOT NULL,
+    amount TEXT NOT NULL,
+    success INTEGER NOT NULL CHECK (success IN (0, 1)),
+    PRIMARY KEY(tx_id, internal_hash),
+    FOREIGN KEY(tx_id) REFERENCES tron_transactions(identifier) ON DELETE CASCADE ON UPDATE CASCADE
+);
+"""
+
+DB_CREATE_TRON_TX_ADDRESS_MAPPINGS = """
+CREATE TABLE IF NOT EXISTS tron_tx_address_mappings (
+    tx_id INTEGER NOT NULL,
+    address TEXT NOT NULL,
+    PRIMARY KEY(tx_id, address),
+    FOREIGN KEY(tx_id) REFERENCES tron_transactions(identifier) ON DELETE CASCADE ON UPDATE CASCADE
+);
+"""
+
+DB_CREATE_TRON_TX_MAPPINGS = """
+CREATE TABLE IF NOT EXISTS tron_tx_mappings (
+    tx_id INTEGER NOT NULL,
+    value INTEGER NOT NULL,
+    PRIMARY KEY(tx_id, value),
+    FOREIGN KEY(tx_id) REFERENCES tron_transactions(identifier) ON DELETE CASCADE ON UPDATE CASCADE
+);
+"""
+
+# Also run for existing DBs, which get these tables without a version bump (section 6.2)
+DB_CREATE_TRON_TABLES = (
+    DB_CREATE_TRON_TRANSACTIONS,
+    DB_CREATE_TRON_TRC20_TRANSFERS,
+    DB_CREATE_TRON_INTERNAL_TRANSFERS,
+    DB_CREATE_TRON_TX_ADDRESS_MAPPINGS,
+    DB_CREATE_TRON_TX_MAPPINGS,
+)
+
 # Stores the bitcoin/bitcoin cash transactions we queried, so that they can be decoded
 # again without querying the explorers a second time. Both chains share the tables since
 # a single manager serves them, with the location column telling them apart.
@@ -1203,6 +1277,7 @@ BEGIN TRANSACTION;
 {DB_CREATE_SOLANA_ADDRESS_MAPPINGS}
 {DB_CREATE_SOLANA_TX_MAPPINGS}
 {DB_CREATE_SOLANA_ATA_ADDRESS_MAPPINGS}
+{''.join(DB_CREATE_TRON_TABLES)}
 {DB_CREATE_LIDO_CSM_NODE_OPERATORS}
 {DB_CREATE_LIDO_CSM_NODE_OPERATOR_METRICS}
 {DB_CREATE_HISTORICAL_BALANCE_CACHE}

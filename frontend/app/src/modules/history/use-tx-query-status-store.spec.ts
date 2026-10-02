@@ -1,6 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest';
-import { TransactionsQueryStatus } from '@/modules/core/messaging/types';
+import { TransactionsQueryStatus, UnifiedTransactionStatusData } from '@/modules/core/messaging/types';
 import { type TxQueryStatusData, useTxQueryStatusStore } from './use-tx-query-status-store';
 
 const mockMillisecondsToSeconds = vi.hoisted(() => vi.fn().mockReturnValue(1000));
@@ -172,6 +172,21 @@ describe('store/history/query-status/tx-query-status', () => {
         originalPeriodEnd: 1000,
         period: [0, 1000],
       });
+    });
+
+    // TRON reports per address like Solana. Parsed as the websocket message would be.
+    it('should settle a tron address on its own finish message', () => {
+      const store = useTxQueryStatusStore();
+      const address = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
+      store.initializeQueryStatus([{ address, chain: 'tron', subtype: 'tron' }]);
+      const base = { address, chain: 'TRON', period: [0, 1000], subtype: 'tron' };
+
+      store.setUnifiedTxQueryStatus(UnifiedTransactionStatusData.parse({ ...base, status: 'querying_transactions_started' }));
+      expect(get(store.isAllFinished)).toBe(false);
+
+      store.setUnifiedTxQueryStatus(UnifiedTransactionStatusData.parse({ ...base, status: 'querying_transactions_finished' }));
+      expect(get(store.queryStatus)[`${address}tron`]).toMatchObject({ status: TransactionsQueryStatus.QUERYING_TRANSACTIONS_FINISHED, subtype: 'tron' });
+      expect(get(store.isAllFinished)).toBe(true);
     });
 
     it('should ignore ACCOUNT_CHANGE status', () => {
