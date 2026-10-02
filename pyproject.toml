@@ -173,6 +173,7 @@ rotkehlchen_mock = "rotkehlchen_mock.__main__:main"
 # dependencies = {file = ["requirements.txt"]}
 
 [tool.setuptools_scm]
+git_describe_command = "git describe --dirty --tags --long --match v[0-9]* --exclude *-bv.*"
 fallback_version = "1.44.0"
 
 [tool.setuptools.package-data]
