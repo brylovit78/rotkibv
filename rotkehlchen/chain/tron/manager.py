@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from rotkehlchen.fval import FVal
 
 TRX_DECIMALS: Final = 6  # balances are in sun
-NON_WALLET_TOKEN_TYPES: Final = {'trc10', 'trc721', 'trc1155'}  # TRX is the "_" trc10 row
+NON_WALLET_TOKEN_TYPES: Final = ('trc10', 'trc721', 'trc1155')  # TRX is the "_" trc10 row
 # Holdings pagination is verified only within the first 10000 rows. A complete list must end
 # with a short page below that, otherwise the snapshot can not be proven complete.
 TRON_HOLDINGS_MAX_START: Final = 10000
@@ -83,7 +83,8 @@ class TronManager(ChainManager[TronAddress]):
         if not isinstance(name := metadata.get('name'), str) or not isinstance(symbol := metadata.get('symbol'), str):  # noqa: E501
             raise DeserializationError(f'Invalid name or symbol for TRC20 contract {contract}')
 
-        return get_or_create_tron_token(self.database, contract, name=name, symbol=symbol, decimals=decimals)  # noqa: E501
+        get_or_create_tron_token(self.database, contract, name=name, symbol=symbol, decimals=decimals)  # noqa: E501
+        return self._token(contract, decimals)  # a concurrent query may have stored it first
 
     def _account_amounts(self, address: TronAddress) -> dict[Asset, FVal]:
         """Exact TRX and TRC20 amounts of an account. Every row must parse, so a partial list is
@@ -101,9 +102,11 @@ class TronManager(ChainManager[TronAddress]):
                 continue
             if row['tokenType'] != 'trc20':  # an unknown row could hide a wallet balance
                 raise DeserializationError(f'Unknown TronScan token type in {row} for {address}')
+            if type(decimals := row['tokenDecimal']) is not int:  # bool is also an int
+                raise DeserializationError(f'Invalid TRC20 decimals in {row} for {address}')
             if (raw := _raw_amount(row['balance'])) != 0:
-                token = self._token(deserialize_tron_address(row['tokenId']), row['tokenDecimal'])
-                amounts[token] = token_normalized_value_decimals(raw, row['tokenDecimal'])
+                token = self._token(deserialize_tron_address(row['tokenId']), decimals)
+                amounts[token] = token_normalized_value_decimals(raw, decimals)
 
         return amounts
 

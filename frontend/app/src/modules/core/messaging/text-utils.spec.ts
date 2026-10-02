@@ -187,13 +187,14 @@ describe('text-utils', () => {
   });
 
   it('should validate TRON addresses', () => {
-    expect(isValidTronAddress('TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t')).toBe(true); // USDT contract
+    const usdt = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'; // the USDT contract
+    expect(isValidTronAddress(usdt)).toBe(true);
     expect(isValidTronAddress('TXM3pBpWRemyMFtpRsXCiXSgPJqmuZG4c4')).toBe(true);
 
     expect(isValidTronAddress('')).toBe(false);
     expect(isValidTronAddress(undefined)).toBe(false);
-    expect(isValidTronAddress('TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6')).toBe(false); // one character short
-    expect(isValidTronAddress('TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj60')).toBe(false); // 0 is not base58
+    expect(isValidTronAddress(usdt.slice(0, -1))).toBe(false); // one character short
+    expect(isValidTronAddress(`${usdt.slice(0, -1)}0`)).toBe(false); // 0 is not base58
     expect(isValidTronAddress('1BoatSLRHtKNngkdXEeobR76b53LETtpyT')).toBe(false); // bitcoin version byte
     expect(isValidTronAddress('41a614f803b6fd780986a42c78ec9c7f77e6ded13c')).toBe(false); // hex, not canonical
   });

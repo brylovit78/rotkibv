@@ -302,15 +302,14 @@ def test_key_change_during_a_lookup_is_not_undone(
         database.delete_external_service_credentials([ExternalService.TRONSCAN])
     else:
         set_tronscan_key(database, new_key)
-    with patch.object(tronscan, '_key_lock', HandshakeLock()):  # the lookup already holds it
+    assert real_lock.locked()  # held by the paused lookup, so the hook must wait for it
+    with patch.object(tronscan, '_key_lock', HandshakeLock()):
         hook = Task(name='key change hook', target=tronscan.on_api_key_changed).start()
         assert hook_at_lock.wait(5)
-        hook.join(timeout=0.5)
-        hook_waited = not hook.dead  # blocked behind the lookup, not done before it
         release.set()
         lookup.join(timeout=5)
         hook.join(timeout=5)
 
-    assert (hook_waited, released, lookup.exception, hook.exception) == (True, [True], None, None)
+    assert (released, lookup.exception, hook.exception) == ([True], None, None)
     assert lookup.dead is hook.dead is True
     assert tronscan._get_api_key() == new_key

@@ -11,7 +11,7 @@ import pytest
 from rotkehlchen.accounting.structures.balance import Balance
 from rotkehlchen.assets.asset import Asset, CryptoAsset
 from rotkehlchen.chain.tron.manager import TronManager
-from rotkehlchen.chain.tron.utils import tron_address_to_identifier
+from rotkehlchen.chain.tron.utils import get_or_create_tron_token, tron_address_to_identifier
 from rotkehlchen.constants import DEFAULT_BALANCE_LABEL
 from rotkehlchen.errors.misc import RemoteError
 from rotkehlchen.externalapis.tronscan import TRONSCAN_HOLDINGS_LIMIT, Tronscan
@@ -143,6 +143,32 @@ def test_rejected_metadata_is_not_stored(manager: TronManager, globaldb) -> None
     assert balances[HISTORY_ACCOUNT].assets[CryptoAsset(tron_address_to_identifier(contract))][DEFAULT_BALANCE_LABEL].amount == FVal(2)  # noqa: E501
 
 
+def test_concurrently_stored_decimals_win(manager: TronManager) -> None:
+    """A contract stored by another query during the metadata request is checked against what
+    was stored, not against this query's holdings and metadata"""
+    fake = ('tokens-metadata-and-fake-usdt', 'fake-usdt-showall1')
+    metadata = tronscan_body(*fake)
+    contract = TronAddress(metadata['trc20_tokens'][0]['contract_address'])
+    six = metadata | {'trc20_tokens': [metadata['trc20_tokens'][0] | {'decimals': 6}]}
+
+    responses = iter([
+        tronscan_response(HISTORY_CASE, 'accountv2'),
+        _holdings([{'tokenId': contract, 'balance': '1000000000000000000', 'tokenDecimal': 6, 'tokenType': 'trc20'}]),  # noqa: E501
+    ])
+
+    def request(url: str, **kwargs: Any) -> MockResponse:
+        if url.endswith('/token_trc20'):  # the other query stores the contract with 18 meanwhile
+            get_or_create_tron_token(manager.database, contract, name='USDT', symbol='USDT', decimals=18)  # noqa: E501
+            return MockResponse(200, json.dumps(six))
+        return next(responses)
+
+    with (
+        patch.object(manager.tronscan.session, 'request', side_effect=request),
+        pytest.raises(RemoteError, match='6 decimals in the holdings instead of 18'),
+    ):
+        manager.query_balances([HISTORY_ACCOUNT])
+
+
 def test_new_spam_is_not_a_balance(manager: TronManager, database: DBHandler) -> None:
     """A token that the shared spam check ignores on discovery is neither priced nor returned,
     as the frontend does not learn about the new ignored asset during the refresh"""
@@ -197,6 +223,7 @@ def test_holdings_end_on_a_short_page(manager: TronManager) -> None:
     pytest.param([tronscan_response(HISTORY_CASE, 'accountv2'), _holdings([{'tokenId': 'TYimXEh5J7PYebVzQQcuckcCr1QSKy1it1', 'balance': '1', 'tokenDecimal': 18, 'tokenType': 'trc20'}]), tronscan_response('tokens-metadata-and-fake-usdt', 'token-trc20-without-contract')], id='metadata of another contract'),  # noqa: E501
     pytest.param([tronscan_response(HISTORY_CASE, 'accountv2'), *[tronscan_response('synthetic-http-500')] * 6], id='holdings page failure'),  # noqa: E501
     pytest.param([tronscan_response('errors-authentication', 'invalid-key-key-required-endpoint')], id='invalid key'),  # noqa: E501
+    pytest.param([tronscan_response(HISTORY_CASE, 'accountv2'), _holdings([{'tokenId': 'TYimXEh5J7PYebVzQQcuckcCr1QSKy1it1', 'balance': '1', 'tokenDecimal': 18, 'tokenType': []}])], id='unhashable token type'),  # noqa: E501
 ])
 def test_failures_never_return_a_partial_snapshot(
         manager: TronManager,
@@ -206,6 +233,20 @@ def test_failures_never_return_a_partial_snapshot(
         patch('rotkehlchen.externalapis.tronscan.cancellable_sleep'),
         patch.object(manager.tronscan.session, 'request', side_effect=responses),
         pytest.raises(RemoteError),
+    ):
+        manager.query_balances([HISTORY_ACCOUNT])
+
+
+def test_boolean_decimals_are_not_zero(manager: TronManager) -> None:
+    """False equals the 0 decimals of a stored contract, but it is no decimals value"""
+    contract = TronAddress(tronscan_body('synthetic-zero-decimals-token', 'token-trc20')['trc20_tokens'][0]['contract_address'])  # noqa: E501
+    get_or_create_tron_token(manager.database, contract, name='Zero', symbol='ZDEC', decimals=0)
+    with (
+        patch.object(manager.tronscan.session, 'request', side_effect=[
+            tronscan_response(HISTORY_CASE, 'accountv2'),
+            _holdings([{'tokenId': contract, 'balance': '5', 'tokenDecimal': False, 'tokenType': 'trc20'}]),  # noqa: E501
+        ]),
+        pytest.raises(RemoteError, match='Invalid TRC20 decimals'),
     ):
         manager.query_balances([HISTORY_ACCOUNT])
 
