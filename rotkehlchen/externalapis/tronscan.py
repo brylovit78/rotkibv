@@ -104,7 +104,7 @@ class Tronscan(ExternalServiceWithRecommendedApiKey):
                     headers={'TRON-PRO-API-KEY': api_key},
                     timeout=CachedSettings().get_timeout_tuple(),
                 )
-            except requests.exceptions.InvalidHeader:  # its message repeats the key
+            except (requests.exceptions.InvalidHeader, UnicodeEncodeError):  # both carry the key
                 raise RemoteError(
                     'The TronScan API key is not a valid HTTP header value. '
                     'Enter it again in the external services settings',

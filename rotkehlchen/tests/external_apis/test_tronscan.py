@@ -78,23 +78,27 @@ def test_key_stays_in_the_header(tronscan: Tronscan, caplog: pytest.LogCaptureFi
     assert KEY not in caplog.text
 
 
+@pytest.mark.parametrize('key', [
+    pytest.param(' test-tronscan-key-malformed', id='invalid header'),
+    pytest.param('test\u2013tronscan-key-malformed', id='not latin-1'),
+])
 def test_malformed_key_is_not_echoed(
         tronscan: Tronscan,
         database: DBHandler,
         caplog: pytest.LogCaptureFixture,
+        key: str,
 ) -> None:
-    """A key that is no valid header value fails before sending, and the error does not repeat
-    it, although the requests error does"""
+    """A key that is no valid header value fails before anything is sent, with a fixed error
+    that does not repeat it, although the requests and encoding errors do"""
     caplog.set_level(logging.DEBUG)
-    set_tronscan_key(database, ' test-tronscan-key-malformed')
+    set_tronscan_key(database, key)
     tronscan.on_api_key_changed()
     with (
-        patch.object(tronscan.session, 'send') as send,
+        patch('urllib3.connection.HTTPSConnection.connect'),  # no socket, so nothing is sent
         pytest.raises(RemoteError, match='not a valid HTTP header value') as error,
     ):
         tronscan.query_account(ACCOUNT)
 
-    assert send.call_count == 0
     assert error.value.__suppress_context__ is True
     assert 'key-malformed' not in str(error.value)
     assert 'key-malformed' not in caplog.text
@@ -270,15 +274,25 @@ def test_key_change_during_a_lookup_is_not_undone(
         new_key: str | None,
 ) -> None:
     """A key lookup that read the old key before a replacement or deletion can not cache it
-    after the hook invalidated the cache"""
-    read_old_key, release = threading.Event(), threading.Event()
-    real_lookup = database.get_external_service_credentials
+    after the hook invalidated the cache, because the hook waits for the lookup's lock"""
+    read_old_key, release, hook_at_lock = threading.Event(), threading.Event(), threading.Event()
+    released: list[bool] = []
+    real_lookup, real_lock = database.get_external_service_credentials, tronscan._key_lock
 
     def paused_lookup(service: ExternalService) -> ExternalServiceApiCredentials | None:
         credentials = real_lookup(service)
         read_old_key.set()
-        release.wait(5)
+        released.append(release.wait(5))
         return credentials
+
+    class HandshakeLock:
+        """Tells the test that the hook reached the lock the paused lookup holds"""
+        def __enter__(self) -> None:
+            hook_at_lock.set()
+            real_lock.acquire()
+
+        def __exit__(self, *args: object) -> None:
+            real_lock.release()
 
     with patch.object(database, 'get_external_service_credentials', side_effect=paused_lookup):
         lookup = Task(name='key lookup', target=tronscan._get_api_key).start()
@@ -288,10 +302,15 @@ def test_key_change_during_a_lookup_is_not_undone(
         database.delete_external_service_credentials([ExternalService.TRONSCAN])
     else:
         set_tronscan_key(database, new_key)
-    hook = Task(name='key change hook', target=tronscan.on_api_key_changed).start()
-    release.set()
-    lookup.join(timeout=5)
-    hook.join(timeout=5)
+    with patch.object(tronscan, '_key_lock', HandshakeLock()):  # the lookup already holds it
+        hook = Task(name='key change hook', target=tronscan.on_api_key_changed).start()
+        assert hook_at_lock.wait(5)
+        hook.join(timeout=0.5)
+        hook_waited = not hook.dead  # blocked behind the lookup, not done before it
+        release.set()
+        lookup.join(timeout=5)
+        hook.join(timeout=5)
 
+    assert (hook_waited, released, lookup.exception, hook.exception) == (True, [True], None, None)
     assert lookup.dead is hook.dead is True
     assert tronscan._get_api_key() == new_key
