@@ -35,6 +35,7 @@ from rotkehlchen.db.internal_tx_conflicts import (
 )
 from rotkehlchen.db.settings import CachedSettings
 from rotkehlchen.db.solanatx import DBSolanaTx
+from rotkehlchen.db.trontx import delete_tron_history
 from rotkehlchen.db.utils import table_exists
 from rotkehlchen.errors.api import PremiumApiError
 from rotkehlchen.errors.asset import WrongAssetType
@@ -431,6 +432,7 @@ class TransactionsService:
                     write_cursor=write_cursor,
                 )
                 self._delete_zksync_tx_data(write_cursor=write_cursor)
+                delete_tron_history(write_cursor=write_cursor)
                 for cache_key in (
                     DBCacheDynamic.LAST_BTC_TX_BLOCK,
                     DBCacheDynamic.LAST_BCH_TX_BLOCK,
@@ -447,6 +449,11 @@ class TransactionsService:
                     write_cursor=write_cursor,
                     signature=tx_ref,  # type: ignore[arg-type]
                 )
+            elif chain == SupportedBlockchain.TRON:
+                if tx_ref is None:
+                    delete_tron_history(write_cursor=write_cursor)
+                else:  # its events were already deleted above
+                    write_cursor.execute('DELETE FROM tron_transactions WHERE tx_hash=?', (tx_ref,))  # noqa: E501
             elif chain == SupportedBlockchain.ZKSYNC_LITE:
                 self._delete_zksync_tx_data(
                     write_cursor=write_cursor,
@@ -751,6 +758,17 @@ class TransactionsService:
             ):
                 addresses = result[solana]['addresses']
                 addresses[address] = timestamp
+
+            tron = SupportedBlockchain.TRON.serialize()  # stored in milliseconds
+            result[tron]['latest_timestamp'] = (cursor.execute(
+                'SELECT MAX(timestamp) FROM tron_transactions',
+            ).fetchone()[0] or 0) // 1000
+            for address, timestamp in cursor.execute(
+                    'SELECT M.address, MAX(T.timestamp) FROM tron_tx_address_mappings AS M '
+                    'INNER JOIN tron_transactions AS T ON T.identifier=M.tx_id '
+                    'GROUP BY M.address',
+            ):
+                result[tron]['addresses'][address] = timestamp // 1000
 
             for location, timestamp in cursor.execute(
                     'SELECT location, MAX(timestamp) FROM bitcoin_transactions GROUP BY location',

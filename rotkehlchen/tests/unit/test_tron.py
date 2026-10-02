@@ -92,7 +92,7 @@ def test_tron_location_reserved_value() -> None:
         verify(UNIQUE)(enum_class)  # an upstream value collision would alias silently
 
 
-def test_tron_location_reaches_existing_user_dbs(user_data_dir, sql_vm_instructions_cb, globaldb):
+def test_tron_schema_reaches_existing_user_dbs(user_data_dir, sql_vm_instructions_cb, globaldb):
     def open_db() -> DBHandler:
         return DBHandler(
             user_data_dir=user_data_dir,
@@ -104,15 +104,20 @@ def test_tron_location_reaches_existing_user_dbs(user_data_dir, sql_vm_instructi
         )
 
     tron_row = [(Location.TRON.serialize_for_db(), Location.TRON.value)]
+    tron_tables = "SELECT name, sql FROM sqlite_master WHERE name LIKE 'tron%' ORDER BY name"
     db = open_db()  # fresh database, created from the schema script
     with db.user_write() as write_cursor:
         assert write_cursor.execute('SELECT * FROM location WHERE seq=100').fetchall() == tron_row
+        assert len(fresh_tables := write_cursor.execute(tron_tables).fetchall()) == 5
         write_cursor.execute('DELETE FROM location WHERE seq=100')
+        for name, _ in fresh_tables:
+            write_cursor.execute(f'DROP TABLE {name}')
     db.logout()
 
     db = open_db()  # an existing database never runs the schema script again
     with db.conn.read_ctx() as cursor:
         assert cursor.execute('SELECT * FROM location WHERE seq=100').fetchall() == tron_row
+        assert cursor.execute(tron_tables).fetchall() == fresh_tables
     db.logout()
 
 

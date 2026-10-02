@@ -372,6 +372,7 @@ class RequiredAddressOptionalChainSchema(Schema):
                 value=account.address,
             )) or
             (account.chain == SupportedBlockchain.SOLANA and not is_valid_solana_address(address=account.address)) or  # noqa: E501
+            (account.chain == SupportedBlockchain.TRON and canonical_tron_address(account.address) != account.address) or  # noqa: E501
             (not is_valid_bitcoin_address(chain=account.chain, value=account.address))
         )):
             raise ValidationError(
@@ -411,6 +412,13 @@ class BlockchainTransactionDeletionSchema(Schema):
                 data['tx_ref'] = SolanaSignatureField.deserialize_string_value(tx_ref)
             elif chain.is_bitcoin():
                 data['tx_ref'] = BitcoinTxIdField.deserialize_string_value(tx_ref)
+            elif chain == SupportedBlockchain.TRON:  # stored as the 32 hash bytes
+                try:
+                    data['tx_ref'] = bytes.fromhex(tx_ref)
+                except ValueError as e:
+                    raise ValidationError(f'Invalid TRON transaction hash {tx_ref}', field_name='tx_ref') from e  # noqa: E501
+                if len(data['tx_ref']) != 32:
+                    raise ValidationError(f'Invalid TRON transaction hash {tx_ref}', field_name='tx_ref')  # noqa: E501
 
         return data
 

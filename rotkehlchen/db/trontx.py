@@ -1,0 +1,150 @@
+"""Storage of TRON history, see docs/designs/tron-integration.md sections 3.8 and 6.4"""
+from typing import TYPE_CHECKING, Final, NamedTuple
+
+from rotkehlchen.types import SupportedBlockchain, TimestampMS, TronAddress
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    from rotkehlchen.db.drivers.sqlite import DBCursor
+
+
+class TronTransaction(NamedTuple):
+    """A parent transaction as one feed row describes it. The fields after `contract_ret` are
+    only in the owner's or recipient's transaction feed."""
+    tx_hash: bytes
+    block_number: int
+    timestamp: TimestampMS
+    confirmed: bool
+    reverted: bool
+    contract_ret: str | None = None
+    owner_address: TronAddress | None = None
+    to_address: TronAddress | None = None
+    contract_type: int | None = None
+    native_amount: int | None = None  # sun: TransferContract amount or call_value
+    fee: int | None = None  # sun: /api/transaction cost.fee, the paid fee
+
+
+class TronTRC20Transfer(NamedTuple):
+    tx_hash: bytes
+    event_index: int
+    contract_address: TronAddress
+    from_address: TronAddress
+    to_address: TronAddress
+    amount: int  # raw units
+
+
+class TronInternalTransfer(NamedTuple):
+    tx_hash: bytes
+    internal_hash: bytes
+    from_address: TronAddress
+    to_address: TronAddress
+    amount: int  # sun
+    success: bool
+
+
+# A later observation never loses confirmation and keeps fields that only an owner's row has
+_MERGED: Final = {
+    'confirmed': 'MAX(confirmed, excluded.confirmed)',
+    'reverted': 'excluded.reverted',
+    **{x: f'COALESCE(excluded.{x}, {x})' for x in ('contract_ret', 'owner_address', 'to_address', 'contract_type', 'native_amount', 'fee')},  # noqa: E501
+}
+_UPSERT_TRANSACTION: Final = (
+    'INSERT INTO tron_transactions(tx_hash, block_number, timestamp, confirmed, reverted, '
+    'contract_ret, owner_address, to_address, contract_type, native_amount, fee) '
+    'VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(tx_hash) DO UPDATE SET '
+    f'{", ".join(f"{column}={value}" for column, value in _MERGED.items())} '
+    f'WHERE ({", ".join(_MERGED)}) IS NOT ({", ".join(_MERGED.values())})'  # only real changes
+)
+
+
+def add_tron_history(
+        write_cursor: DBCursor,
+        address: TronAddress,
+        transactions: Iterable[TronTransaction],
+        trc20_transfers: Iterable[TronTRC20Transfer] = (),
+        internal_transfers: Iterable[TronInternalTransfer] = (),
+) -> None:
+    """Store what one window of one account's feed showed. Seeing the same identities again,
+    through any feed, page or account, stores them once.
+
+    A later observation completes a transaction: it never loses confirmation, and fields only
+    an owner's row has are kept. Whenever anything changes for a transaction, its decoded
+    marker is removed so that the decoder runs again.
+    """
+    changed: set[bytes] = set()
+    for tx in transactions:
+        write_cursor.execute(
+            _UPSERT_TRANSACTION,
+            (
+                tx.tx_hash, tx.block_number, tx.timestamp, tx.confirmed, tx.reverted,
+                tx.contract_ret, tx.owner_address, tx.to_address, tx.contract_type,
+                None if tx.native_amount is None else str(tx.native_amount),
+                None if tx.fee is None else str(tx.fee),
+            ),
+        )
+        if write_cursor.rowcount != 0:
+            changed.add(tx.tx_hash)
+        write_cursor.execute(
+            'INSERT OR IGNORE INTO tron_tx_address_mappings(tx_id, address) '
+            'SELECT identifier, ? FROM tron_transactions WHERE tx_hash=?',
+            (address, tx.tx_hash),
+        )
+        if write_cursor.rowcount != 0:
+            changed.add(tx.tx_hash)
+
+    for transfer in trc20_transfers:
+        write_cursor.execute(
+            'INSERT OR IGNORE INTO tron_trc20_transfers(tx_id, event_index, contract_address, '
+            'from_address, to_address, amount) SELECT identifier, ?, ?, ?, ?, ? '
+            'FROM tron_transactions WHERE tx_hash=?',
+            (
+                transfer.event_index, transfer.contract_address, transfer.from_address,
+                transfer.to_address, str(transfer.amount), transfer.tx_hash,
+            ),
+        )
+        if write_cursor.rowcount != 0:
+            changed.add(transfer.tx_hash)
+
+    for internal in internal_transfers:
+        write_cursor.execute(
+            'INSERT OR IGNORE INTO tron_internal_transfers(tx_id, internal_hash, from_address, '
+            'to_address, amount, success) SELECT identifier, ?, ?, ?, ?, ? '
+            'FROM tron_transactions WHERE tx_hash=?',
+            (
+                internal.internal_hash, internal.from_address, internal.to_address,
+                str(internal.amount), internal.success, internal.tx_hash,
+            ),
+        )
+        if write_cursor.rowcount != 0:
+            changed.add(internal.tx_hash)
+
+    write_cursor.executemany(
+        'DELETE FROM tron_tx_mappings WHERE tx_id=(SELECT identifier FROM tron_transactions WHERE tx_hash=?)',  # noqa: E501
+        [(tx_hash,) for tx_hash in changed],
+    )
+
+
+def delete_tron_history(write_cursor: DBCursor, address: TronAddress | None = None) -> None:
+    """Delete the TRON history of one account or, with no address, of all accounts.
+
+    A transaction that another tracked account also maps to is kept. The query ranges of the
+    affected feeds are deleted, so a later sync reads the history again.
+    """
+    if address is None:
+        write_cursor.execute('DELETE FROM tron_transactions')
+        name_pattern = f'{SupportedBlockchain.TRON.value}%'
+    else:
+        write_cursor.execute(
+            'DELETE FROM tron_transactions WHERE identifier IN (SELECT tx_id FROM '
+            'tron_tx_address_mappings WHERE address=?) AND identifier NOT IN (SELECT tx_id '
+            'FROM tron_tx_address_mappings WHERE address!=?)',
+            (address, address),
+        )
+        write_cursor.execute('DELETE FROM tron_tx_address_mappings WHERE address=?', (address,))
+        name_pattern = f'{SupportedBlockchain.TRON.value}%\\_{address}'
+
+    write_cursor.execute(
+        "DELETE FROM used_query_ranges WHERE name LIKE ? ESCAPE '\\'",
+        (name_pattern,),
+    )

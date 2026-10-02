@@ -69,7 +69,7 @@ from rotkehlchen.db.evmtx import DBEvmTx
 from rotkehlchen.db.history_events import DBHistoryEvents
 from rotkehlchen.db.misc import detect_sqlcipher_version, evaluate_integrity_check_rows
 from rotkehlchen.db.pending_transactions import PendingTransactionsTracker
-from rotkehlchen.db.schema import DB_SCRIPT_CREATE_TABLES
+from rotkehlchen.db.schema import DB_CREATE_TRON_TABLES, DB_SCRIPT_CREATE_TABLES
 from rotkehlchen.db.schema_transient import DB_SCRIPT_CREATE_TRANSIENT_TABLES
 from rotkehlchen.db.settings import (
     DEFAULT_ASK_USER_UPON_SIZE_DISCREPANCY,
@@ -85,6 +85,7 @@ from rotkehlchen.db.settings import (
     serialize_db_setting,
 )
 from rotkehlchen.db.solanatx import DBSolanaTx
+from rotkehlchen.db.trontx import delete_tron_history
 from rotkehlchen.db.upgrade_manager import DBUpgradeManager
 from rotkehlchen.db.utils import (
     DBAssetBalance,
@@ -409,6 +410,8 @@ class DBHandler:
                         'INSERT OR IGNORE INTO location(location, seq) VALUES(?, ?)',
                         (Location.TRON.serialize_for_db(), Location.TRON.value),
                     )
+                    for statement in DB_CREATE_TRON_TABLES:
+                        write_cursor.execute(statement)
 
         # run checks on the database
         self.conn.schema_sanity_check()
@@ -2031,6 +2034,9 @@ class DBHandler:
             solana_tx_db = DBSolanaTx(self)
             for address in accounts:
                 solana_tx_db.delete_data_for_address(write_cursor, address)  # type: ignore
+        elif blockchain == SupportedBlockchain.TRON:
+            for address in accounts:
+                delete_tron_history(write_cursor, address)  # type: ignore[arg-type]  # TRON accounts
 
         write_cursor.executemany(
             'DELETE FROM blockchain_accounts WHERE '

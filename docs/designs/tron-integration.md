@@ -600,7 +600,8 @@ INSERT OR IGNORE INTO multiasset_mappings(collection_id, asset)
     WHERE main_asset = 'eip155:1/erc20:0xdAC17F958D2ee523a2206206994597C13D831ec7';
 ```
 
-User DB (#7 adds only the location row; #10 adds the tables as user DB extension steps):
+User DB (#7 adds only the location row; #10 adds the tables as user DB extension steps, run for
+existing databases by the fork branch of `DBHandler.__init__` through `DB_CREATE_TRON_TABLES`):
 
 ```sql
 INSERT OR IGNORE INTO location(location, seq) VALUES (char(164), 100);  -- Location.TRON
@@ -610,19 +611,15 @@ CREATE TABLE IF NOT EXISTS tron_transactions (
     tx_hash BLOB NOT NULL UNIQUE,                 -- 32 bytes
     block_number INTEGER NOT NULL,
     timestamp INTEGER NOT NULL,                   -- milliseconds
-    contract_ret TEXT NOT NULL,
-    reverted INTEGER NOT NULL CHECK (reverted IN (0, 1)),
     confirmed INTEGER NOT NULL CHECK (confirmed IN (0, 1)),
+    reverted INTEGER NOT NULL CHECK (reverted IN (0, 1)),
+    contract_ret TEXT,                            -- NULL when seen only in the internal feed
     -- known only when the parent was seen in an owner's/recipient's transaction feed
     owner_address TEXT,
     to_address TEXT,
     contract_type INTEGER,
     native_amount TEXT,                           -- sun: TransferContract amount or call_value
-    fee TEXT,                                     -- sun: /api/transaction cost.fee
-    energy_fee TEXT,
-    net_fee TEXT,
-    energy_usage_total INTEGER,
-    net_usage INTEGER
+    fee TEXT                                      -- sun: /api/transaction cost.fee
 );
 CREATE TABLE IF NOT EXISTS tron_trc20_transfers (
     tx_id INTEGER NOT NULL REFERENCES tron_transactions(identifier) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -663,8 +660,16 @@ Existing tables are reused unchanged:
   `SupportedBlockchain.to_range_prefix` from the chain value `'TRON'`: the `txs`, `tokentxs` and
   `internaltxs` prefixes followed by `_<address>`.
 
+Energy and bandwidth fields are not stored: they are metadata (section 3.7), and the paid fee
+`cost.fee` is all that #11 needs.
+
+A later row of a stored transaction never drops its confirmation or the owner fields that an
+earlier row stored, and any real change removes the `tron_tx_mappings` decoded marker, so the
+transaction is decoded again (`rotkehlchen/db/trontx.py`).
+
 Account removal deletes TRON transaction data through `tron_tx_address_mappings`, following
-`rotkehlchen/db/solanatx.py:284-314`.
+`rotkehlchen/db/solanatx.py:284-314`. A transaction that another tracked account maps to is
+kept, and the removed account's query ranges are deleted.
 
 ### 6.5 Fresh versus upgraded equivalence, packaged data, resets
 
@@ -846,12 +851,29 @@ Plan:
 ### #10: history storage and sync
 
 - Feeds and window algorithm from 3.6; identities from 3.8; finality from 3.9; DDL from 6.4.
-- Replace the explicit else-EVM or else-Solana branches with TRON branches:
-  - backend: `rotkehlchen/tasks/manager.py:484-491`,
-    `rotkehlchen/api/services/transactions.py:105-114, 590-593, 646-656, 904-935`,
-    `rotkehlchen/db/dbhandler.py:2992-3029`, `rotkehlchen/db/history_events.py:885-893`;
-  - frontend: `use-history-transaction-accounts.ts:59-68`, `use-history-transaction-decoding.ts:99-116`,
-    `use-targeted-redecode.ts:145,188`, `status-types.ts:79-111`.
+  The sync is `rotkehlchen/chain/tron/transactions.py`, and the storage
+  `rotkehlchen/db/trontx.py`.
+- Recording coverage. `DBQueryRanges` keeps one contiguous range per name:
+  - a range after the recorded one starts with the recorded boundary second;
+  - a range before it is recorded only once all of it is complete;
+  - the newest 60 seconds are never recorded, as TronScan may still be indexing them.
+- A saturated single second is reported with a `msg_aggregator` warning that names the second.
+  The data-issues inbox has no kind for provider coverage; its kinds are balance and bridge
+  issues, and adding one is outside #10.
+- One sync of an account runs at a time. Every sync of an account sends
+  `TRANSACTION_STATUS` start and finish messages with subtype `tron`, also when it fails.
+- TRON joins the transaction tuples. The branches #10 reaches:
+  - refresh, with canonical address validation;
+  - transaction deletion and purge;
+  - account removal;
+  - latest transaction timestamps.
+- Not reached by TRON, moved to #11 with the decoder:
+  - add by reference, redecode, pending decode and refetch only accept chains with decoders;
+  - `reset_events_for_redecode` and `delete_location_events` act on TRON events, which do not
+    exist before #11;
+  - the frontend decoding and targeted redecode paths.
+- Frontend: `TransactionChainType.TRON`, TRON accounts in full and selected history refreshes,
+  the `tron` status subtype, and TRON in the transaction purge.
 
 ### #11: events, fees, accounting
 

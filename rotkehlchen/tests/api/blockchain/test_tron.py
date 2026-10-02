@@ -1,5 +1,5 @@
-"""TRON accounts through the shared accounts API (brylovit78/rotkibv#9). No request reaches
-TronScan: saving an account needs no key and queries no balance."""
+"""TRON accounts (brylovit78/rotkibv#9) and history (#10) through the shared API. No request
+reaches TronScan: saving an account needs no key and queries no balance."""
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Final
 from unittest.mock import patch
@@ -12,6 +12,7 @@ from rotkehlchen.tests.utils.api import (
     assert_error_response,
     assert_proper_sync_response_with_result,
 )
+from rotkehlchen.tests.utils.tronscan import set_tronscan_key, tronscan_body
 from rotkehlchen.types import SupportedBlockchain
 
 if TYPE_CHECKING:
@@ -76,3 +77,50 @@ def test_tron_accounts_are_stored_canonical(rotkehlchen_api_server: APIServer) -
             status_code=HTTPStatus.BAD_GATEWAY,
         )
     assert request.call_count == 0
+
+
+@pytest.mark.parametrize('number_of_eth_accounts', [0])
+def test_tron_transactions_refresh_and_deletion(rotkehlchen_api_server: APIServer) -> None:
+    """TRON history refreshes through the shared transactions endpoint, reports its latest
+    timestamps, and is deleted one transaction at a time or all at once"""
+    row = tronscan_body('history-internal-only-receipt', 'internal-page0')['data'][0]
+    account, second = row['to'], row['timestamp'] // 1000
+    rotki = rotkehlchen_api_server.rest_api.rotkehlchen
+    url = api_url_for(rotkehlchen_api_server, 'blockchaintransactionsresource')
+    assert_proper_sync_response_with_result(requests.put(
+        api_url_for(rotkehlchen_api_server, 'blockchainsaccountsresource', blockchain='TRON'),
+        json={'accounts': [{'address': account}]},
+    ))
+    assert_error_response(
+        response=requests.post(url, json={'accounts': [{'address': '0x' + ACCOUNT_HEX, 'blockchain': 'tron'}]}),  # noqa: E501
+        contained_in_msg=f'The address 0x{ACCOUNT_HEX} is not a valid',
+    )
+    with patch.object(rotki.tronscan.session, 'request') as request:
+        assert_error_response(  # without a key the history query fails as a whole
+            response=requests.post(url, json={'accounts': [{'address': account, 'blockchain': 'tron'}]}),  # noqa: E501
+            contained_in_msg='Querying TRON history needs a TronScan API key',
+            status_code=HTTPStatus.BAD_GATEWAY,
+        )
+    assert request.call_count == 0
+
+    set_tronscan_key(rotki.data.db, 'test-tronscan-key')
+    with patch.object(rotki.tronscan, 'query_feed_page', side_effect=lambda feed, address, from_ts, to_ts, start: [row] if feed == 'internal-transaction' and from_ts <= second <= to_ts else []):  # noqa: E501
+        assert_proper_sync_response_with_result(requests.post(url, json={'accounts': [{'address': account, 'blockchain': 'tron'}]}))  # noqa: E501
+    assert assert_proper_sync_response_with_result(requests.get(
+        api_url_for(rotkehlchen_api_server, 'latestblockchaintransactiontimestampsresource'),
+    ))['tron'] == {'latest_timestamp': second, 'addresses': {account: second}}
+
+    assert_error_response(
+        response=requests.delete(url, json={'chain': 'tron', 'tx_ref': row['hash'][:-2]}),
+        contained_in_msg=f'Invalid TRON transaction hash {row["hash"][:-2]}',
+    )
+    with rotki.data.db.conn.read_ctx() as cursor:
+        assert cursor.execute('SELECT COUNT(*) FROM used_query_ranges WHERE name LIKE ?', (f'TRON%{account}',)).fetchone() == (3,)  # noqa: E501
+    assert_proper_sync_response_with_result(requests.delete(url, json={'chain': 'tron', 'tx_ref': row['hash']}))  # noqa: E501
+    with rotki.data.db.conn.read_ctx() as cursor:
+        assert cursor.execute('SELECT COUNT(*) FROM tron_transactions').fetchone() == (0,)
+        assert cursor.execute('SELECT COUNT(*) FROM used_query_ranges WHERE name LIKE ?', (f'TRON%{account}',)).fetchone() == (3,)  # noqa: E501
+
+    assert_proper_sync_response_with_result(requests.delete(url, json={'chain': 'tron'}))
+    with rotki.data.db.conn.read_ctx() as cursor:  # a purge also forgets what was queried
+        assert cursor.execute('SELECT COUNT(*) FROM used_query_ranges WHERE name LIKE ?', (f'TRON%{account}',)).fetchone() == (0,)  # noqa: E501
