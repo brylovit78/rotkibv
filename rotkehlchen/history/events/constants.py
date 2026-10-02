@@ -14,4 +14,5 @@ CHAIN_ENTRY_TYPES: Final = {  # types that need the chain event columns
     HistoryBaseEntryType.SOLANA_SWAP_EVENT,
     HistoryBaseEntryType.ETH_DEPOSIT_EVENT,
     HistoryBaseEntryType.BITCOIN_EVENT,
+    HistoryBaseEntryType.TRON_EVENT,
 }

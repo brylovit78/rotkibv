@@ -223,6 +223,7 @@ def _load_customized_event_candidates(
         HistoryBaseEntryType.SOLANA_EVENT,
         HistoryBaseEntryType.SOLANA_SWAP_EVENT,
         HistoryBaseEntryType.BITCOIN_EVENT,
+        HistoryBaseEntryType.TRON_EVENT,
     )]
     entry_type_placeholders = ', '.join(['?'] * len(entry_type_values))
     query = (

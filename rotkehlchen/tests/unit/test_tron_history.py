@@ -19,15 +19,17 @@ from rotkehlchen.db.trontx import (
     delete_tron_history,
 )
 from rotkehlchen.errors.misc import RemoteError
-from rotkehlchen.externalapis.tronscan import TRONSCAN_API_URL, Tronscan
+from rotkehlchen.externalapis.tronscan import Tronscan
 from rotkehlchen.tests.fixtures.messages import MockRotkiNotifier
 from rotkehlchen.tests.utils.mock import MockResponse
 from rotkehlchen.tests.utils.tronscan import (
     WaitedLock,
     set_tronscan_key,
+    track_tron_accounts,
     tronscan_body,
     tronscan_case,
     tronscan_exchange,
+    tronscan_history_request,
     tronscan_response,
 )
 from rotkehlchen.types import SupportedBlockchain, Timestamp, TimestampMS, TronAddress
@@ -90,11 +92,7 @@ class _Feeds:
 
 
 def _track(history: TronTransactions, accounts: Sequence[str]) -> None:
-    with history.database.user_write() as write_cursor:
-        write_cursor.executemany(
-            'INSERT OR IGNORE INTO blockchain_accounts(blockchain, account) VALUES(?, ?)',
-            [(SupportedBlockchain.TRON.value, x) for x in accounts],
-        )
+    track_tron_accounts(history.database, accounts)
 
 
 def _sync(history: TronTransactions, feeds: _Feeds, from_ts: int, to_ts: int, accounts: Sequence[str] = (ACCOUNT,)) -> None:  # noqa: E501
@@ -134,18 +132,13 @@ def test_history_cases_are_stored_by_identity(history: TronTransactions, case: s
     """Every feed is paged to its short page. TRC20 transfers come from the event logs with
     their index, internal TRX and the paid fees are kept, and each feed records the whole
     window, so syncing it again sends no request."""
-    roles = {(x['endpoint'], (x.get('params') or {}).get('start', 0)): x['role'] for x in tronscan_case(case)['exchanges']}  # noqa: E501
     account = TronAddress(tronscan_exchange(case, 'accountv2')['params']['address'])
     expected = tronscan_case(case)['expected']
     end = expected['completed_range']['query_window_ms'][1] // 1000
-
-    def request(url: str, params: dict[str, Any] | None, **kwargs: Any) -> MockResponse:
-        return tronscan_response(case, roles['/api' + url.removeprefix(TRONSCAN_API_URL), (params or {}).get('start', 0)])  # noqa: E501
-
     _track(history, [account])
     with (
         patch.object(history.tronscan._rate_limiter, 'acquire'),
-        patch.object(history.tronscan.session, 'request', side_effect=request) as requests,
+        patch.object(history.tronscan.session, 'request', side_effect=tronscan_history_request(case)) as requests,  # noqa: E501
     ):
         history.query_transactions([account], Timestamp(0), Timestamp(end))
         requests_count = requests.call_count

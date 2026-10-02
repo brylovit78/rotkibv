@@ -127,26 +127,36 @@ def add_tron_history(
     )
 
 
-def delete_tron_history(write_cursor: DBCursor, address: TronAddress | None = None) -> None:
-    """Delete the TRON history of one account or, with no address, of all accounts.
+def delete_tron_history(write_cursor: DBCursor, address: TronAddress | None = None) -> list[bytes]:
+    """Delete the TRON history of one account or, with no address, of all accounts, and
+    return the hashes of the deleted transactions, whose events the caller deletes.
 
-    A transaction that another tracked account also maps to is kept. The query ranges of the
-    affected feeds are deleted, so a later sync reads the history again.
+    A transaction that another tracked account also maps to is kept and left pending decoding,
+    since its events depend on the tracked accounts. The query ranges of the affected feeds
+    are deleted, so a later sync reads the history again.
     """
+    bindings: tuple[TronAddress, ...] = ()
     if address is None:
-        write_cursor.execute('DELETE FROM tron_transactions')
-        name_pattern = f'{SupportedBlockchain.TRON.value}%'
+        where, name_pattern = '', f'{SupportedBlockchain.TRON.value}%'
     else:
+        where = (
+            'WHERE identifier IN (SELECT tx_id FROM tron_tx_address_mappings WHERE address=?) '
+            'AND identifier NOT IN (SELECT tx_id FROM tron_tx_address_mappings WHERE address!=?)'
+        )
+        bindings, name_pattern = (address, address), f'{SupportedBlockchain.TRON.value}%\\_{address}'  # noqa: E501
+
+    hashes = [x[0] for x in write_cursor.execute(f'SELECT tx_hash FROM tron_transactions {where}', bindings)]  # noqa: E501
+    write_cursor.execute(f'DELETE FROM tron_transactions {where}', bindings)
+    if address is not None:
         write_cursor.execute(
-            'DELETE FROM tron_transactions WHERE identifier IN (SELECT tx_id FROM '
-            'tron_tx_address_mappings WHERE address=?) AND identifier NOT IN (SELECT tx_id '
-            'FROM tron_tx_address_mappings WHERE address!=?)',
-            (address, address),
+            'DELETE FROM tron_tx_mappings WHERE tx_id IN '
+            '(SELECT tx_id FROM tron_tx_address_mappings WHERE address=?)',
+            (address,),
         )
         write_cursor.execute('DELETE FROM tron_tx_address_mappings WHERE address=?', (address,))
-        name_pattern = f'{SupportedBlockchain.TRON.value}%\\_{address}'
 
     write_cursor.execute(
         "DELETE FROM used_query_ranges WHERE name LIKE ? ESCAPE '\\'",
         (name_pattern,),
     )
+    return hashes

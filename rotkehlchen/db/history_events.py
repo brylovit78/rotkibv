@@ -73,6 +73,7 @@ from rotkehlchen.history.events.structures.onchain_event import OnchainEvent
 from rotkehlchen.history.events.structures.solana_event import SolanaEvent
 from rotkehlchen.history.events.structures.solana_swap import SolanaSwapEvent
 from rotkehlchen.history.events.structures.swap import SwapEvent
+from rotkehlchen.history.events.structures.tron_event import TronEvent
 from rotkehlchen.history.events.structures.types import HistoryEventSubType, HistoryEventType
 from rotkehlchen.history.price import query_price_or_use_default
 from rotkehlchen.logging import RotkehlchenLogsAdapter
@@ -810,11 +811,12 @@ class DBHistoryEvents:
                     # decode run would produce the events again.
                     cursor.execute(
                         'SELECT COUNT(*) == 1 FROM history_events WHERE group_identifier=(SELECT '
-                        'group_identifier FROM history_events WHERE identifier=? AND entry_type IN (?, ?))',  # noqa: E501
+                        'group_identifier FROM history_events WHERE identifier=? AND entry_type IN (?, ?, ?))',  # noqa: E501
                         (
                             identifier,
                             HistoryBaseEntryType.EVM_EVENT.serialize_for_db(),
                             HistoryBaseEntryType.BITCOIN_EVENT.serialize_for_db(),
+                            HistoryBaseEntryType.TRON_EVENT.serialize_for_db(),  # rotkibv
                         ),
                     )
                     if bool(cursor.fetchone()[0]) is True:
@@ -888,6 +890,8 @@ class DBHistoryEvents:
             sub_query = (
                 'SELECT signature FROM solana_transactions'
                 if location == Location.SOLANA else
+                'SELECT tx_hash FROM tron_transactions'  # rotkibv
+                if location == Location.TRON else
                 'SELECT tx_hash FROM evm_transactions'
             )
             join_or_where = (
@@ -928,7 +932,7 @@ class DBHistoryEvents:
         Handles different cases depending on the location:
         * All - deletes non-customized events of the location. If any event of a transaction
           is customized, all events of that transaction are preserved.
-        * EVM, Solana and Bitcoin - removes the TX_DECODED mapping of the chain's saved
+        * EVM, Solana, Bitcoin and TRON - removes the TX_DECODED mapping of the chain's saved
           transactions to enable re-processing, except for the ones containing customized
           events.
         """
@@ -950,6 +954,9 @@ class DBHistoryEvents:
         elif location == Location.SOLANA:
             mappings_table, tx_table = 'solana_tx_mappings', 'solana_transactions'
             join_on = 'T.signature = C.tx_ref'
+        elif location == Location.TRON:  # rotkibv
+            mappings_table, tx_table = 'tron_tx_mappings', 'tron_transactions'
+            join_on = 'T.tx_hash = C.tx_ref'
         elif location.is_bitcoin():
             mappings_table, tx_table = 'bitcoin_tx_mappings', 'bitcoin_transactions'
             # The transaction keeps its id as hex text while the event keeps it as bytes.
@@ -1667,10 +1674,12 @@ class DBHistoryEvents:
                 elif entry_type in (
                         HistoryBaseEntryType.SOLANA_EVENT,
                         HistoryBaseEntryType.BITCOIN_EVENT,
+                        HistoryBaseEntryType.TRON_EVENT,
                 ):
                     deserialized_event = (
                         SolanaEvent if entry_type == HistoryBaseEntryType.SOLANA_EVENT
-                        else BitcoinEvent
+                        else BitcoinEvent if entry_type == HistoryBaseEntryType.BITCOIN_EVENT
+                        else TronEvent
                     ).deserialize_from_db(
                         entry[data_start_idx:data_start_idx + HISTORY_BASE_ENTRY_LENGTH + 1] +
                         entry[data_start_idx + HISTORY_BASE_ENTRY_LENGTH + 1:data_start_idx + HISTORY_BASE_ENTRY_LENGTH + CHAIN_FIELD_LENGTH + 1],  # noqa: E501

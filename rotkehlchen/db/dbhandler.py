@@ -162,6 +162,7 @@ from rotkehlchen.types import (
     SolanaAddress,
     SupportedBlockchain,
     Timestamp,
+    TronAddress,
     UserNote,
 )
 from rotkehlchen.utils.hashing import file_md5
@@ -2036,7 +2037,11 @@ class DBHandler:
                 solana_tx_db.delete_data_for_address(write_cursor, address)  # type: ignore
         elif blockchain == SupportedBlockchain.TRON:
             for address in accounts:
-                delete_tron_history(write_cursor, address)  # type: ignore[arg-type]  # TRON accounts
+                DBHistoryEvents(self).delete_events_by_tx_ref(
+                    write_cursor=write_cursor,
+                    tx_refs=delete_tron_history(write_cursor, address),  # type: ignore[arg-type]  # TRON refs are bytes
+                    location=Location.TRON,
+                )
 
         write_cursor.executemany(
             'DELETE FROM blockchain_accounts WHERE '
@@ -2323,6 +2328,14 @@ class DBHandler:
             cursor: DBCursor,
             blockchain: Literal[SupportedBlockchain.SOLANA],
     ) -> list[SolanaAddress]:
+        ...
+
+    @overload
+    def get_single_blockchain_addresses(
+            self,
+            cursor: DBCursor,
+            blockchain: Literal[SupportedBlockchain.TRON],
+    ) -> list[TronAddress]:
         ...
 
     def get_single_blockchain_addresses(

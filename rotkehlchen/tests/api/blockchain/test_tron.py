@@ -1,5 +1,5 @@
-"""TRON accounts (brylovit78/rotkibv#9) and history (#10) through the shared API. No request
-reaches TronScan: saving an account needs no key and queries no balance."""
+"""TRON accounts (brylovit78/rotkibv#9), history (#10) and events (#11) through the shared
+API. No request reaches TronScan: saving an account needs no key and queries no balance."""
 from http import HTTPStatus
 from threading import Event
 from typing import TYPE_CHECKING, Final
@@ -15,9 +15,11 @@ from rotkehlchen.tests.utils.api import (
     assert_proper_sync_response_with_result,
 )
 from rotkehlchen.tests.utils.tronscan import WaitedLock, set_tronscan_key, tronscan_body
-from rotkehlchen.types import SupportedBlockchain, TronAddress
+from rotkehlchen.types import SupportedBlockchain, Timestamp, TronAddress
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from rotkehlchen.api.server import APIServer
 
 ACCOUNT: Final = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'
@@ -180,3 +182,96 @@ def test_tron_chain_type_removal_of_a_repeated_address(rotkehlchen_api_server: A
         timeout=30,
     ))
     assert rotki.chains_aggregator.accounts.tron == ()
+
+
+def _track_and_sync(rotkehlchen_api_server: APIServer, row: dict, feed_page: Callable[..., list[dict]], to_ts: int) -> None:  # noqa: E501
+    """Track the recipient of the row and sync its history from 0 to to_ts with feed_page"""
+    rotki = rotkehlchen_api_server.rest_api.rotkehlchen
+    assert_proper_sync_response_with_result(requests.put(
+        api_url_for(rotkehlchen_api_server, 'blockchainsaccountsresource', blockchain='TRON'),
+        json={'accounts': [{'address': row['to']}]},
+    ))
+    set_tronscan_key(rotki.data.db, 'test-tronscan-key')
+    with patch.object(rotki.tronscan, 'query_feed_page', side_effect=feed_page):
+        rotki.chains_aggregator.tron.query_transactions([row['to']], Timestamp(0), Timestamp(to_ts))  # noqa: E501
+
+
+def _tron_events(rotkehlchen_api_server: APIServer) -> list[dict]:
+    return [x['entry'] for x in assert_proper_sync_response_with_result(requests.post(
+        api_url_for(rotkehlchen_api_server, 'historyeventresource'),
+        json={'location': 'tron'},
+    ))['entries']]
+
+
+def _listing(row: dict) -> Callable[..., list[dict]]:
+    """A feed that lists the row in the internal feed windows that contain it"""
+    return lambda feed, address, from_ts, to_ts, start: [row] if feed == 'internal-transaction' and from_ts <= row['timestamp'] // 1000 <= to_ts else []  # noqa: E501
+
+
+@pytest.mark.parametrize('number_of_eth_accounts', [0])
+def test_tron_events_through_the_shared_history_api(rotkehlchen_api_server: APIServer) -> None:
+    """The events of synced TRON history are filtered by TRON hash and address, counted,
+    decoded and edited through the shared endpoints, as the events of the other chains"""
+    row = tronscan_body('history-internal-only-receipt', 'internal-page0')['data'][0]
+    _track_and_sync(rotkehlchen_api_server, row, _listing(row), row['timestamp'] // 1000 + 10)
+    (event,) = _tron_events(rotkehlchen_api_server)
+    rotki = rotkehlchen_api_server.rest_api.rotkehlchen
+    events_url = api_url_for(rotkehlchen_api_server, 'historyeventresource')
+    for filters in ({'tx_refs': [row['hash']]}, {'addresses': [row['from']]}):
+        assert [x['entry']['identifier'] for x in assert_proper_sync_response_with_result(
+            requests.post(events_url, json=filters),
+        )['entries']] == [event['identifier']]
+
+    decode_url = api_url_for(rotkehlchen_api_server, 'transactionsdecodingresource')
+    with rotki.data.db.user_write() as write_cursor:  # as after a change of the transaction
+        write_cursor.execute('DELETE FROM tron_tx_mappings')
+    assert assert_proper_sync_response_with_result(requests.get(decode_url)) == {'tron': {'undecoded': 1, 'total': 1}}  # noqa: E501
+    assert assert_proper_sync_response_with_result(requests.post(decode_url, json={'chain': 'tron'})) == {'decoded_tx_number': 1}  # noqa: E501
+    assert assert_proper_sync_response_with_result(requests.get(decode_url)) == {}
+    assert assert_proper_sync_response_with_result(requests.post(decode_url, json={'chain': 'tron', 'ignore_cache': True})) == {'decoded_tx_number': 1}  # noqa: E501
+
+    edit = {key: event[key] for key in ('identifier', 'entry_type', 'tx_ref', 'timestamp', 'amount', 'event_type', 'event_subtype', 'asset', 'sequence_index', 'location_label')}  # noqa: E501
+    assert_error_response(
+        response=requests.patch(events_url, json=edit | {'address': (invalid := row['from'][:-1] + 'u')}),  # noqa: E501
+        contained_in_msg=f"Invalid TRON address '{invalid}'",
+    )
+    assert_proper_sync_response_with_result(requests.patch(events_url, json=edit | {'address': row['from'], 'user_notes': 'my own note'}))  # noqa: E501
+    for tx_ref, error, status in (
+        (row['hash'][:-2], f"Invalid TRON transaction hash '{row['hash'][:-2]}'", HTTPStatus.BAD_REQUEST),  # noqa: E501
+        ('e' * 64, f'TRON transaction {"e" * 64} is not stored', HTTPStatus.CONFLICT),
+    ):
+        assert_error_response(
+            response=requests.put(decode_url, json={'chain': 'tron', 'tx_refs': [tx_ref]}),
+            contained_in_msg=error,
+            status_code=status,
+        )
+    assert assert_proper_sync_response_with_result(requests.put(decode_url, json={'chain': 'tron', 'tx_refs': [row['hash']], 'delete_custom': True})) is True  # noqa: E501
+    assert [x['user_notes'] for x in _tron_events(rotkehlchen_api_server)] == [event['user_notes']]
+
+
+@pytest.mark.parametrize('number_of_eth_accounts', [0])
+def test_tron_repull_reads_a_synced_range_again(rotkehlchen_api_server: APIServer) -> None:
+    """A repull of a TRON account on its chains reads the range again, also where a sync
+    covered it, and decodes what that sync missed. What was recorded as queried stays as it
+    was."""
+    row = tronscan_body('history-internal-only-receipt', 'internal-page0')['data'][0]
+    second = row['timestamp'] // 1000
+    _track_and_sync(rotkehlchen_api_server, row, lambda *args: [], second + 5)  # missed it
+    rotki = rotkehlchen_api_server.rest_api.rotkehlchen
+    refetch_url = api_url_for(rotkehlchen_api_server, 'refetchtransactionsresource')
+    assert_error_response(
+        response=requests.post(refetch_url, json={'chain': 'tron', 'address': row['to'][:-1] + 'u', 'from_timestamp': second - 10, 'to_timestamp': second + 10}),  # noqa: E501
+        contained_in_msg='is not a valid EVM, Solana or TRON address',
+    )
+    with rotki.data.db.conn.read_ctx() as cursor:
+        ranges = cursor.execute('SELECT * FROM used_query_ranges').fetchall()
+
+    with patch.object(rotki.tronscan, 'query_feed_page', side_effect=_listing(row)):
+        assert assert_proper_sync_response_with_result(requests.post(refetch_url, json={'address': row['to'], 'from_timestamp': second - 10, 'to_timestamp': second + 10})) == {  # noqa: E501
+            'new_transactions': {'tron': [row['hash']]},
+            'new_transactions_count': 1,
+            'new_history_events_count': 0,
+        }
+    with rotki.data.db.conn.read_ctx() as cursor:
+        assert cursor.execute('SELECT * FROM used_query_ranges').fetchall() == ranges
+    assert [x['tx_ref'] for x in _tron_events(rotkehlchen_api_server)] == [row['hash']]

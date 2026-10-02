@@ -1,4 +1,5 @@
-"""TRON address codec, free of rotkehlchen.types so that it can use it"""
+"""TRON address and transaction hash codecs, free of rotkehlchen.types so that it can use
+them"""
 import hashlib
 
 from rotkehlchen.utils.base58 import b58decode, b58encode
@@ -29,3 +30,14 @@ def canonical_tron_address(value: str) -> str | None:
         return None
 
     return b58encode(payload + _checksum(payload)).decode()
+
+
+def canonical_tron_tx_hash(value: str | bytes) -> str | None:
+    """Return the lowercase hex of a TRON transaction hash given as its 32 bytes or as hex,
+    optionally 0x prefixed, or None if it is not one"""
+    try:
+        raw = value if isinstance(value, bytes) else bytes.fromhex(value.removeprefix('0x'))
+    except ValueError:
+        return None
+
+    return raw.hex() if len(raw) == 32 else None

@@ -728,6 +728,8 @@ kept, and the removed account's query ranges are deleted.
   - exchanges come only from the address book;
   - TronScan labels are never trusted.
 - Zero-value TRC20 transfers follow the ERC20 rule of the EVM decoder.
+- Unconfirmed and `revert: true` transactions have no events. They are still marked decoded,
+  and #10 removes the mark when a later sync changes the transaction.
 - Accounting reuses the existing rules and buckets: own transfers are neutral, fees are debited
   once, and there are no new tax rules.
 
@@ -898,9 +900,30 @@ Plan:
 
 ### #11: events, fees, accounting
 
-- Fee and identity rules from 3.7 and 3.8; event shape from section 7.
-- `rotkehlchen/db/history_events.py:1622-1686` falls back to `HistoryEvent` for unknown entry
-  types; `HistoryEventsIdentifier.vue:93-107` gives any event with a `txRef` an EVM header.
+- Fee and identity rules from 3.7 and 3.8; event shape from section 7. The decoder is
+  `rotkehlchen/chain/tron/decoding.py`, run after every sync of the manager.
+- It decodes without TronScan, except for the metadata of a TRC20 token seen for the first
+  time. That metadata is queried before the write. A transaction whose token can not be queried
+  stays pending, so a later decode retries it; an explicit redecode of it fails instead.
+- Each chunk of transactions is read, decoded and replaced in one write, so a sync, account
+  removal or purge meanwhile can not leave events of an older state behind.
+- Redecoding keeps a transaction with a customized event as it is, unless custom events are
+  deleted, as the shared decoder does. Account removal deletes the events of the removed
+  account's transactions and leaves the ones it shared pending, so the next sync or pending
+  decode decodes them for the remaining accounts.
+- Shared registrations: the TRON entry type in the event deserializer and the last-event guard,
+  location deletion and redecode reset, the default entry types of the transaction filters,
+  TRON addresses in the history filter, the event creation schema, customized-duplicate
+  detection, and TRON in the decode endpoints (given, pending, counts).
+- Repull reads the requested range of every feed again, also where a sync covered it, and
+  records no coverage, since that range may not join the recorded one. It returns the hashes of
+  the transactions that were not stored before.
+- Not reached by TRON: add by reference (no single-hash contract in section 3), the yearly
+  statistics, and the transaction reference in accounting exports, which bitcoin also lacks.
+- Frontend: the `tron event` entry type and form, the history filters, the row actions
+  (redecode and transaction deletion; the only event of a transaction is ignored rather than
+  deleted, as the backend keeps it), the redecode and repull chain lists. TRON stays outside
+  `TransactionChainTypeNeedDecoding`, as the backend decodes it after each sync.
 
 ### #5: release validation
 

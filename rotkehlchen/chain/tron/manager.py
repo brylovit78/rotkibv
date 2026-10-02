@@ -6,6 +6,8 @@ from rotkehlchen.accounting.structures.balance import Balance, BalanceSheet
 from rotkehlchen.assets.asset import Asset, CryptoAsset
 from rotkehlchen.assets.utils import token_normalized_value_decimals
 from rotkehlchen.chain.manager import ChainManagerWithTransactions
+from rotkehlchen.chain.tron.constants import TRX_DECIMALS
+from rotkehlchen.chain.tron.decoding import TronTransactionDecoder
 from rotkehlchen.chain.tron.transactions import TronTransactions
 from rotkehlchen.chain.tron.utils import (
     deserialize_raw_amount,
@@ -18,7 +20,7 @@ from rotkehlchen.errors.serialization import DeserializationError
 from rotkehlchen.externalapis.tronscan import TRONSCAN_HOLDINGS_LIMIT
 from rotkehlchen.globaldb.handler import GlobalDBHandler
 from rotkehlchen.inquirer import Inquirer
-from rotkehlchen.types import SupportedBlockchain, Timestamp, TronAddress
+from rotkehlchen.types import SupportedBlockchain, Timestamp, TronAddress, TronTxHash
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -27,7 +29,6 @@ if TYPE_CHECKING:
     from rotkehlchen.externalapis.tronscan import Tronscan
     from rotkehlchen.fval import FVal
 
-TRX_DECIMALS: Final = 6  # balances are in sun
 NON_WALLET_TOKEN_TYPES: Final = ('trc10', 'trc721', 'trc1155')  # TRX is the "_" trc10 row
 # Holdings pagination is verified only within the first 10000 rows. A complete list must end
 # with a short page below that, otherwise the snapshot can not be proven complete.
@@ -40,6 +41,7 @@ class TronManager(ChainManagerWithTransactions[TronAddress]):
         self.tronscan = tronscan
         self.database = database
         self.transactions = TronTransactions(tronscan=tronscan, database=database)
+        self.decoder = TronTransactionDecoder(database=database, tronscan=tronscan)
 
     def _query_holdings(self, address: TronAddress) -> list[dict[str, Any]]:
         """All token holdings of an account. A short page ends the list, never the total.
@@ -147,12 +149,34 @@ class TronManager(ChainManagerWithTransactions[TronAddress]):
             addresses: list[TronAddress],
             from_timestamp: Timestamp,
             to_timestamp: Timestamp,
+            refetch: bool = False,
     ) -> None:
-        """Sync the history feeds of the given accounts, see TronTransactions.
+        """Sync the history feeds of the given accounts, see TronTransactions, then decode
+        what waits for decoding.
 
         May raise RemoteError.
         """
         try:
-            self.transactions.query_transactions(addresses, from_timestamp, to_timestamp)
+            self.transactions.query_transactions(addresses, from_timestamp, to_timestamp, refetch)
         except MissingAPIKey as e:
             raise RemoteError('Querying TRON history needs a TronScan API key') from e
+
+        self.decoder.decode_transactions()
+
+    def refetch_transactions(
+            self,
+            address: TronAddress,
+            from_timestamp: Timestamp,
+            to_timestamp: Timestamp,
+    ) -> list[TronTxHash]:
+        """Read the history feeds of the account over the range again and decode. Returns
+        the hashes of the transactions that were not stored before.
+
+        May raise RemoteError.
+        """
+        with self.database.conn.read_ctx() as cursor:
+            stored = {x[0] for x in cursor.execute('SELECT tx_hash FROM tron_transactions')}
+
+        self.query_transactions([address], from_timestamp, to_timestamp, refetch=True)
+        with self.database.conn.read_ctx() as cursor:
+            return [TronTxHash(x[0].hex()) for x in cursor.execute('SELECT tx_hash FROM tron_transactions') if x[0] not in stored]  # noqa: E501

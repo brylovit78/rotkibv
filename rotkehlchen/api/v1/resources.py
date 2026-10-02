@@ -231,9 +231,9 @@ from rotkehlchen.serialization.schemas import (
 )
 from rotkehlchen.serialization.serialize import process_result
 from rotkehlchen.types import (
-    CHAINS_WITH_TRANSACTION_DECODERS_TYPE,
     CHAINS_WITH_TRANSACTIONS_TYPE,
     CHAINS_WITH_TX_DECODING_TYPE,
+    CHAINS_WITH_TX_REFETCH_TYPE,
     EVM_CHAIN_IDS_WITH_TRANSACTIONS_TYPE,
     SOLANA_TOKEN_KINDS_TYPE,
     SUPPORTED_CHAIN_IDS,
@@ -266,6 +266,8 @@ from rotkehlchen.types import (
     SolanaAddress,
     SupportedBlockchain,
     Timestamp,
+    TronAddress,
+    TronTxHash,
     UserNote,
 )
 
@@ -832,7 +834,7 @@ class TransactionsDecodingResource(BaseMethodView):
             self,
             async_query: bool,
             chain: CHAINS_WITH_TX_DECODING_TYPE,
-            tx_refs: list[EVMTxHash | Signature],
+            tx_refs: list[EVMTxHash | Signature | TronTxHash],
             delete_custom: bool,
             custom_indexers_order: list[EvmIndexer] | None = None,
     ) -> Response:
@@ -3926,8 +3928,8 @@ class RefetchTransactionsResource(BaseMethodView):
             async_query: bool,
             to_timestamp: Timestamp,
             from_timestamp: Timestamp,
-            chain: CHAINS_WITH_TRANSACTION_DECODERS_TYPE | None = None,
-            address: ChecksumEvmAddress | SolanaAddress | None = None,
+            chain: CHAINS_WITH_TX_REFETCH_TYPE | None = None,
+            address: ChecksumEvmAddress | SolanaAddress | TronAddress | None = None,
     ) -> Response:
         return self.rest_api.force_refetch_transactions(
             address=address,
