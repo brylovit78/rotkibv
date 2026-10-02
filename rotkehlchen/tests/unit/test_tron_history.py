@@ -2,6 +2,7 @@
 `synthetic-pagination-coverage` outcomes. Every HTTP exchange is mocked; no VCR."""
 import json
 from collections import defaultdict
+from threading import Thread
 from typing import TYPE_CHECKING, Any, Final
 from unittest.mock import patch
 
@@ -267,25 +268,50 @@ def test_unprovable_second_still_stores_its_transfers(history: TronTransactions)
     assert _range(history, 'token_trc20/transfers', account) == (second - 10, second - 1)
 
 
-def test_refresh_of_a_removed_account_writes_nothing(history: TronTransactions) -> None:
-    """A refresh that waited for the account's lock while the account was removed finds it
-    untracked, so it neither queries nor restores its history"""
-    with patch.object(history.tronscan, 'query_feed_page') as page:
-        history.query_transactions([ACCOUNT], Timestamp(100), Timestamp(109))
+def test_refresh_waiting_during_a_removal_writes_nothing(history: TronTransactions) -> None:
+    """A refresh of a tracked account waits for the account's lock while a removal holds it,
+    then finds the account untracked, so it neither queries nor restores its history"""
+    _track(history, [ACCOUNT])
+    (lock := history.address_locks[ACCOUNT]).acquire()  # as the removal does
+    with patch.object(history.tronscan, 'query_feed_page', return_value=[]) as page:
+        (refresh := Thread(target=history.query_transactions, args=([ACCOUNT], Timestamp(100), Timestamp(109)))).start()  # noqa: E501
+        refresh.join(timeout=0.5)
+        assert refresh.is_alive()
+        with history.database.user_write() as write_cursor:
+            history.database.remove_single_blockchain_accounts(write_cursor, SupportedBlockchain.TRON, [ACCOUNT])  # noqa: E501
+        lock.release()
+        refresh.join(timeout=10)
+
+    assert not refresh.is_alive()
     assert page.call_count == 0
     assert _range(history, 'internal-transaction') is None
 
 
-def test_other_token_transfers_complete_without_movements(history: TronTransactions) -> None:
-    """TRC721 transfers and transfers of tokens TronScan does not classify are no TRC20
-    movements (section 3.8). Their parents are kept and their window completes."""
-    rows = [TRC20_ROW | {'contract_type': '', 'tokenInfo': {}}, TRC20_ROW | {'contract_type': 'trc721', 'transaction_id': 'e' * 64}]  # noqa: E501
+def test_trc721_transfers_complete_without_movements(history: TronTransactions) -> None:
+    """The documented TRC721 rows of the TRC20 feed are no TRC20 movements (section 3.8).
+    Their parent is kept and their window completes."""
     second, account = TRC20_ROW['block_ts'] // 1000, TRC20_ROW['from_address']
     with patch.object(history.tronscan.session, 'request') as request:
-        _sync(history, _Feeds({'token_trc20/transfers': rows}), second - 10, second + 10, accounts=(account,))  # noqa: E501
+        _sync(history, _Feeds({'token_trc20/transfers': [TRC20_ROW | {'contract_type': 'trc721'}]}), second - 10, second + 10, accounts=(account,))  # noqa: E501
     assert request.call_count == 0  # no event logs to match
-    assert _query(history, 'SELECT COUNT(*) FROM tron_transactions') == {(2,)}
+    assert _query(history, 'SELECT COUNT(*) FROM tron_transactions') == {(1,)}
     assert _query(history, 'SELECT COUNT(*) FROM tron_trc20_transfers') == {(0,)}
+    assert _range(history, 'token_trc20/transfers', account) == (second - 10, second + 10)
+
+
+def test_unclassified_token_transfer_waits_for_its_classification(history: TronTransactions) -> None:  # noqa: E501
+    """TronScan lists transfers of tokens it has not classified with an empty contract type
+    (section 3.8). Such a row holds coverage before its second until a later sync sees it
+    classified, and then its transfer is stored from the event logs."""
+    second, account = TRC20_ROW['block_ts'] // 1000, TRC20_ROW['from_address']
+    with patch.object(history.tronscan.session, 'request', return_value=tronscan_response('history-zero-holding-token', 'event-logs')) as request:  # noqa: E501
+        _sync(history, _Feeds({'token_trc20/transfers': [TRC20_ROW | {'contract_type': '', 'tokenInfo': {}}]}), second - 10, second + 10, accounts=(account,))  # noqa: E501
+        assert request.call_count == 0
+        assert _range(history, 'token_trc20/transfers', account) == (second - 10, second - 1)
+
+        _sync(history, _Feeds({'token_trc20/transfers': [TRC20_ROW]}), second - 10, second + 10, accounts=(account,))  # noqa: E501
+
+    assert _query(history, 'SELECT lower(hex(T.tx_hash)), R.amount FROM tron_trc20_transfers R JOIN tron_transactions T ON T.identifier=R.tx_id') == {(TRC20_ROW['transaction_id'], TRC20_ROW['quant'])}  # noqa: E501
     assert _range(history, 'token_trc20/transfers', account) == (second - 10, second + 10)
 
 

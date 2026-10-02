@@ -163,3 +163,20 @@ def test_tron_account_removal_waits_for_its_sync(rotkehlchen_api_server: APIServ
     with rotki.data.db.conn.read_ctx() as cursor:
         assert cursor.execute('SELECT COUNT(*) FROM tron_transactions').fetchone() == (0,)
         assert cursor.execute("SELECT COUNT(*) FROM used_query_ranges WHERE name LIKE 'TRON%'").fetchone() == (0,)  # noqa: E501
+
+
+@pytest.mark.parametrize('number_of_eth_accounts', [0])
+def test_tron_chain_type_removal_of_a_repeated_address(rotkehlchen_api_server: APIServer) -> None:
+    """A chain type removal that repeats an address removes it once, instead of waiting for
+    the account lock it already holds"""
+    rotki = rotkehlchen_api_server.rest_api.rotkehlchen
+    assert_proper_sync_response_with_result(requests.put(
+        api_url_for(rotkehlchen_api_server, 'blockchainsaccountsresource', blockchain='TRON'),
+        json={'accounts': [{'address': ACCOUNT}]},
+    ))
+    assert_proper_sync_response_with_result(requests.delete(
+        api_url_for(rotkehlchen_api_server, 'chaintypeaccountresource', chain_type='tron'),
+        json={'accounts': [ACCOUNT, ACCOUNT]},
+        timeout=30,
+    ))
+    assert rotki.chains_aggregator.accounts.tron == ()

@@ -367,11 +367,12 @@ Live facts, reconciled exactly:
   `confirmed == true`. For internal rows the conditions are `result == "SUCCESS"`,
   `rejected == false`, `revert == false` and `confirmed == true`.
 - TRC20 movements also need `event_type == "Transfer"` and `contract_type == "trc20"`.
-  The endpoint also lists TRC721 transfers (`contract_type == "trc721"`, as documented) and
-  transfers of tokens TronScan does not classify. The latter have an empty `contract_type` and
-  no token information; live on 2026-10-02 they were 3 of 38 rows of an hour of the official
-  burn address `T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb`. Both are no TRC20 movements. Any other
-  classification leaves its parent unresolved, which keeps the window incomplete before it.
+  The endpoint also lists TRC721 transfers (`contract_type == "trc721"`, as documented), which
+  are no TRC20 movements. Live on 2026-10-02 it also listed transfers of tokens TronScan had
+  not classified, with an empty `contract_type` and no token information: 3 of 38 rows of an
+  hour of the official burn address `T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb`. Their classification
+  may follow, so they, like any other classification, leave their parent unresolved, which
+  keeps the window incomplete before it until a sync sees them classified.
 - Only logs of the feed's TRC20 contracts are parsed. Live, a `Transfer` log of such an
   unclassified token had an empty `result`.
 - `trc20TransferInfo` and `tokenTransferInfo` are never movement evidence.

@@ -50,9 +50,6 @@ TRON_HISTORY_FEEDS: Final[dict[TronFeed, _FeedSpec]] = {
     'token_trc20/transfers': _FeedSpec('tokentxs', 'block_ts', ('from_address', 'to_address'), ('transaction_id', 'contract_address', 'from_address', 'to_address', 'quant')),  # noqa: E501
     'internal-transaction': _FeedSpec('internaltxs', 'timestamp', ('from', 'to'), ('internal_hash',)),  # noqa: E501
 }
-# TRC20 feed rows that carry no TRC20 movement (section 3.8): TronScan also lists TRC721
-# transfers, and transfers of tokens it does not classify, without token information.
-OTHER_TOKEN_TRANSFER_TYPES: Final = ('', 'trc721')
 # TronScan may still index rows of the latest seconds, so these are never marked complete
 RECENT_HISTORY_MARGIN: Final = 60
 
@@ -277,7 +274,10 @@ class TronTransactions:
                     parent = _parent(row, 'transaction_id', 'block_ts', 'contractRet')
                     if not all(type(row[x]) is str for x in ('contract_type', 'event_type')):
                         raise DeserializationError(f'Invalid TRC20 row classification in {row}')
-                    if row['event_type'] != 'Transfer' or row['contract_type'] not in ('trc20', *OTHER_TOKEN_TRANSFER_TYPES):  # noqa: E501
+                    # TRC721 transfers carry no TRC20 movement. Any other classification, also
+                    # the empty one of tokens TronScan has not classified yet (section 3.8),
+                    # leaves the parent unresolved
+                    if row['event_type'] != 'Transfer' or row['contract_type'] not in ('trc20', 'trc721'):  # noqa: E501
                         unknown.add(parent.tx_hash)
                     elif row['contract_type'] == 'trc20':
                         trc20_rows.setdefault(parent.tx_hash, []).append((

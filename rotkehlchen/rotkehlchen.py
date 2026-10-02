@@ -1072,7 +1072,7 @@ class Rotkehlchen:
         blockchain_to_addresses, blockchains, accounts_seen = defaultdict(list), chain_type.type_to_blockchains(), set()  # noqa: E501
         for blockchain in blockchains:
             blockchain_accounts = self.chains_aggregator.accounts.get(blockchain)
-            for account in accounts:
+            for account in dict.fromkeys(accounts):  # rotkibv: once, locks are not reentrant
                 if account in blockchain_accounts:
                     accounts_seen.add(account)
                     blockchain_to_addresses[blockchain].append(account)
