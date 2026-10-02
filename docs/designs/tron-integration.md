@@ -229,10 +229,10 @@ Treat `code != 200` as a provider error.
   (not per-endpoint)". It publishes no numbers for any tier. No response carries rate-limit
   headers (**Live**).
 - **Decision:** reuse `TokenBucket` (`rotkehlchen/utils/rate_limiter.py`) with one bucket per
-  client and key, shared across endpoints and accounts. Shrink it on 429 and widen it on
-  success, as `EtherscanLikeApi` does. The starting rate is an implementation default, not a
-  provider fact. Do not invent per-tier QPS values or add a user setting. Reset the bucket when
-  the key changes (`on_api_key_changed` pattern).
+  client and key, shared across endpoints and accounts. Shrink it on 429, as `EtherscanLikeApi`
+  does. Like that client, it is never widened, because no tier signal exists. The starting rate
+  is an implementation default, not a provider fact. Do not invent per-tier QPS values or add a
+  user setting. Reset the bucket when the key changes (`on_api_key_changed` pattern).
 
 ### 3.6 Pagination, windows and counts
 
@@ -749,6 +749,39 @@ Moved to later tasks, because registering them earlier would expose TRON before 
   (reserved in section 6.3): #11.
 
 ### #8: TronScan client and External Services key
+
+Implemented by #8:
+
+- `rotkehlchen/externalapis/tronscan.py`: `Tronscan`, one instance on `Rotkehlchen` and one
+  `TokenBucket`.
+  - Transport:
+    - the key goes only in the header;
+    - a missing key raises `MissingAPIKey` before any request and notifies once;
+    - 401 and 403 raise `RemoteError` without retrying;
+    - 429 and 5xx are retried up to `query_retry_limit`, waiting `Retry-After` or 1, 2, 4… s
+      (at most 60 s) in cancellable sleeps, and a 429 halves the bucket;
+    - connection errors and timeouts get the bounded retries of the shared `create_session`,
+      then `RemoteError`;
+    - a body that is not a JSON object raises `RemoteError`.
+  - Endpoints:
+    - `query_account` (`accountv2`);
+    - `query_holdings_page`: `hidden=0&show=0`, 200 rows, `code != 200` is an error;
+    - `query_feed_page`: 50 rows, millisecond bounds clamped to block 0, no request for an
+      earlier window, `start` at most 9950 (the last page of the 10000-row window);
+    - `query_event_logs`: `hashList` only, 100 hashes per request;
+    - `query_token_metadata`: `None` unless the contract matches;
+    - `query_transaction_info`: `None` for `{}`.
+  - Addresses are revalidated before a request. Rows stay provider objects: #9 and #10 parse
+    them and validate them against the requested account and window.
+- `ExternalService.TRONSCAN`. The External Services save and delete hook calls
+  `on_api_key_changed`, which drops the cached key and resets the bucket.
+- Frontend:
+  - the TronScan key card;
+  - a missing-key notification with its own category, route and docs link, which can be
+    suppressed;
+  - the account-form hint for the `tron` chain, which takes effect once #9 registers the chain.
+
+Plan:
 
 - Build on `ExternalServiceWithRecommendedApiKey` (`rotkehlchen/externalapis/interface.py:60`)
   with one `TokenBucket`.

@@ -1,3 +1,4 @@
+import logging
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 from unittest.mock import patch
@@ -152,6 +153,30 @@ def test_helius_key_syncs_solana_rpc_node(rotkehlchen_api_server: APIServer) -> 
         )
         if node.node_info.owned is False
     ) == ONE
+
+
+def test_tronscan_key_change_reaches_the_client(
+        rotkehlchen_api_server: APIServer,
+        caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Saving, replacing and deleting the TronScan key reach the client without a restart,
+    and the key never reaches the API request or response logs"""
+    caplog.set_level(logging.DEBUG)
+    tronscan = rotkehlchen_api_server.rest_api.rotkehlchen.tronscan
+    url = api_url_for(rotkehlchen_api_server, 'externalservicesresource')
+    for key in ('tronscan-test-key-1', 'tronscan-test-key-2'):
+        assert assert_proper_sync_response_with_result(requests.put(
+            url, json={'services': [{'name': 'tronscan', 'api_key': key}]},
+        ))['tronscan'] == {'api_key': key}
+        assert assert_proper_sync_response_with_result(requests.get(url))['tronscan'] == {'api_key': key}  # noqa: E501
+        assert tronscan._get_api_key() == key
+
+    assert 'tronscan' not in assert_proper_sync_response_with_result(
+        requests.delete(url, json={'services': ['tronscan']}),
+    )
+    assert tronscan._get_api_key() is None
+    assert 'start rotki api PUT' in caplog.text  # the API requests are logged, the keys not
+    assert 'tronscan-test-key' not in caplog.text
 
 
 @pytest.mark.parametrize('include_etherscan_key', [False])

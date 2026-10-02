@@ -10,7 +10,8 @@ PYWSGI_RE = re.compile(r'\[(.*)\] ')
 
 TRACE = logging.DEBUG - 5
 
-SENSITIVE_KEYS: Final = frozenset(('password', 'new_password', 'old_password'))
+# 'services' holds the External Services credentials (rotkibv)
+SENSITIVE_KEYS: Final = frozenset(('password', 'new_password', 'old_password', 'services'))
 
 
 def add_logging_level(

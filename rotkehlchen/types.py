@@ -116,6 +116,7 @@ class ExternalService(SerializableEnumNameMixin):
     HELIUS = auto()
     ROUTESCAN = auto()
     JUPITER = auto()
+    TRONSCAN = auto()  # rotkibv
 
     def premium_only(self) -> bool:
         return self == ExternalService.GNOSIS_PAY
