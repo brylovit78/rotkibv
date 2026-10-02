@@ -1,3 +1,4 @@
+import { Blockchain } from '@rotki/common';
 import { get } from '@vueuse/core';
 import { useAccountAddresses } from '@/modules/balances/blockchain/use-account-addresses';
 import { useSupportedChains } from '@/modules/core/common/use-supported-chains';
@@ -49,6 +50,7 @@ export function useHistoryTransactionAccounts(): UseHistoryTransactionAccountsRe
     ...getEvmLikeAccounts(chains),
     ...getBitcoinAccounts(chains),
     ...getSolanaAccounts(chains),
+    ...getAccountsByChainType(chain => chain === Blockchain.TRON, chains),
   ];
 
   // Kept as a named member of this composable because `use-refresh-transactions` calls it at a
@@ -63,6 +65,8 @@ export function useHistoryTransactionAccounts(): UseHistoryTransactionAccountsRe
       return TransactionChainType.BITCOIN;
     if (isSolanaChains(chain))
       return TransactionChainType.SOLANA;
+    if (chain === Blockchain.TRON)
+      return TransactionChainType.TRON;
 
     return TransactionChainType.EVM;
   };

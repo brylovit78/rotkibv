@@ -35,6 +35,10 @@ function isSolanaChain(info: ChainInfo): boolean {
   return info.type === ChainType.SOLANA;
 }
 
+function isTronChain(info: ChainInfo): boolean {
+  return info.type === ChainType.TRON;
+}
+
 interface UseSupportedChainsReturn {
   allEvmChains: Readonly<Ref<EvmChainEntries>>;
   allTxChainsInfo: ComputedRef<ChainInfo[]>;
@@ -61,6 +65,7 @@ interface UseSupportedChainsReturn {
   isSolanaChains: (chain: string) => boolean;
   matchChain: (location: string) => Blockchain | undefined;
   solanaChainsData: ComputedRef<ChainInfo[]>;
+  tronChainsData: ComputedRef<ChainInfo[]>;
   supportedChains: Readonly<Ref<SupportedChains>>;
   supportsTransactions: (chain: string) => boolean;
   txChainsToLocation: ComputedRef<string[]>;
@@ -93,6 +98,10 @@ export const useSupportedChains = createSharedComposable((): UseSupportedChainsR
     get(supportedChains).filter(isSolanaChain),
   );
 
+  const tronChainsData = computed<ChainInfo[]>(() =>
+    get(supportedChains).filter(isTronChain),
+  );
+
   const txEvmChains = computed<EvmChainInfo[]>(() =>
     get(evmChainsData).filter(x => x.id !== Blockchain.AVAX),
   );
@@ -110,6 +119,7 @@ export const useSupportedChains = createSharedComposable((): UseSupportedChainsR
   const allTxChainsInfo = computed<ChainInfo[]>(() => [
     ...get(decodableTxChainsInfo),
     ...get(bitcoinChainsData),
+    ...get(tronChainsData),
   ]);
 
   const evmChains = computed<string[]>(() => get(evmChainsData).map(x => x.id));
@@ -318,6 +328,7 @@ export const useSupportedChains = createSharedComposable((): UseSupportedChainsR
     solanaChainsData,
     supportedChains,
     supportsTransactions,
+    tronChainsData,
     txChainsToLocation,
     txEvmChains,
     useBlockchainRedirectLink,
