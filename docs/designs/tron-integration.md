@@ -669,8 +669,9 @@ Account removal deletes TRON transaction data through `tron_tx_address_mappings`
 ### 6.5 Fresh versus upgraded equivalence, packaged data, resets
 
 - `rotkehlchen/tests/unit/test_tron.py` undoes the extension on a copy of the packaged global
-  DB, re-applies it and compares schema and seed rows, so the packaged file cannot drift from
-  the extension code. It also checks that fresh and existing user DBs carry the location row.
+  DB, opens it through the normal startup and compares schema and seed rows. So an existing
+  upstream DB gets the extension once, and the packaged file cannot drift from the extension
+  code. It also checks that fresh and existing user DBs carry the location row.
 - The packaged `rotkehlchen/data/global.db` is a fork data artifact: upstream's packaged file
   plus the global extension. After every upstream sync, regenerate it from upstream's file and
   re-run the packaged-DB tests:
@@ -729,7 +730,8 @@ Implemented by #7:
   value into `DeserializationError`.
 - `TronAddress` and `rotkehlchen/chain/tron/utils.py`: `deserialize_tron_address` (Base58Check
   and both hex forms to canonical Base58), `tron_address_to_identifier` and
-  `get_or_create_tron_token` (contract lookup first, decimals 0..255).
+  `get_or_create_tron_token` (canonical contract, contract lookup first, decimals 0..255, the
+  shared spam check marking `protocol` and the ignored list).
 - TRC20 assets are generic `TRON_TOKEN` `CryptoAsset`s plus a `tron_tokens` row, as the legacy
   rows already are. No `TronToken` class or handler dispatch is added until a caller needs
   typed token data.

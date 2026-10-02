@@ -5,6 +5,7 @@ Values come from the TronScan contract corpus in rotkehlchen/tests/data/tronscan
 import json
 import shutil
 import sqlite3
+from contextlib import closing
 from enum import UNIQUE, verify
 from pathlib import Path
 from typing import Any, Final
@@ -30,11 +31,11 @@ from rotkehlchen.globaldb.upgrades.rotkibv import (
     TRON_USDT_CONTRACT,
     TRON_USDT_IDENTIFIER,
     USDT_COLLECTION_MAIN_ASSET,
-    apply_rotkibv_schema_extension,
 )
 from rotkehlchen.history.events.structures.base import HistoryBaseEntryType
+from rotkehlchen.tests.fixtures.globaldb import create_globaldb
 from rotkehlchen.tests.unit.globaldb.test_asset_updates import get_mock_github_assets_response
-from rotkehlchen.types import Location, TokenKind, TronAddress
+from rotkehlchen.types import SPAM_PROTOCOL, Location, TokenKind, TronAddress
 from rotkehlchen.user_messages import MessagesAggregator
 
 DATA_DIR: Final = Path(__file__).resolve().parent.parent / 'data' / 'tronscan'
@@ -115,14 +116,15 @@ def test_tron_location_reaches_existing_user_dbs(user_data_dir, sql_vm_instructi
     db.logout()
 
 
-def test_packaged_globaldb_is_the_extension_output(tmp_path: Path) -> None:
-    """Undo the fork extension on a copy of the packaged DB, as in upstream's file, re-apply
-    it and compare, so the packaged DB cannot drift from the extension code."""
-    connection = sqlite3.connect(shutil.copy(PACKAGED_GLOBALDB, tmp_path / 'global.db'))
-    cursor = connection.cursor()
+def test_packaged_globaldb_is_the_extension_output(tmp_path: Path, messages_aggregator) -> None:
+    """Undo the fork extension on a copy of the packaged DB, as in upstream's file, and open it
+    through the normal startup. So an existing upstream DB gets the extension once, and the
+    packaged DB cannot drift from the extension code."""
+    (global_dir := tmp_path / 'global').mkdir()
+    db_path = shutil.copy(PACKAGED_GLOBALDB, global_dir / 'global.db')
     ids = ('TRX', TRON_USDT_IDENTIFIER)
 
-    def snapshot() -> list[list[Any]]:
+    def snapshot(cursor: sqlite3.Cursor) -> list[list[Any]]:
         return [cursor.execute(query, params).fetchall() for query, params in (
             ("SELECT sql FROM sqlite_master WHERE name='tron_tokens'", ()),
             ('SELECT * FROM tron_tokens', ()),
@@ -132,23 +134,29 @@ def test_packaged_globaldb_is_the_extension_output(tmp_path: Path) -> None:
             ('SELECT value FROM settings WHERE name=?', (ROTKIBV_SCHEMA_EXTENSION_KEY,)),
         )]
 
-    packaged = snapshot()
-    assert packaged[1] == [(TRON_USDT_IDENTIFIER, TRON_USDT_CONTRACT, 6, None)]
-    assert packaged[-1] == [('1',)]
-    cursor.execute('DROP TABLE tron_tokens')
-    cursor.execute('DELETE FROM multiasset_mappings WHERE asset IN (?, ?)', ids)
-    for table in ('common_asset_details', 'assets'):
-        cursor.execute(f'DELETE FROM {table} WHERE identifier IN (?, ?)', ids)
-    cursor.execute('DELETE FROM settings WHERE name=?', (ROTKIBV_SCHEMA_EXTENSION_KEY,))
-    apply_rotkibv_schema_extension(cursor)  # type: ignore[arg-type]  # same cursor API
-    assert snapshot() == packaged
+    with closing(sqlite3.connect(db_path)) as connection:
+        packaged = snapshot(cursor := connection.cursor())
+        assert packaged[1] == [(TRON_USDT_IDENTIFIER, TRON_USDT_CONTRACT, 6, None)]
+        assert packaged[-1] == [('1',)]
+        cursor.execute('DROP TABLE tron_tokens')
+        cursor.execute('DELETE FROM multiasset_mappings WHERE asset IN (?, ?)', ids)
+        for table in ('common_asset_details', 'assets'):
+            cursor.execute(f'DELETE FROM {table} WHERE identifier IN (?, ?)', ids)
+        cursor.execute('DELETE FROM settings WHERE name=?', (ROTKIBV_SCHEMA_EXTENSION_KEY,))
+        connection.commit()
 
-    cursor.execute('DELETE FROM assets WHERE identifier=?', (TRON_USDT_IDENTIFIER,))
-    apply_rotkibv_schema_extension(cursor)  # type: ignore[arg-type]
-    assert cursor.execute(  # applied once: a deleted seed is not restored
-        'SELECT COUNT(*) FROM assets WHERE identifier=?', (TRON_USDT_IDENTIFIER,),
-    ).fetchone() == (0,)
-    connection.close()
+    create_globaldb(tmp_path, 0, messages_aggregator).cleanup()  # the normal startup
+    with closing(sqlite3.connect(db_path)) as connection:
+        assert snapshot(cursor := connection.cursor()) == packaged
+        cursor.execute('PRAGMA foreign_keys=ON')
+        cursor.execute('DELETE FROM assets WHERE identifier=?', (TRON_USDT_IDENTIFIER,))
+        connection.commit()
+
+    create_globaldb(tmp_path, 0, messages_aggregator).cleanup()
+    with closing(sqlite3.connect(db_path)) as connection:  # applied once: a user deletion stays
+        assert connection.execute(
+            'SELECT COUNT(*) FROM assets WHERE identifier=?', (TRON_USDT_IDENTIFIER,),
+        ).fetchone() == (0,)
 
 
 def test_tron_token_identities(globaldb, database) -> None:
@@ -156,11 +164,32 @@ def test_tron_token_identities(globaldb, database) -> None:
     assert (usdt.identifier, usdt.symbol, usdt.coingecko) == (TRON_USDT_IDENTIFIER, 'USDT', 'tether')  # noqa: E501
 
     fake = _case('tokens-metadata-and-fake-usdt')['expected']['fake_usdt']
+    with pytest.raises(DeserializationError):  # same payload and identifier, broken checksum
+        get_or_create_tron_token(database, TronAddress(fake['contract'][:-1] + '2'), name='USDT', symbol='USDT', decimals=18)  # noqa: E501
+    # nothing was stored for that identifier, so the valid contract still creates it
     fake_usdt = get_or_create_tron_token(database, TronAddress(fake['contract']), name='USDT', symbol='USDT', decimals=18)  # noqa: E501
     assert fake_usdt.identifier == fake['asset'] == tron_address_to_identifier(TronAddress(fake['contract']))  # noqa: E501
     assert fake_usdt.asset_type == AssetType.TRON_TOKEN
     assert fake_usdt.coingecko is None
     assert get_or_create_tron_token(database, TronAddress(fake['contract']), name='x', symbol='x', decimals=1) == fake_usdt  # noqa: E501
+
+    # a contract mapped to another identifier keeps it (synthetic, not legacy BTT evidence)
+    legacy_contract = deserialize_tron_address('41' + '11' * 20)
+    with globaldb.conn.write_ctx() as write_cursor:
+        write_cursor.execute("INSERT INTO assets(identifier, name, type) VALUES('synthetic-legacy', 'Legacy', ?)", (AssetType.TRON_TOKEN.serialize_for_db(),))  # noqa: E501
+        write_cursor.execute("INSERT INTO common_asset_details(identifier, symbol) VALUES('synthetic-legacy', 'LEG')")  # noqa: E501
+        write_cursor.execute("INSERT INTO tron_tokens(identifier, address, decimals) VALUES('synthetic-legacy', ?, 8)", (legacy_contract,))  # noqa: E501
+    legacy = get_or_create_tron_token(database, legacy_contract, name='New', symbol='NEW', decimals=6)  # noqa: E501
+    assert (legacy.identifier, legacy.name, legacy.symbol) == ('synthetic-legacy', 'Legacy', 'LEG')
+
+    spam = get_or_create_tron_token(database, deserialize_tron_address('41' + '22' * 20), name='Claim rewards at https://example.com', symbol='CLAIM', decimals=6)  # noqa: E501
+    with globaldb.conn.read_ctx() as cursor:
+        assert dict(cursor.execute(
+            'SELECT identifier, protocol FROM tron_tokens WHERE identifier IN (?, ?)',
+            (spam.identifier, fake_usdt.identifier),
+        )) == {spam.identifier: SPAM_PROTOCOL, fake_usdt.identifier: None}
+    with database.conn.read_ctx() as cursor:
+        assert database.get_ignored_asset_ids(cursor) & {spam.identifier, fake_usdt.identifier} == {spam.identifier}  # noqa: E501
 
     native = CryptoAsset('TRX')
     assert (native.asset_type, native.coingecko, native.cryptocompare) == (AssetType.OWN_CHAIN, 'tron', 'TRX')  # noqa: E501

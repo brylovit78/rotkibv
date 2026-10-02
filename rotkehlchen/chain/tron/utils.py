@@ -4,9 +4,10 @@ from typing import TYPE_CHECKING, Any
 
 from rotkehlchen.assets.asset import CryptoAsset
 from rotkehlchen.assets.types import AssetType
+from rotkehlchen.assets.utils import check_if_spam_token
 from rotkehlchen.errors.serialization import DeserializationError
 from rotkehlchen.globaldb.handler import GlobalDBHandler
-from rotkehlchen.types import TronAddress
+from rotkehlchen.types import SPAM_PROTOCOL, TronAddress
 from rotkehlchen.utils.base58 import b58decode, b58encode
 
 if TYPE_CHECKING:
@@ -64,10 +65,13 @@ def get_or_create_tron_token(
     """Return the asset of a TRC20 contract, creating it from validated metadata.
 
     An existing contract mapping, such as the seeded USDT or a verified legacy asset, always
-    wins over the derived identifier, so a contract never gets a second asset.
+    wins over the derived identifier, so a contract never gets a second asset. A new token
+    gets the shared spam check, and spam is marked and ignored as for EVM and Solana tokens.
 
-    May raise DeserializationError if the decimals are not an integer in [0, 255].
+    May raise DeserializationError if the contract is not a valid TRON address or the
+    decimals are not an integer in [0, 255].
     """
+    contract = deserialize_tron_address(contract)  # TronAddress is a NewType, so recheck it
     with userdb.get_or_create_token_lock:
         with GlobalDBHandler().conn.read_ctx() as cursor:
             if (row := cursor.execute(
@@ -79,6 +83,7 @@ def get_or_create_tron_token(
             raise DeserializationError(f'Invalid decimals {decimals!r} for TRC20 {contract}')
 
         identifier = tron_address_to_identifier(contract)
+        is_spam = check_if_spam_token(symbol=symbol, name=name)
         with GlobalDBHandler().conn.write_ctx() as write_cursor:
             write_cursor.execute(
                 'INSERT INTO assets(identifier, name, type) VALUES(?, ?, ?)',
@@ -89,10 +94,13 @@ def get_or_create_tron_token(
                 (identifier, symbol),
             )
             write_cursor.execute(
-                'INSERT INTO tron_tokens(identifier, address, decimals) VALUES(?, ?, ?)',
-                (identifier, contract, decimals),
+                'INSERT INTO tron_tokens(identifier, address, decimals, protocol) VALUES(?, ?, ?, ?)',  # noqa: E501
+                (identifier, contract, decimals, SPAM_PROTOCOL if is_spam else None),
             )
+        token = CryptoAsset(identifier)
         with userdb.user_write() as write_cursor:
             userdb.add_asset_identifiers(write_cursor, [identifier])
+            if is_spam:
+                userdb.add_to_ignored_assets(write_cursor=write_cursor, asset=token)
 
-    return CryptoAsset(identifier)
+    return token
