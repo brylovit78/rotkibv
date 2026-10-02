@@ -6,6 +6,9 @@ on:
       CODECOV_TOKEN:
         required: false
     inputs:
+      fork_ci:
+        type: boolean
+        default: false
       os:
         required: true
         type: string
@@ -43,16 +46,21 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
+      - name: Load fork test data baseline
+        if: inputs.fork_ci
+        run: cat .github/fork.env >> "$GITHUB_ENV"
+
       - name: Checkout test caching
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           repository: rotki/test-caching
+          ref: ${{ env.CASSETTES_REF }}
           path: test-caching
           fetch-depth: 0
           persist-credentials: false
 
       - name: Ensure VCR branch is fully rebased
-        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        if: ${{ !inputs.fork_ci && (github.event_name == 'pull_request' || github.event_name == 'push') }}
         env:
           AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
@@ -140,6 +148,9 @@ jobs:
           FORCE_COLOR: 1
           MATRIX_JOB: ${{ matrix.test-group }}
         run: |
+          if [ -n "${ASSETS_BRANCH:-}" ]; then
+            export GITHUB_BASE_REF="$ASSETS_BRANCH"
+          fi
           if [ "${{ inputs.collect_coverage }}" = 'true' ]; then
             export COVERAGE_FILE=".coverage.${{ matrix.test-group }}"
             COVERAGE_ARGS='--cov=rotkehlchen --cov-report=term-missing'

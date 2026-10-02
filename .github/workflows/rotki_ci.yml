@@ -1,6 +1,16 @@
 name: Rotki CI
 
 on:
+  workflow_call:
+    inputs:
+      fork_ci:
+        type: boolean
+        default: false
+    secrets:
+      CODECOV_TOKEN:
+        required: false
+      ETHERSCAN_API_KEY:
+        required: false
   pull_request:
     branches:
       - master
@@ -25,13 +35,13 @@ jobs:
     name: 'Required job check'
     runs-on: ubuntu-latest
     outputs:
-      backend_tasks: ${{ steps.checker.outputs.backend_tasks }}
-      colibri_tasks: ${{ steps.checker.outputs.colibri_tasks }}
-      starling_tasks: ${{ steps.checker.outputs.starling_tasks }}
-      frontend_tasks: ${{ steps.checker.outputs.frontend_tasks }}
-      e2e_tasks: ${{ steps.checker.outputs.e2e_tasks }}
-      documentation_tasks: ${{ steps.checker.outputs.documentation_tasks }}
-      test_environment: ${{ steps.checker.outputs.backend_environment }}
+      backend_tasks: ${{ inputs.fork_ci && 'true' || steps.checker.outputs.backend_tasks }}
+      colibri_tasks: ${{ inputs.fork_ci && 'true' || steps.checker.outputs.colibri_tasks }}
+      starling_tasks: ${{ inputs.fork_ci && 'true' || steps.checker.outputs.starling_tasks }}
+      frontend_tasks: ${{ inputs.fork_ci && 'true' || steps.checker.outputs.frontend_tasks }}
+      e2e_tasks: ${{ inputs.fork_ci && 'true' || steps.checker.outputs.e2e_tasks }}
+      documentation_tasks: ${{ inputs.fork_ci && 'true' || steps.checker.outputs.documentation_tasks }}
+      test_environment: ${{ inputs.fork_ci && 'standard' || steps.checker.outputs.backend_environment }}
     permissions:
       contents: read
     steps:
@@ -41,6 +51,7 @@ jobs:
           persist-credentials: false
 
       - name: Run check action
+        if: ${{ !inputs.fork_ci }}
         uses: rotki/action-job-checker@c507ef41d38d78c43014d42175dc1725019f0c23  # v6.1.0
         id: checker
         with:
@@ -158,17 +169,17 @@ jobs:
       # keeps later checks running after an earlier one fails, so a single run reports every
       # problem, while still skipping them all if the install itself never succeeded.
       - name: Typecheck
-        if: ${{ steps.install.outcome == 'success' && github.event_name != 'push' }}
+        if: ${{ steps.install.outcome == 'success' && (inputs.fork_ci || github.event_name != 'push') }}
         working-directory: ./frontend
         run: pnpm run typecheck
 
       - name: Build
-        if: ${{ !cancelled() && steps.install.outcome == 'success' && github.event_name != 'push' }}
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && (inputs.fork_ci || github.event_name != 'push') }}
         working-directory: ./frontend
         run: pnpm run --filter rotki build:app
 
       - name: Check bundle placement
-        if: ${{ !cancelled() && steps.install.outcome == 'success' && github.event_name != 'push' }}
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && (inputs.fork_ci || github.event_name != 'push') }}
         working-directory: ./frontend
         run: pnpm run --filter rotki check:bundle
 
@@ -239,7 +250,7 @@ jobs:
   unittest-frontend:
     name: 'Frontend unit tests'
     needs: [ 'check-changes' ]
-    if: ${{ github.event_name != 'push' && needs.check-changes.outputs.frontend_tasks }}
+    if: ${{ (inputs.fork_ci || github.event_name != 'push') && needs.check-changes.outputs.frontend_tasks }}
     uses: ./.github/workflows/task_fe_unit_tests.yml
     permissions:
       contents: read
@@ -249,7 +260,7 @@ jobs:
   docs:
     name: 'Documentation build'
     needs: [ 'check-changes', 'check-typos' ]
-    if: ${{ github.event_name != 'push' && needs.check-changes.outputs.documentation_tasks }}
+    if: ${{ (inputs.fork_ci || github.event_name != 'push') && needs.check-changes.outputs.documentation_tasks }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -314,7 +325,7 @@ jobs:
   lint-colibri:
     name: 'Colibri lint and test'
     needs: [ 'check-changes', 'check-typos' ]
-    if: ${{ github.event_name != 'push' && needs.check-changes.outputs.colibri_tasks }}
+    if: ${{ (inputs.fork_ci || github.event_name != 'push') && needs.check-changes.outputs.colibri_tasks }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -348,7 +359,7 @@ jobs:
   lint-starling:
     name: 'Starling lint and test'
     needs: [ 'check-changes', 'check-typos' ]
-    if: ${{ github.event_name != 'push' && needs.check-changes.outputs.starling_tasks }}
+    if: ${{ (inputs.fork_ci || github.event_name != 'push') && needs.check-changes.outputs.starling_tasks }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -384,7 +395,7 @@ jobs:
   test-starling-windows:
     name: 'Starling windows lifecycle tests'
     needs: [ 'check-changes', 'check-typos' ]
-    if: ${{ github.event_name != 'push' && needs.check-changes.outputs.starling_tasks }}
+    if: ${{ (inputs.fork_ci || github.event_name != 'push') && needs.check-changes.outputs.starling_tasks }}
     # The only job on a windows runner: the cross-platform suite already runs on
     # ubuntu in lint-starling, so this runs *only* the windows-specific target.
     # Those tests cover console-ctrl delivery and CREATE_NEW_PROCESS_GROUP
@@ -455,7 +466,7 @@ jobs:
   lint-backend:
     name: 'Backend lint'
     needs: [ 'check-changes', 'check-typos' ]
-    if: ${{ github.event_name != 'push' && needs.check-changes.outputs.backend_tasks }}
+    if: ${{ (inputs.fork_ci || github.event_name != 'push') && needs.check-changes.outputs.backend_tasks }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -518,12 +529,13 @@ jobs:
         run: uv run make lint
 
   test-backend:
-    if: ${{ github.event_name != 'push' && needs.check-changes.outputs.backend_tasks }}
+    if: ${{ (inputs.fork_ci || github.event_name != 'push') && needs.check-changes.outputs.backend_tasks }}
     needs: [ 'lint-backend', 'check-changes' ]
     uses: ./.github/workflows/task_backend_tests.yml
     with:
       os: ubuntu-22.04
       test_environment: ${{needs.check-changes.outputs.test_environment}}
+      fork_ci: ${{ inputs.fork_ci || false }}
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
     permissions:
@@ -535,7 +547,7 @@ jobs:
     # golden profile. Deliberately not part of the 'done' success check.
     name: 'API contract tests'
     needs: [ 'check-changes' ]
-    if: ${{ github.event_name != 'push' && (needs.check-changes.outputs.backend_tasks || needs.check-changes.outputs.frontend_tasks) }}
+    if: ${{ (inputs.fork_ci || github.event_name != 'push') && (needs.check-changes.outputs.backend_tasks || needs.check-changes.outputs.frontend_tasks) }}
     uses: ./.github/workflows/task_contract_tests.yml
     permissions:
       contents: read
@@ -543,7 +555,7 @@ jobs:
   test-e2e:
     name: 'Frontend e2e tests'
     needs: check-changes
-    if: ${{ github.event_name != 'push' && needs.check-changes.outputs.e2e_tasks }}
+    if: ${{ (inputs.fork_ci || github.event_name != 'push') && needs.check-changes.outputs.e2e_tasks }}
     uses: ./.github/workflows/task_e2e_tests.yml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
@@ -554,13 +566,13 @@ jobs:
   done:
     name: 'Success check'
     if: ${{ always() }}
-    needs: [ 'check-changes', 'lint-frontend', 'check-backend-mapping-keys', 'unittest-frontend', 'docs', 'lint-colibri', 'lint-starling', 'test-starling-windows', 'lint-backend', 'test-backend', 'test-e2e' ]
+    needs: [ 'check-typos', 'check-changes', 'lint-frontend', 'check-backend-mapping-keys', 'unittest-frontend', 'docs', 'lint-colibri', 'lint-starling', 'test-starling-windows', 'lint-backend', 'test-backend', 'test-e2e' ]
     runs-on: ubuntu-latest
     steps:
       - name: Check if any task failed
         run: |
-          if echo "${RESULT}" | jq -e '.[] | select(. == "failure")' > /dev/null 2>&1; then
-              echo "::error::At least one required task failed"
+          if echo "${RESULT}" | jq -e '.[] | select(. != "success" and . != "skipped")' > /dev/null 2>&1; then
+              echo "::error::At least one required task failed or was cancelled"
               exit 1
           fi
         env:

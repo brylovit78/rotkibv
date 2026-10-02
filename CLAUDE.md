@@ -1,3 +1,5 @@
+For Rotki BV, first read [FORK.md](FORK.md) for task, review and release rules.
+
 # CLAUDE.md
 
 This file provides guidance for AI coding assistants (e.g., OpenAI Codex CLI, Claude Code, GitHub Copilot Chat) working with code in this repository.

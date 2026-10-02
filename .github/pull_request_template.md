@@ -1,5 +1,12 @@
-Closes #(issue_number)
+## Результат
 
-## Checklist
+Closes #
 
-- [ ] The PR modified the frontend, and updated the [user guide](https://github.com/rotki/docs/blob/main/usage-guides/index.md) to reflect the changes.
+## Перевірка
+
+- [ ] Acceptance criteria виконано; релевантні тести проходять.
+- [ ] Fork CI зелений; образ пройшов запуск і перезапуск.
+- [ ] Implementer (модель):
+- [ ] Незалежний Claude reviewer, точний head SHA та посилання на висновок:
+- [ ] Блокуючі зауваження виправлено; після останнього commit рев’ю повторено.
+- [ ] Upstream: fork-only / кандидат для окремого PR.

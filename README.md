@@ -1,3 +1,7 @@
+> **Rotki BV** — a public community fork of [rotki/rotki](https://github.com/rotki/rotki).
+> Fork development, upstream updates and server deployment: **[FORK.md](FORK.md)**.
+> Initial baseline: upstream `v1.44.0`. TRON support is planned, not implemented.
+
 <div id="top"></div>
 
 <p align="center">

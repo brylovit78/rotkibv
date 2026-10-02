@@ -39,3 +39,6 @@ bench-result.json
 bench-compare.json
 bench-compare.md
 gha-benchmark.json
+
+# Rotki BV local deployment configuration
+/deploy/.env

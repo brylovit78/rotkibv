@@ -1,0 +1,40 @@
+name: Fork release
+
+on:
+  push:
+    tags: ['v*-bv.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify release commit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      statuses: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Require reviewed main commit and successful CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/fork/release_gate.py
+
+  publish:
+    needs: verify
+    uses: ./.github/workflows/fork-image.yml
+    with:
+      publish: true
+    permissions:
+      contents: read
+      packages: write
