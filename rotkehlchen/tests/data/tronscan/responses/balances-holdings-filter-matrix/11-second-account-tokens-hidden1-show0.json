@@ -1,0 +1,38 @@
+{
+ "lastUpdateSeconds": 1790942389,
+ "total": 2,
+ "code": 200,
+ "data": [
+  {
+   "amount": "5.593207",
+   "quantity": "5.593207",
+   "tokenId": "_",
+   "tokenName": "trx",
+   "tokenAbbr": "trx",
+   "tokenCanShow": 1,
+   "tokenLogo": "",
+   "tokenLevel": "2",
+   "balance": "5593207",
+   "tokenDecimal": 6,
+   "tokenType": "trc10",
+   "vip": true
+  },
+  {
+   "tokenId": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+   "balance": "336121775",
+   "tokenName": "Tether USD",
+   "tokenAbbr": "USDT",
+   "tokenDecimal": 6,
+   "tokenCanShow": 1,
+   "tokenType": "trc20",
+   "tokenLogo": "https://static.tronscan.org/production/logo/usdtlogo.png",
+   "level": "2",
+   "vip": true,
+   "quantity": 336.121775,
+   "amount": 1002.5737488386493,
+   "project": "Tether"
+  }
+ ],
+ "message": "request ok",
+ "status": "1"
+}

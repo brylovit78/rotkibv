@@ -1,0 +1,108 @@
+{
+ "total": 2,
+ "rangeTotal": 2,
+ "token_transfers": [
+  {
+   "transaction_id": "626d6338f66a334e02d85b48a9354873f8acb2e07e68aabaf0b93724a06ea8b5",
+   "status": 0,
+   "block_ts": 1790854914000,
+   "from_address": "TXVd4owVBMucMYE8Ym3F3DQgfLDWr3pmoG",
+   "to_address": "TEVyaYXgP2A2XyitSXcTKNo1e7XfowgNwS",
+   "block": 86727440,
+   "contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+   "quant": "748500000",
+   "approval_amount": "0",
+   "event_type": "Transfer",
+   "confirmed": true,
+   "contractRet": "SUCCESS",
+   "finalResult": "SUCCESS",
+   "tokenType2": "trc20",
+   "tokenInfo": {
+    "tokenId": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "tokenAbbr": "USDT",
+    "tokenName": "Tether USD",
+    "tokenDecimal": 6,
+    "tokenCanShow": 1,
+    "tokenType": "trc20",
+    "tokenLogo": "https://static.tronscan.org/production/logo/usdtlogo.png",
+    "tokenLevel": "2",
+    "issuerAddr": "TYdBbvHLCdWZLKAnuxnSYTUXb5V8dSweec",
+    "vip": true
+   },
+   "fromAddressIsContract": true,
+   "toAddressIsContract": false,
+   "trigger_info": {
+    "method": "permitTransfer(address token,address user,address receiver,uint256 value,uint256 maxFee,uint256 deadline,uint256 version,uint256 nonce,bytes sig)",
+    "data": "",
+    "parameter": {
+     "receiver": "TEVyaYXgP2A2XyitSXcTKNo1e7XfowgNwS",
+     "maxFee": "1500000",
+     "version": "1",
+     "nonce": "93",
+     "token": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+     "sig": "",
+     "deadline": "1790855079",
+     "user": "TWiu34WB8cYPgZGHvTUAKELdfXiFDJM87C",
+     "value": "748500000"
+    },
+    "methodName": "permitTransfer",
+    "contract_address": "TM5U9TmP3jm49qZLnxinB15C1V9WVYXsy9",
+    "call_value": 0
+   },
+   "revert": false,
+   "contract_type": "trc20",
+   "riskTransaction": false
+  },
+  {
+   "transaction_id": "626d6338f66a334e02d85b48a9354873f8acb2e07e68aabaf0b93724a06ea8b5",
+   "status": 0,
+   "block_ts": 1790854914000,
+   "from_address": "TXVd4owVBMucMYE8Ym3F3DQgfLDWr3pmoG",
+   "to_address": "TEVyaYXgP2A2XyitSXcTKNo1e7XfowgNwS",
+   "block": 86727440,
+   "contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+   "quant": "748500000",
+   "approval_amount": "0",
+   "event_type": "Transfer",
+   "confirmed": true,
+   "contractRet": "SUCCESS",
+   "finalResult": "SUCCESS",
+   "tokenType2": "trc20",
+   "tokenInfo": {
+    "tokenId": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+    "tokenAbbr": "USDT",
+    "tokenName": "Tether USD",
+    "tokenDecimal": 6,
+    "tokenCanShow": 1,
+    "tokenType": "trc20",
+    "tokenLogo": "https://static.tronscan.org/production/logo/usdtlogo.png",
+    "tokenLevel": "2",
+    "issuerAddr": "TYdBbvHLCdWZLKAnuxnSYTUXb5V8dSweec",
+    "vip": true
+   },
+   "fromAddressIsContract": true,
+   "toAddressIsContract": false,
+   "trigger_info": {
+    "method": "permitTransfer(address token,address user,address receiver,uint256 value,uint256 maxFee,uint256 deadline,uint256 version,uint256 nonce,bytes sig)",
+    "data": "",
+    "parameter": {
+     "receiver": "TEVyaYXgP2A2XyitSXcTKNo1e7XfowgNwS",
+     "maxFee": "1500000",
+     "version": "1",
+     "nonce": "93",
+     "token": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+     "sig": "",
+     "deadline": "1790855079",
+     "user": "TWiu34WB8cYPgZGHvTUAKELdfXiFDJM87C",
+     "value": "748500000"
+    },
+    "methodName": "permitTransfer",
+    "contract_address": "TM5U9TmP3jm49qZLnxinB15C1V9WVYXsy9",
+    "call_value": 0
+   },
+   "revert": false,
+   "contract_type": "trc20",
+   "riskTransaction": false
+  }
+ ]
+}

@@ -1,0 +1,73 @@
+{
+ "contractRet": "REVERT",
+ "data": "",
+ "contractType": 31,
+ "event_count": 0,
+ "project": "Tether",
+ "toAddress": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+ "confirmed": true,
+ "trc20TransferInfo": [
+  {
+   "icon_url": "https://static.tronscan.org/production/logo/usdtlogo.png",
+   "symbol": "USDT",
+   "level": "2",
+   "decimals": 6,
+   "name": "Tether USD",
+   "to_address": "TJm1Nn8wMRvHkn8YZbKa62y7SspLC9Sksk",
+   "contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+   "vip": true,
+   "type": "Transfer",
+   "from_address": "TFuHjc5sajZxhLxbWUUqT5Bj96e7sMwTsF",
+   "amount_str": "1938000000"
+  }
+ ],
+ "transfersAllList": [],
+ "block": 86609192,
+ "triggerContractType": 500,
+ "riskTransaction": false,
+ "timestamp": 1790499999000,
+ "info": {
+  "resMessage": "REVERT opcode executed"
+ },
+ "cost": {
+  "net_fee_cost": 1000,
+  "date_created": 1790499999,
+  "fee": 0,
+  "energy_fee_cost": 100,
+  "net_usage": 0,
+  "multi_sign_fee": 0,
+  "net_fee": 345000,
+  "energy_penalty_total": 6640,
+  "energy_usage": 8624,
+  "energy_fee": 0,
+  "energy_usage_total": 8624,
+  "memoFee": 0,
+  "origin_energy_usage": 0
+ },
+ "noteLevel": 2,
+ "revert": false,
+ "confirmations": 147528,
+ "fee_limit": 100000000,
+ "contract_type": "trc20",
+ "trigger_info": {
+  "method": "transfer(address _to,uint256 _value)",
+  "parameter": {
+   "_value": "1938000000",
+   "_to": "TJm1Nn8wMRvHkn8YZbKa62y7SspLC9Sksk"
+  },
+  "methodId": "a9059cbb",
+  "revertReason": "",
+  "contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+  "call_value": 0
+ },
+ "signature_addresses": [],
+ "ownerAddress": "TFuHjc5sajZxhLxbWUUqT5Bj96e7sMwTsF",
+ "revertReason": "",
+ "hash": "fe4480e9c275103c26622b4bdcaa02e3ddff6ece8d29bd3b65ee1c53ab5d0d66",
+ "contractData": {
+  "data": "",
+  "owner_address": "TFuHjc5sajZxhLxbWUUqT5Bj96e7sMwTsF",
+  "contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
+ },
+ "internal_transactions": {}
+}

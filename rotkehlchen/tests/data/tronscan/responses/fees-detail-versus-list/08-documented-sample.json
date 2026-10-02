@@ -1,0 +1,45 @@
+{
+ "block": 82896095,
+ "hash": "160d2237530740ed1ef6b04c5077e6896c51008701284359038f14c5d4ffee58",
+ "timestamp": 1779356865000,
+ "contractType": 31,
+ "toAddress": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+ "confirmed": true,
+ "revert": false,
+ "confirmations": 28746,
+ "contractRet": "SUCCESS",
+ "riskTransaction": false,
+ "trc20TransferInfo": [
+  {
+   "symbol": "USDT",
+   "to_address": "TCnkgWusjq92aSWuAr1SE9WrzyjTA6ZA38",
+   "contract_address": "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t",
+   "type": "Transfer",
+   "decimals": 6,
+   "name": "Tether USD",
+   "from_address": "TKe7eBTU4MDbKt6XDwhmYH5E7yWqP6TJaz",
+   "amount_str": "10000000000",
+   "status": 0
+  }
+ ],
+ "contract_type": "trc20",
+ "event_count": 1,
+ "noteLevel": 2,
+ "project": "Tether",
+ "data": "",
+ "cost": {
+  "fee": 0,
+  "net_usage": 345,
+  "net_fee": 0,
+  "energy_fee": 13028500,
+  "energy_usage_total": 130285,
+  "energy_penalty_total": 100635,
+  "energy_usage": 0,
+  "origin_energy_usage": 0,
+  "net_fee_cost": 1000,
+  "energy_fee_cost": 100,
+  "date_created": 1779356865,
+  "multi_sign_fee": 0,
+  "memoFee": 0
+ }
+}

@@ -1,0 +1,37 @@
+{
+ "lastUpdateSeconds": 1790942968,
+ "total": 2,
+ "code": 200,
+ "data": [
+  {
+   "amount": "0.000001",
+   "quantity": "0.000001",
+   "tokenId": "_",
+   "tokenName": "trx",
+   "tokenAbbr": "trx",
+   "tokenCanShow": 1,
+   "tokenLogo": "",
+   "tokenLevel": "2",
+   "balance": "1",
+   "tokenDecimal": 6,
+   "tokenType": "trc10",
+   "vip": true
+  },
+  {
+   "quantity": 4444.444444,
+   "tokenId": "1005193",
+   "level": "0",
+   "tokenName": "gas.bi",
+   "owner_address": "TMu6Fz9TVzX3e7Vck4BX7XiyoLpvgBx3Lm",
+   "tokenAbbr": "gas.bi",
+   "tokenCanShow": 1,
+   "tokenLogo": "",
+   "balance": "4444444444",
+   "tokenDecimal": 6,
+   "tokenType": "trc10",
+   "vip": false
+  }
+ ],
+ "message": "request ok",
+ "status": "1"
+}

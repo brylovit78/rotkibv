@@ -1,0 +1,23 @@
+{
+ "lastUpdateSeconds": 1790942351,
+ "total": 1,
+ "code": 200,
+ "data": [
+  {
+   "amount": "613.926066",
+   "quantity": "613.926066",
+   "tokenId": "_",
+   "tokenName": "trx",
+   "tokenAbbr": "trx",
+   "tokenCanShow": 1,
+   "tokenLogo": "",
+   "tokenLevel": "2",
+   "balance": "613926066",
+   "tokenDecimal": 6,
+   "tokenType": "trc10",
+   "vip": true
+  }
+ ],
+ "message": "request ok",
+ "status": "1"
+}

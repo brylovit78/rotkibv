@@ -1,0 +1,72 @@
+{
+ "total": 10000,
+ "rangeTotal": 4239787,
+ "data": [
+  {
+   "block": 86752844,
+   "hash": "27a6bce8bd05dfbde2089498c3d87e168048d0af1f821fd97b76bee63e8881ff",
+   "timestamp": 1790931150000,
+   "ownerAddress": "TRr6EDGfLVxDiSdDMRa8scx3fr8vkNCsp3",
+   "toAddressList": [
+    "TPiqEVV4UpHpxGm6HHQZ4edQDgHGmQfUwi"
+   ],
+   "toAddress": "TPiqEVV4UpHpxGm6HHQZ4edQDgHGmQfUwi",
+   "contractType": 31,
+   "confirmed": true,
+   "revert": false,
+   "contractData": {
+    "data": "",
+    "owner_address": "TRr6EDGfLVxDiSdDMRa8scx3fr8vkNCsp3",
+    "contract_address": "TPiqEVV4UpHpxGm6HHQZ4edQDgHGmQfUwi",
+    "call_value": 350000000
+   },
+   "id": "",
+   "data": "",
+   "fee": "",
+   "contractRet": "SUCCESS",
+   "result": "SUCCESS",
+   "amount": "350000000",
+   "cheatStatus": false,
+   "noteLevel": 2,
+   "cost": {
+    "net_fee": 0,
+    "energy_penalty_total": 0,
+    "energy_usage": 102280,
+    "date_created": 1790931150,
+    "fee": 0,
+    "energy_fee": 0,
+    "energy_usage_total": 103313,
+    "origin_energy_usage": 1033,
+    "net_usage": 513
+   },
+   "tokenInfo": {
+    "tokenId": "_",
+    "tokenAbbr": "trx",
+    "tokenName": "trx",
+    "tokenDecimal": 6,
+    "tokenCanShow": 1,
+    "tokenType": "trc10",
+    "tokenLogo": "",
+    "tokenLevel": "2",
+    "vip": true
+   },
+   "tokenType": "trc10",
+   "trigger_info": {
+    "method": "swapExactETHForTokens(uint256 amountOutMin,address[] path,address to,uint256 deadline)",
+    "data": "",
+    "parameter": {
+     "path": "0x740a34b3f50113cd7f710c2d4039eefff73c9f35\n0x18fd0626daf3af02389aef3ed87db9c33f638ffa",
+     "amountOutMin": "886613272151694376960",
+     "to": "TRr6EDGfLVxDiSdDMRa8scx3fr8vkNCsp3",
+     "deadline": "1790932346"
+    },
+    "methodId": "7ff36ab5",
+    "methodName": "swapExactETHForTokens",
+    "contract_address": "TPiqEVV4UpHpxGm6HHQZ4edQDgHGmQfUwi",
+    "call_value": 350000000
+   },
+   "riskTransaction": false
+  }
+ ],
+ "wholeChainTxCount": 15686909244
+}
