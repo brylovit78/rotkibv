@@ -150,6 +150,7 @@ jobs:
         run: |
           if [ -n "${ASSETS_BRANCH:-}" ]; then
             export GITHUB_BASE_REF="$ASSETS_BRANCH"
+            export TARGET_BRANCH="$ASSETS_BRANCH"
           fi
           if [ "${{ inputs.collect_coverage }}" = 'true' ]; then
             export COVERAGE_FILE=".coverage.${{ matrix.test-group }}"
