@@ -27,3 +27,6 @@ rotkehlchen.egg-info
 tools/find-duplicate-constants/target
 rotkehlchen.log
 rotkehlchen_py_dist
+
+test-caching
+deploy/.env

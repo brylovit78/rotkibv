@@ -1,0 +1,23 @@
+name: Rotki BV task
+description: Planned fork work with acceptance criteria and upstream intent
+title: '[BV] '
+labels: ['status:backlog']
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Очікуваний результат
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria та перевірки
+      description: Спостережувана поведінка, тести, межі роботи.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Залежності та upstream
+      description: Пов’язані Issues; чи планується PR до rotki/rotki.

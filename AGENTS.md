@@ -1,5 +1,8 @@
 # AGENTS.md
 
+For this fork, also follow [the Rotki BV delivery process](FORK.md). It governs
+branches, task status, independent review and releases; upstream coding rules below apply.
+
 This file provides guidance for AI coding assistants (e.g., OpenAI Codex CLI, Claude Code, GitHub Copilot Chat) working with code in this repository. It mirrors the content of `CLAUDE.md` with model‑neutral language and a few clarifications useful to any assistant.
 
 ## Project Overview

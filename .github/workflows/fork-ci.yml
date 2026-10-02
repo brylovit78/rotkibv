@@ -1,0 +1,49 @@
+name: Fork CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  upstream:
+    uses: ./.github/workflows/rotki_ci.yml
+    with:
+      fork_ci: true
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+
+  delivery:
+    name: Delivery checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s tools/fork -p 'test_*.py'
+      - run: ROTKIBV_IMAGE=ghcr.io/brylovit78/rotkibv:v1.44.0-bv.1 docker compose -f deploy/compose.yml config --quiet
+
+  image:
+    uses: ./.github/workflows/fork-image.yml
+
+  success:
+    name: Fork CI success
+    if: always()
+    needs: [upstream, delivery, image]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all checks
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: echo "$RESULTS" | jq -e 'all(. == "success")'
