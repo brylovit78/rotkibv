@@ -114,12 +114,12 @@ export const useSupportedChains = createSharedComposable((): UseSupportedChainsR
   const decodableTxChainsInfo = computed<ChainInfo[]>(() => [
     ...get(evmAndEvmLikeTxChainsInfo),
     ...get(solanaChainsData),
+    ...get(tronChainsData),
   ]);
 
   const allTxChainsInfo = computed<ChainInfo[]>(() => [
     ...get(decodableTxChainsInfo),
     ...get(bitcoinChainsData),
-    ...get(tronChainsData),
   ]);
 
   const evmChains = computed<string[]>(() => get(evmChainsData).map(x => x.id));

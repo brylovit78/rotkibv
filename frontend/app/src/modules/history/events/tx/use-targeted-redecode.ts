@@ -42,7 +42,7 @@ export function useTargetedRedecode(): UseTargetedRedecodeReturn {
   const { pullAndRecodeEthBlockEventRequest, pullAndRecodeTransactionRequest } = useHistoryEventsApi();
   const { submitTask } = useNativeTask();
   const { resetUndecodedTransactionsStatus, updateUndecodedTransactionsStatus } = useDecodingStatusStore();
-  const { getChain, getChainName, isEvmLikeChains, isSolanaChains } = useSupportedChains();
+  const { getChain, getChainName, isEvm } = useSupportedChains();
 
   /**
    * Core decode function that throws on failure instead of notifying.
@@ -185,7 +185,6 @@ export function useTargetedRedecode(): UseTargetedRedecodeReturn {
     const scope = resolveScope([...transactions], [...blockNumbers]);
     const flowId = targetedRedecodeFlow.id(scope);
     const children = targetedRedecodeFlow.children(scope);
-    const isEvm = (chain: string): boolean => !isEvmLikeChains(chain) && !isSolanaChains(chain);
 
     // The flow is submitted before its children so the parent gate applies to them, but its `run`
     // needs their promises — which only exist once submitted. Same handshake as the chain sweep.

@@ -10,6 +10,7 @@ export const HistoryEventEntryType = {
   SOLANA_EVENT: 'solana event',
   SOLANA_SWAP_EVENT: 'solana swap event',
   SWAP_EVENT: 'swap event',
+  TRON_EVENT: 'tron event',
 } as const;
 
 export type HistoryEventEntryType = (typeof HistoryEventEntryType)[keyof typeof HistoryEventEntryType];

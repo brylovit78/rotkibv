@@ -12,6 +12,7 @@ import type {
   SolanaEvent,
   SolanaSwapEvent,
   StandaloneEditableEvents,
+  TronEvent,
 } from '@/modules/history/events/schemas';
 import { useReportIssue } from '@/modules/core/common/use-report-issue';
 import {
@@ -22,6 +23,7 @@ import {
   isOnlineHistoryEvent,
   isSolanaEvent,
   isSolanaSwapEvent,
+  isTronEvent,
   toLocationAndTxRef,
 } from '@/modules/history/event-utils';
 import { DuplicateHandlingStatus } from '@/modules/history/events/action-types';
@@ -30,6 +32,7 @@ import { useCustomizedEventDuplicates } from '@/modules/history/events/use-custo
 import { useHistoryEventsStatus } from '@/modules/history/events/use-history-events-status';
 import {
   type DecodableEventType,
+  isEventDecodable,
   isGroupEditableHistoryEvent,
 } from '@/modules/history/management/forms/form-guards';
 
@@ -84,8 +87,10 @@ const solanaEvent = computed<SolanaEvent | SolanaSwapEvent | undefined>(() => {
   return undefined;
 });
 
+const tronEvent = computed<TronEvent | undefined>(() => (isTronEvent(event) ? event : undefined));
+
 const eventWithDecoding = computed<DecodableEventType | undefined>(() => {
-  const direct = get(evmEvent) || get(solanaEvent);
+  const direct = get(evmEvent) || get(solanaEvent) || get(tronEvent);
   if (direct)
     return direct;
 
@@ -93,8 +98,9 @@ const eventWithDecoding = computed<DecodableEventType | undefined>(() => {
     return undefined;
 
   for (const child of groupEvents) {
-    if (isEvmEvent(child) || isEvmSwapEvent(child) || isSolanaEvent(child) || isSolanaSwapEvent(child))
-      return child;
+    const decodable = isEventDecodable(child);
+    if (decodable)
+      return decodable;
   }
 
   return undefined;
@@ -111,6 +117,7 @@ const decodableEvmEvent = computed<EvmHistoryEvent | EvmSwapEvent | undefined>((
 const eventWithTxRef = computed<{ location: string; txRef: string } | undefined>(() => {
   const evm = get(evmEvent);
   const solana = get(solanaEvent);
+  const tron = get(tronEvent);
   if (evm) {
     return {
       location: evm.location,
@@ -122,6 +129,13 @@ const eventWithTxRef = computed<{ location: string; txRef: string } | undefined>
     return {
       location: solana.location,
       txRef: solana.txRef,
+    };
+  }
+
+  if (tron) {
+    return {
+      location: tron.location,
+      txRef: tron.txRef,
     };
   }
 

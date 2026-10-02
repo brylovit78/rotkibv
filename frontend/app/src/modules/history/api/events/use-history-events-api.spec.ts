@@ -520,6 +520,45 @@ describe('composables/api/history/events/index', () => {
       expect(result.entriesFound).toBe(0);
     });
 
+    it('should parse the events of a tron transaction', async () => {
+      const txRef = 'ab'.repeat(32);
+      server.use(
+        http.post(`${backendUrl}/api/1/history/events`, () => HttpResponse.json({
+          result: {
+            entries: [{
+              entry: {
+                address: 'TXM3pBpWRemyMFtpRsXCiXSgPJqmuZG4c4',
+                amount: '1.5',
+                asset: 'TRX',
+                counterparty: null,
+                entry_type: HistoryEventEntryType.TRON_EVENT,
+                event_subtype: 'none',
+                event_type: 'receive',
+                extra_data: null,
+                group_identifier: `tron_${txRef}`,
+                identifier: 1,
+                location: 'tron',
+                location_label: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+                sequence_index: 0,
+                timestamp: 1700000000000,
+                tx_ref: txRef,
+              },
+              event_accounting_rule_status: 'has rule',
+            }],
+            entries_found: 1,
+            entries_limit: 50,
+            entries_total: 1,
+          },
+          message: '',
+        })),
+      );
+
+      const { fetchHistoryEvents } = useHistoryEventsApi();
+      const result = await fetchHistoryEvents(createFetchPayload());
+
+      expect(result.entries).toMatchObject([{ entry: { entryType: HistoryEventEntryType.TRON_EVENT, txRef } }]);
+    });
+
     it('should throw error on failure', async () => {
       server.use(
         http.post(`${backendUrl}/api/1/history/events`, () =>

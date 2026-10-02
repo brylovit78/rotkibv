@@ -15,6 +15,7 @@ import OnlineHistoryEventForm from '@/modules/history/management/forms/OnlineHis
 import SolanaEventForm from '@/modules/history/management/forms/SolanaEventForm.vue';
 import SolanaSwapEventForm from '@/modules/history/management/forms/SolanaSwapEventForm.vue';
 import SwapEventForm from '@/modules/history/management/forms/SwapEventForm.vue';
+import TronEventForm from '@/modules/history/management/forms/TronEventForm.vue';
 
 /** The seam every entry-type form is driven through. */
 interface FormComponent {
@@ -73,6 +74,7 @@ const formComponents: Record<HistoryEventEntryType, Component> = {
   [HistoryEventEntryType.SOLANA_EVENT]: SolanaEventForm,
   [HistoryEventEntryType.SOLANA_SWAP_EVENT]: SolanaSwapEventForm,
   [HistoryEventEntryType.SWAP_EVENT]: SwapEventForm,
+  [HistoryEventEntryType.TRON_EVENT]: TronEventForm,
 };
 
 const errorCount = computed<number>(() => {

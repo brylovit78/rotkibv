@@ -112,6 +112,10 @@ const SolanaEventSchema = CommonHistoryEvent.extend({
 
 export type SolanaEvent = z.infer<typeof SolanaEventSchema>;
 
+const TronEventSchema = SolanaEventSchema.extend({ entryType: z.literal(HistoryEventEntryType.TRON_EVENT) }); // rotkibv: the Solana fields
+
+export type TronEvent = z.infer<typeof TronEventSchema>;
+
 const SolanaSwapEventSchema = CommonHistoryEvent.extend({
   address: z.string().nullable(),
   counterparty: z.string().nullable(),
@@ -134,6 +138,7 @@ export const HistoryEvent = z.union([
   SolanaEventSchema,
   SolanaSwapEventSchema,
   BitcoinEventSchema,
+  TronEventSchema,
 ]);
 
 export type GroupEditableHistoryEvents = AssetMovementEvent | SwapEvent | EvmSwapEvent | SolanaSwapEvent;
@@ -145,7 +150,7 @@ interface FeeEntry {
 
 export type SwapEventUserNotes = [string, string, ...string[]];
 
-export type StandaloneEditableEvents = EvmHistoryEvent | OnlineHistoryEvent | EthWithdrawalEvent | EthBlockEvent | EthDepositEvent | SolanaEvent | BitcoinEvent;
+export type StandaloneEditableEvents = EvmHistoryEvent | OnlineHistoryEvent | EthWithdrawalEvent | EthBlockEvent | EthDepositEvent | SolanaEvent | BitcoinEvent | TronEvent;
 
 export type HistoryEvent = StandaloneEditableEvents | GroupEditableHistoryEvents;
 
@@ -208,6 +213,8 @@ type EditSolanaEventPayload = Omit<
 };
 
 export type NewSolanaEventPayload = Omit<EditSolanaEventPayload, 'identifier'>;
+
+export type NewTronEventPayload = Omit<NewSolanaEventPayload, 'entryType'> & Pick<TronEvent, 'entryType'>;
 
 type EditBitcoinEventPayload = Omit<
   BitcoinEvent,
@@ -308,7 +315,8 @@ export type EditHistoryEventPayload =
   | EditEthWithdrawalEventPayload
   | EditAssetMovementEventPayload
   | EditSolanaEventPayload
-  | EditBitcoinEventPayload;
+  | EditBitcoinEventPayload
+  | (NewTronEventPayload & { identifier: number });
 
 type NewHistoryEventPayload =
   | NewEvmHistoryEventPayload
@@ -318,7 +326,8 @@ type NewHistoryEventPayload =
   | NewEthWithdrawalEventPayload
   | NewAssetMovementEventPayload
   | NewSolanaEventPayload
-  | NewBitcoinEventPayload;
+  | NewBitcoinEventPayload
+  | NewTronEventPayload;
 
 export type AddHistoryEventPayload = NewHistoryEventPayload | AddSwapEventPayload | AddEvmSwapEventPayload | AddSolanaSwapEventPayload;
 
