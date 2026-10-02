@@ -2,7 +2,6 @@
 `synthetic-pagination-coverage` outcomes. Every HTTP exchange is mocked; no VCR."""
 import json
 from collections import defaultdict
-from threading import Thread
 from typing import TYPE_CHECKING, Any, Final
 from unittest.mock import patch
 
@@ -12,12 +11,14 @@ from rotkehlchen.api.websockets.typedefs import TransactionStatusStep, WSMessage
 from rotkehlchen.chain.tron import transactions as tron_transactions
 from rotkehlchen.chain.tron.transactions import TronTransactions
 from rotkehlchen.concurrency.cancellation import TaskCancelledError
+from rotkehlchen.concurrency.tasks import Task
 from rotkehlchen.db.trontx import TronInternalTransfer, TronTransaction, add_tron_history
 from rotkehlchen.errors.misc import RemoteError
 from rotkehlchen.externalapis.tronscan import TRONSCAN_API_URL, Tronscan
 from rotkehlchen.tests.fixtures.messages import MockRotkiNotifier
 from rotkehlchen.tests.utils.mock import MockResponse
 from rotkehlchen.tests.utils.tronscan import (
+    WaitedLock,
     set_tronscan_key,
     tronscan_body,
     tronscan_case,
@@ -272,18 +273,19 @@ def test_refresh_waiting_during_a_removal_writes_nothing(history: TronTransactio
     """A refresh of a tracked account waits for the account's lock while a removal holds it,
     then finds the account untracked, so it neither queries nor restores its history"""
     _track(history, [ACCOUNT])
-    (lock := history.address_locks[ACCOUNT]).acquire()  # as the removal does
+    history.address_locks[ACCOUNT] = (lock := WaitedLock())  # type: ignore[assignment]  # tells when the refresh waits
+    lock.acquire()  # as the removal holds it
     with patch.object(history.tronscan, 'query_feed_page', return_value=[]) as page:
-        (refresh := Thread(target=history.query_transactions, args=([ACCOUNT], Timestamp(100), Timestamp(109)))).start()  # noqa: E501
-        refresh.join(timeout=0.5)
-        assert refresh.is_alive()
-        with history.database.user_write() as write_cursor:
-            history.database.remove_single_blockchain_accounts(write_cursor, SupportedBlockchain.TRON, [ACCOUNT])  # noqa: E501
-        lock.release()
+        try:
+            refresh = Task(name='refresh', target=history.query_transactions, args=([ACCOUNT], Timestamp(100), Timestamp(109))).start()  # noqa: E501
+            assert lock.waited.wait(10)
+            with history.database.user_write() as write_cursor:
+                history.database.remove_single_blockchain_accounts(write_cursor, SupportedBlockchain.TRON, [ACCOUNT])  # noqa: E501
+        finally:
+            lock.release()
         refresh.join(timeout=10)
 
-    assert not refresh.is_alive()
-    assert page.call_count == 0
+    assert (refresh.dead, refresh.exception, page.call_count) == (True, None, 0)
     assert _range(history, 'internal-transaction') is None
 
 

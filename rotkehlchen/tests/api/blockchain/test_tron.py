@@ -1,20 +1,21 @@
 """TRON accounts (brylovit78/rotkibv#9) and history (#10) through the shared API. No request
 reaches TronScan: saving an account needs no key and queries no balance."""
 from http import HTTPStatus
-from threading import Event, Thread
+from threading import Event
 from typing import TYPE_CHECKING, Final
 from unittest.mock import patch
 
 import pytest
 import requests
 
+from rotkehlchen.concurrency.tasks import Task
 from rotkehlchen.tests.utils.api import (
     api_url_for,
     assert_error_response,
     assert_proper_sync_response_with_result,
 )
-from rotkehlchen.tests.utils.tronscan import set_tronscan_key, tronscan_body
-from rotkehlchen.types import SupportedBlockchain
+from rotkehlchen.tests.utils.tronscan import WaitedLock, set_tronscan_key, tronscan_body
+from rotkehlchen.types import SupportedBlockchain, TronAddress
 
 if TYPE_CHECKING:
     from rotkehlchen.api.server import APIServer
@@ -147,18 +148,17 @@ def test_tron_account_removal_waits_for_its_sync(rotkehlchen_api_server: APIServ
         assert resume.wait(10)
         return [row]
 
+    rotki.chains_aggregator.tron.transactions.address_locks[TronAddress(ACCOUNT)] = (lock := WaitedLock())  # type: ignore[assignment]  # tells when the removal waits  # noqa: E501
     with patch.object(rotki.tronscan, 'query_feed_page', side_effect=page):
-        (sync := Thread(target=rotki.chains_aggregator.tron.query_transactions, args=([ACCOUNT], 0, row['timestamp'] // 1000))).start()  # noqa: E501
+        sync = Task(name='sync', target=rotki.chains_aggregator.tron.query_transactions, args=([ACCOUNT], 0, row['timestamp'] // 1000)).start()  # noqa: E501
         assert paused.wait(10)
-        (removal := Thread(target=rotki.remove_single_blockchain_accounts, args=(SupportedBlockchain.TRON, [ACCOUNT]))).start()  # noqa: E501
-        removal.join(timeout=0.5)
-        assert removal.is_alive()  # waits for the sync, which holds the account
-
+        removal = Task(name='removal', target=rotki.remove_single_blockchain_accounts, args=(SupportedBlockchain.TRON, [ACCOUNT])).start()  # noqa: E501
+        assert lock.waited.wait(10)  # waits for the sync, which holds the account
         resume.set()
         sync.join(timeout=10)
         removal.join(timeout=10)
 
-    assert not removal.is_alive()
+    assert (sync.dead, sync.exception, removal.dead, removal.exception) == (True, None, True, None)
     assert rotki.chains_aggregator.accounts.tron == ()
     with rotki.data.db.conn.read_ctx() as cursor:
         assert cursor.execute('SELECT COUNT(*) FROM tron_transactions').fetchone() == (0,)
@@ -180,3 +180,43 @@ def test_tron_chain_type_removal_of_a_repeated_address(rotkehlchen_api_server: A
         timeout=30,
     ))
     assert rotki.chains_aggregator.accounts.tron == ()
+
+
+@pytest.mark.parametrize('number_of_eth_accounts', [0])
+@pytest.mark.parametrize('purge', [{}, {'chain': 'tron'}], ids=['all chains', 'tron'])
+def test_tron_purge_waits_for_a_running_import(
+        rotkehlchen_api_server: APIServer,
+        purge: dict[str, str],
+) -> None:
+    """A purge during an import of the account waits for it, so the import can not record
+    coverage over history the purge deleted"""
+    rotki = rotkehlchen_api_server.rest_api.rotkehlchen
+    assert_proper_sync_response_with_result(requests.put(
+        api_url_for(rotkehlchen_api_server, 'blockchainsaccountsresource', blockchain='TRON'),
+        json={'accounts': [{'address': ACCOUNT}]},
+    ))
+    set_tronscan_key(rotki.data.db, 'test-tronscan-key')
+    row = tronscan_body('history-internal-only-receipt', 'internal-page0')['data'][0] | {'to': ACCOUNT}  # noqa: E501
+    paused, resume = Event(), Event()
+
+    def page(feed: str, address: str, from_ts: int, to_ts: int, start: int) -> list[dict]:
+        if feed != 'internal-transaction':
+            return []
+        paused.set()
+        assert resume.wait(10)
+        return [row]
+
+    rotki.chains_aggregator.tron.transactions.address_locks[TronAddress(ACCOUNT)] = (lock := WaitedLock())  # type: ignore[assignment]  # tells when the purge waits  # noqa: E501
+    with patch.object(rotki.tronscan, 'query_feed_page', side_effect=page):
+        sync = Task(name='sync', target=rotki.chains_aggregator.tron.query_transactions, args=([ACCOUNT], 0, row['timestamp'] // 1000)).start()  # noqa: E501
+        assert paused.wait(10)
+        deletion = Task(name='purge', target=requests.delete, args=(api_url_for(rotkehlchen_api_server, 'blockchaintransactionsresource'),), kwargs={'json': purge}).start()  # noqa: E501
+        assert lock.waited.wait(10)  # waits for the import, which holds the account
+        resume.set()
+        sync.join(timeout=10)
+        deletion.join(timeout=30)
+
+    assert (sync.dead, sync.exception, deletion.dead, deletion.exception) == (True, None, True, None)  # noqa: E501
+    with rotki.data.db.conn.read_ctx() as cursor:
+        assert cursor.execute('SELECT COUNT(*) FROM tron_transactions').fetchone() == (0,)
+        assert cursor.execute("SELECT COUNT(*) FROM used_query_ranges WHERE name LIKE 'TRON%'").fetchone() == (0,)  # noqa: E501
