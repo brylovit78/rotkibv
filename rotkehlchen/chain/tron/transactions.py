@@ -34,12 +34,22 @@ logger = logging.getLogger(__name__)
 log = RotkehlchenLogsAdapter(logger)
 
 TronFeed = Literal['transaction', 'token_trc20/transfers', 'internal-transaction']
+
+
+class _FeedSpec(NamedTuple):
+    range_type: Literal['txs', 'tokentxs', 'internaltxs']
+    time_key: str  # the parent's block time in milliseconds
+    party_keys: tuple[str, ...]
+    # TRC20 rows have no unique key, so equal transfers of one transaction share an identity
+    identity_keys: tuple[str, ...]
+
+
 # Every feed has its own query range, named by the shared range prefixes
-TRON_HISTORY_FEEDS: Final[tuple[tuple[TronFeed, Literal['txs', 'tokentxs', 'internaltxs']], ...]] = (  # noqa: E501
-    ('transaction', 'txs'),
-    ('token_trc20/transfers', 'tokentxs'),
-    ('internal-transaction', 'internaltxs'),
-)
+TRON_HISTORY_FEEDS: Final[dict[TronFeed, _FeedSpec]] = {
+    'transaction': _FeedSpec('txs', 'timestamp', ('ownerAddress', 'toAddress'), ('hash',)),
+    'token_trc20/transfers': _FeedSpec('tokentxs', 'block_ts', ('from_address', 'to_address'), ('transaction_id', 'contract_address', 'from_address', 'to_address', 'quant')),  # noqa: E501
+    'internal-transaction': _FeedSpec('internaltxs', 'timestamp', ('from', 'to'), ('internal_hash',)),  # noqa: E501
+}
 # TronScan may still index rows of the latest seconds, so these are never marked complete
 RECENT_HISTORY_MARGIN: Final = 60
 
@@ -64,9 +74,14 @@ def _hash(value: Any) -> bytes:
     return raw
 
 
-def _parent(row: dict[str, Any], hash_key: str, timestamp_key: str, contract_ret: str | None) -> TronTransaction:  # noqa: E501
-    """The parent transaction fields that every feed row has"""
-    if type(row['block']) is not int or type(row[timestamp_key]) is not int or not all(type(row[x]) is bool for x in ('confirmed', 'revert')):  # noqa: E501
+def _parent(row: dict[str, Any], hash_key: str, timestamp_key: str, result_key: str | None) -> TronTransaction:  # noqa: E501
+    """The parent transaction fields that every feed row has, with its result if the feed
+    has it"""
+    if (
+        type(row['block']) is not int or type(row[timestamp_key]) is not int or
+        not all(type(row[x]) is bool for x in ('confirmed', 'revert')) or
+        (result_key is not None and type(row[result_key]) is not str)
+    ):
         raise DeserializationError(f'Invalid TRON row status or position in {row}')
     return TronTransaction(
         tx_hash=_hash(row[hash_key]),
@@ -74,7 +89,7 @@ def _parent(row: dict[str, Any], hash_key: str, timestamp_key: str, contract_ret
         timestamp=TimestampMS(row[timestamp_key]),
         confirmed=row['confirmed'],
         reverted=row['revert'],
-        contract_ret=contract_ret,
+        contract_ret=None if result_key is None else row[result_key],
     )
 
 
@@ -104,11 +119,11 @@ class TronTransactions:
             with self.address_locks[address]:  # one sync of an account at a time, as for EVM
                 self._send_status(address, (from_ts, end_ts), TransactionStatusStep.QUERYING_TRANSACTIONS_STARTED)  # noqa: E501
                 try:
-                    for feed, range_type in TRON_HISTORY_FEEDS:
+                    for feed, spec in TRON_HISTORY_FEEDS.items():
                         self._sync_feed(
                             address=address,
                             feed=feed,
-                            range_name=f'{SupportedBlockchain.TRON.to_range_prefix(range_type)}_{address}',
+                            range_name=f'{SupportedBlockchain.TRON.to_range_prefix(spec.range_type)}_{address}',
                             from_ts=from_ts,
                             end_ts=end_ts,
                         )
@@ -142,10 +157,10 @@ class TronTransactions:
     ) -> None:
         """Traverse the missing part of a feed's range oldest window first.
 
-        A saturated window is split into its older and newer half, both inclusive whole
-        seconds. Rows of later windows are still stored after coverage stopped, but only the
-        contiguous complete part is recorded. A saturated single second keeps the range
-        incomplete across it, as no other filter is verified to subdivide it.
+        A window that can not be listed completely is split into its older and newer half,
+        both inclusive whole seconds. Rows of later windows are still stored after coverage
+        stopped, but only the contiguous complete part is recorded. Such a single second keeps
+        the range incomplete across it, as no other filter is verified to subdivide it.
         """
         dbranges = DBQueryRanges(self.database)
         with self.database.conn.read_ctx() as cursor:
@@ -166,16 +181,17 @@ class TronTransactions:
                     if low == high:
                         covering = False
                         self.database.msg_aggregator.add_warning(
-                            f'TronScan lists at least {TRONSCAN_MAX_START + TRONSCAN_FEED_LIMIT} '
-                            f'{feed} rows of TRON account {address} in the second {low}. Its '
-                            f'history stays incomplete from that second.',
+                            f'TronScan can not list every {feed} row of TRON account {address} '
+                            f'in the second {low}: they fill its '
+                            f'{TRONSCAN_MAX_START + TRONSCAN_FEED_LIMIT} row window or change '
+                            f'order between pages. Its history stays incomplete from that second.',
                         )
                         continue
 
                     windows.extend(((Timestamp((low + high) // 2 + 1), high), (low, Timestamp((low + high) // 2))))  # noqa: E501
                     continue
 
-                window = self._resolve(feed, address, rows, low, high)
+                window = self._resolve(feed, address, rows, high)
                 with self.database.user_write() as write_cursor:
                     add_tron_history(
                         write_cursor=write_cursor,
@@ -199,14 +215,27 @@ class TronTransactions:
             low: Timestamp,
             high: Timestamp,
     ) -> list[dict[str, Any]] | None:
-        """All rows of a window, or None if it is saturated. Only a page shorter than the
-        page size ends a window: an empty page at the last start means more rows exist.
+        """All rows of a window, or None if they can not be proven complete. Only a page
+        shorter than the page size ends a window: a full page at the last start means more
+        rows may exist. A row repeating from an earlier page means the order changed between
+        pages, so another row may be on none of them (section 3.6).
 
         May raise MissingAPIKey, RemoteError, DeserializationError.
         """
+        spec = TRON_HISTORY_FEEDS[feed]
         rows: list[dict[str, Any]] = []
+        seen: set[tuple[str, ...]] = set()
         for start in range(0, TRONSCAN_MAX_START + 1, TRONSCAN_FEED_LIMIT):
-            rows.extend(page := self.tronscan.query_feed_page(feed, address, low, high, start))
+            page = self.tronscan.query_feed_page(feed, address, low, high, start)
+            for row in page:  # only rows of the queried account and window prove pagination
+                parties = [row.get(x) for x in spec.party_keys] + (row['toAddressList'] if isinstance(row.get('toAddressList'), list) else [])  # noqa: E501
+                if address not in parties or type(timestamp := row.get(spec.time_key)) is not int or not low <= timestamp // 1000 <= high:  # noqa: E501
+                    raise RemoteError(f'Unexpected TronScan {feed} data for {address}: Row of another account or window in {row}')  # noqa: E501
+
+            if not seen.isdisjoint(identities := {tuple(str(row.get(x)) for x in spec.identity_keys) for row in page}):  # noqa: E501
+                return None
+            seen |= identities
+            rows.extend(page)
             if len(page) < TRONSCAN_FEED_LIMIT:
                 return rows
 
@@ -217,7 +246,6 @@ class TronTransactions:
             feed: TronFeed,
             address: TronAddress,
             rows: list[dict[str, Any]],
-            low: Timestamp,
             high: Timestamp,
     ) -> _Window:
         """Turn the rows of a complete window into storage records.
@@ -225,9 +253,10 @@ class TronTransactions:
         The feeds only discover parents. TRC20 movements come from the event logs of those
         parents, and every TRC20 row must match one Transfer log by contract, parties and
         value, else the parent is unresolved (section 3.8). Pending, reverted and unresolved
-        parents limit how far the window counts as complete.
+        parents limit how far the window counts as complete. Classifications and statuses
+        must be well formed, so a malformed row can not be skipped as unsupported.
 
-        May raise RemoteError for malformed rows or rows outside the account and window.
+        May raise RemoteError for malformed rows.
         """
         parents: dict[bytes, TronTransaction] = {}
         internal: list[TronInternalTransfer] = []
@@ -235,11 +264,11 @@ class TronTransactions:
         try:
             for row in rows:
                 if feed == 'transaction':
-                    parent = _parent(row, 'hash', 'timestamp', row['contractRet'])._replace(**self._owner_fields(row))  # noqa: E501
-                    parties: tuple[Any, ...] = (row['ownerAddress'], row['toAddress'], *(row.get('toAddressList') or ()))  # noqa: E501
+                    parent = _parent(row, 'hash', 'timestamp', 'contractRet')._replace(**self._owner_fields(row))  # noqa: E501
                 elif feed == 'token_trc20/transfers':
-                    parent = _parent(row, 'transaction_id', 'block_ts', row['contractRet'])
-                    parties = (row['from_address'], row['to_address'])
+                    parent = _parent(row, 'transaction_id', 'block_ts', 'contractRet')
+                    if not all(type(row[x]) is str for x in ('contract_type', 'event_type')):
+                        raise DeserializationError(f'Invalid TRC20 row classification in {row}')
                     if row['contract_type'] == 'trc20' and row['event_type'] == 'Transfer':
                         trc20_rows.setdefault(parent.tx_hash, []).append((
                             deserialize_tron_address(row['contract_address']),
@@ -249,8 +278,9 @@ class TronTransactions:
                         ))
                 else:  # internal-transaction
                     parent = _parent(row, 'hash', 'timestamp', None)
-                    parties = (row['from'], row['to'])
-                    if row['token_list']['token_id'] == '_' and (amount := deserialize_raw_amount(row['call_value'])) != 0:  # TRX only  # noqa: E501
+                    if type(row['token_id']) is not str or type(row['result']) is not str or type(row['rejected']) is not bool:  # noqa: E501
+                        raise DeserializationError(f'Invalid internal transfer status in {row}')
+                    if row['token_id'] == '_' and (amount := deserialize_raw_amount(row['call_value'])) != 0:  # TRX only  # noqa: E501
                         internal.append(TronInternalTransfer(
                             tx_hash=parent.tx_hash,
                             internal_hash=_hash(row['internal_hash']),
@@ -260,8 +290,6 @@ class TronTransactions:
                             success=row['result'] == 'SUCCESS' and row['rejected'] is False and row['revert'] is False,  # noqa: E501
                         ))
 
-                if address not in parties or not low <= parent.timestamp // 1000 <= high:
-                    raise DeserializationError(f'Row of another account or window in {row}')
                 parents[parent.tx_hash] = parent
         except (DeserializationError, KeyError, TypeError, ValueError, AttributeError) as e:
             raise RemoteError(f'Unexpected TronScan {feed} data for {address}: {e!s}') from e
@@ -287,15 +315,17 @@ class TronTransactions:
     @staticmethod
     def _owner_fields(row: dict[str, Any]) -> dict[str, Any]:
         """Fields only the owner's or recipient's transaction feed has. The native amount is
-        the TransferContract amount or the call_value of a contract call."""
+        the TransferContract amount or the call_value of a contract call (section 3.3)."""
         if type(contract_type := row['contractType']) is not int:
             raise DeserializationError(f'Invalid TRON contract type in {row}')
-        native = {1: 'amount', 31: 'call_value'}.get(contract_type)
         return {
             'owner_address': deserialize_tron_address(row['ownerAddress']),
             'to_address': deserialize_tron_address(row['toAddress']) if row['toAddress'] else None,
             'contract_type': contract_type,
-            'native_amount': deserialize_raw_amount(row['contractData'].get(native, 0)) if native else None,  # noqa: E501
+            'native_amount': deserialize_raw_amount(
+                row['contractData']['amount'] if contract_type == 1 else
+                row['trigger_info']['call_value'],
+            ) if contract_type in {1, 31} else None,
             'fee': deserialize_raw_amount(row['cost']['fee']),
         }
 

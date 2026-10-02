@@ -664,8 +664,9 @@ Energy and bandwidth fields are not stored: they are metadata (section 3.7), and
 `cost.fee` is all that #11 needs.
 
 A later row of a stored transaction never drops its confirmation or the owner fields that an
-earlier row stored, and any real change removes the `tron_tx_mappings` decoded marker, so the
-transaction is decoded again (`rotkehlchen/db/trontx.py`).
+earlier row stored, and the latest status of an internal transfer wins. Any real change
+removes the `tron_tx_mappings` decoded marker, so the transaction is decoded again
+(`rotkehlchen/db/trontx.py`).
 
 Account removal deletes TRON transaction data through `tron_tx_address_mappings`, following
 `rotkehlchen/db/solanatx.py:284-314`. A transaction that another tracked account maps to is
@@ -857,11 +858,18 @@ Plan:
   - a range after the recorded one starts with the recorded boundary second;
   - a range before it is recorded only once all of it is complete;
   - the newest 60 seconds are never recorded, as TronScan may still be indexing them.
-- A saturated single second is reported with a `msg_aggregator` warning that names the second.
-  The data-issues inbox has no kind for provider coverage; its kinds are balance and bridge
-  issues, and adding one is outside #10.
-- One sync of an account runs at a time. Every sync of an account sends
-  `TRANSACTION_STATUS` start and finish messages with subtype `tron`, also when it fails.
+- A page that repeats a row of an earlier page of its window proves nothing. Tied rows changed
+  order between the requests, so another row may be on no page. The window is split like a
+  saturated one.
+- A single second that stays saturated or reordered is reported with a `msg_aggregator`
+  warning that names the second. The data-issues inbox has no kind for provider coverage; its
+  kinds are balance and bridge issues, and adding one is outside #10.
+- Every row of every page must belong to the queried account and window, also on a full page.
+  Classifications and statuses must be well formed, so a malformed row fails its window and is
+  never skipped as unsupported.
+- One sync of an account runs at a time. Account removal cancels refreshes of the account and
+  waits for its running sync, as for EVM. Every sync of an account sends `TRANSACTION_STATUS`
+  start and finish messages with subtype `tron`, also when it fails.
 - TRON joins the transaction tuples. The branches #10 reaches:
   - refresh, with canonical address validation;
   - transaction deletion and purge;

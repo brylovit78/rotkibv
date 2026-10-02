@@ -11,7 +11,7 @@ from rotkehlchen.chain.accounts import BlockchainAccountData
 from rotkehlchen.chain.tron import transactions as tron_transactions
 from rotkehlchen.chain.tron.transactions import TronTransactions
 from rotkehlchen.concurrency.cancellation import TaskCancelledError
-from rotkehlchen.db.trontx import TronTransaction, add_tron_history
+from rotkehlchen.db.trontx import TronInternalTransfer, TronTransaction, add_tron_history
 from rotkehlchen.errors.misc import RemoteError
 from rotkehlchen.externalapis.tronscan import TRONSCAN_API_URL, Tronscan
 from rotkehlchen.tests.fixtures.messages import MockRotkiNotifier
@@ -31,6 +31,8 @@ if TYPE_CHECKING:
     from rotkehlchen.tests.utils.mock import MockResponse
 
 INTERNAL_ROW: Final = tronscan_body('history-internal-only-receipt', 'internal-page0')['data'][0]
+TRC20_ROW: Final = tronscan_body('history-zero-holding-token', 'trc20-page0')['token_transfers'][0]
+TRANSFER_ROW: Final = next(x for x in tronscan_body('history-energy-burn-and-failed-call', 'transactions-page0')['data'] if x['contractType'] == 1)  # noqa: E501
 ACCOUNT: Final = TronAddress(INTERNAL_ROW['to'])
 OTHER_ACCOUNT: Final = INTERNAL_ROW['from']
 TIME_KEYS: Final = {'transaction': 'timestamp', 'token_trc20/transfers': 'block_ts', 'internal-transaction': 'timestamp'}  # noqa: E501
@@ -55,14 +57,16 @@ def fixture_small_windows() -> Iterator[None]:
 
 class _Feeds:
     """TronScan history feeds over the given rows: each page holds the rows of the requested
-    window, newest first, by the page size in use. A failure is raised for its window."""
+    window, newest first, by the page size in use. A failure is raised for its window, and
+    rows of one second can swap order on every other page."""
 
     def __init__(
             self,
             rows: dict[str, list[dict[str, Any]]],
             fail: tuple[tuple[int, int], BaseException] | None = None,
+            reorder_ties: bool = False,
     ) -> None:
-        self.rows, self.fail = rows, fail
+        self.rows, self.fail, self.reorder_ties = rows, fail, reorder_ties
         self.windows: defaultdict[str, list[tuple[int, int]]] = defaultdict(list)
 
     def __call__(self, feed: str, address: str, from_ts: int, to_ts: int, start: int) -> list[dict[str, Any]]:  # noqa: E501
@@ -70,10 +74,10 @@ class _Feeds:
             self.windows[feed].append((from_ts, to_ts))
         if self.fail is not None and self.fail[0] == (from_ts, to_ts):
             raise self.fail[1]
-        return sorted(
-            (x for x in self.rows.get(feed, []) if from_ts <= x[TIME_KEYS[feed]] // 1000 <= to_ts),
-            key=lambda x: -x[TIME_KEYS[feed]],
-        )[start:start + tron_transactions.TRONSCAN_FEED_LIMIT]
+        rows = [x for x in self.rows.get(feed, []) if from_ts <= x[TIME_KEYS[feed]] // 1000 <= to_ts]  # noqa: E501
+        if self.reorder_ties and start // tron_transactions.TRONSCAN_FEED_LIMIT % 2 == 1:
+            rows.reverse()  # the stable sort keeps tied rows reversed
+        return sorted(rows, key=lambda x: -x[TIME_KEYS[feed]])[start:start + tron_transactions.TRONSCAN_FEED_LIMIT]  # noqa: E501
 
 
 def _sync(history: TronTransactions, feeds: _Feeds, from_ts: int, to_ts: int, accounts: Sequence[str] = (ACCOUNT,)) -> None:  # noqa: E501
@@ -81,9 +85,9 @@ def _sync(history: TronTransactions, feeds: _Feeds, from_ts: int, to_ts: int, ac
         history.query_transactions([TronAddress(x) for x in accounts], Timestamp(from_ts), Timestamp(to_ts))  # noqa: E501
 
 
-def _internal(identity: str, second: int, confirmed: bool = True) -> dict[str, Any]:
+def _internal(identity: str, second: int, confirmed: bool = True, call: str | None = None) -> dict[str, Any]:  # noqa: E501
     """The corpus internal receipt of ACCOUNT as another transaction and internal call"""
-    return INTERNAL_ROW | {'hash': identity * 64, 'internal_hash': identity * 64, 'timestamp': second * 1000, 'confirmed': confirmed}  # noqa: E501
+    return INTERNAL_ROW | {'hash': identity * 64, 'internal_hash': (call or identity) * 64, 'timestamp': second * 1000, 'confirmed': confirmed}  # noqa: E501
 
 
 def _range(history: TronTransactions, feed: str, address: str = ACCOUNT) -> tuple[int, int] | None:
@@ -97,7 +101,8 @@ def _query(history: TronTransactions, query: str, *bindings: Any) -> set[tuple[A
 
 
 def _internal_identities(history: TronTransactions) -> list[str]:
-    return sorted(x[0][0] for x in _query(history, 'SELECT lower(hex(internal_hash)) FROM tron_internal_transfers'))  # noqa: E501
+    """The letters of the stored transactions, which the synthetic scenarios call identities"""
+    return sorted(x[0][0] for x in _query(history, 'SELECT lower(hex(tx_hash)) FROM tron_transactions'))  # noqa: E501
 
 
 @pytest.mark.parametrize('case', [
@@ -158,8 +163,8 @@ def test_history_cases_are_stored_by_identity(history: TronTransactions, case: s
 @pytest.mark.usefixtures('small_windows')
 def test_saturated_window_splits_into_its_older_and_newer_half(history: TronTransactions) -> None:
     """split-overlap: the saturated [100, 109] is read as [100, 104] and then [105, 109], and
-    the twice returned c is stored once"""
-    rows = [_internal('a', 100), _internal('b', 102), _internal('c', 104), _internal('c', 104), _internal('d', 107)]  # noqa: E501
+    the twice seen c, with two internal calls, is stored once"""
+    rows = [_internal('a', 100), _internal('b', 102), _internal('c', 104), _internal('c', 104, call='f'), _internal('d', 107)]  # noqa: E501
     _sync(history, feeds := _Feeds({'internal-transaction': rows}), 100, 109)
     assert feeds.windows['internal-transaction'] == [(100, 109), (100, 104), (105, 109)]
     assert _internal_identities(history) == ['a', 'b', 'c', 'd']
@@ -178,7 +183,7 @@ def test_interrupted_window_keeps_the_gap_until_a_retry(
     """cancelled-gap and failed-gap keep [100, 104] with its rows and leave the interrupted
     [105, 109] uncovered, and the query still reports its end. retry-closes-gap re-reads the
     completed boundary second 104."""
-    rows = [_internal('a', 100), _internal('b', 104), _internal('c', 104), _internal('c', 104), _internal('d', 107)]  # noqa: E501
+    rows = [_internal('a', 100), _internal('b', 104), _internal('c', 104), _internal('c', 104, call='f'), _internal('d', 107)]  # noqa: E501
     history.database.msg_aggregator.rotki_notifier = (notifier := MockRotkiNotifier())  # type: ignore[assignment]
     with pytest.raises(type(error)):
         _sync(history, _Feeds({'internal-transaction': rows}, fail=((105, 109), error)), 100, 109)
@@ -205,9 +210,36 @@ def test_saturated_single_second_keeps_coverage_before_it(history: TronTransacti
     assert _internal_identities(history) == ['a', 'b', 'e']
     assert _range(history, 'internal-transaction') == (100, 104)
     assert history.database.msg_aggregator.consume_warnings() == [(
-        f'TronScan lists at least 5 internal-transaction rows of TRON account {ACCOUNT} in the '
-        'second 105. Its history stays incomplete from that second.'
+        f'TronScan can not list every internal-transaction row of TRON account {ACCOUNT} in the '
+        'second 105: they fill its 5 row window or change order between pages. Its history '
+        'stays incomplete from that second.'
     )]
+
+
+@pytest.mark.usefixtures('small_windows')
+def test_reordered_ties_never_complete_a_window(history: TronTransactions) -> None:
+    """Rows of one second may swap order between page requests, so a page repeats a row while
+    another is on none. Such a window is split, and such a single second stays incomplete."""
+    rows = [_internal('a', 104), _internal('b', 104), _internal('c', 102)]
+    _sync(history, feeds := _Feeds({'internal-transaction': rows}, reorder_ties=True), 100, 109)
+    assert (104, 104) in feeds.windows['internal-transaction']
+    assert _internal_identities(history) == ['c']
+    assert _range(history, 'internal-transaction') == (100, 103)
+    assert len(history.database.msg_aggregator.consume_warnings()) == 1
+
+
+@pytest.mark.usefixtures('small_windows')
+def test_rows_of_another_account_fail_on_the_first_page(history: TronTransactions) -> None:
+    """A provider that ignores the account filter fails on its first full page instead of
+    being paged and split as saturated"""
+    with (
+        patch.object(history.tronscan, 'query_feed_page', side_effect=lambda feed, *args: [INTERNAL_ROW | {'to': OTHER_ACCOUNT, 'timestamp': 105000}] if feed == 'internal-transaction' else []) as page,  # noqa: E501
+        pytest.raises(RemoteError, match='Row of another account or window'),
+    ):
+        history.query_transactions([ACCOUNT], Timestamp(100), Timestamp(109))
+
+    assert [x.args[0] for x in page.call_args_list].count('internal-transaction') == 1
+    assert _range(history, 'internal-transaction') is None
 
 
 def test_earlier_history_is_recorded_once_complete(history: TronTransactions) -> None:
@@ -261,25 +293,31 @@ def test_confirmation_completes_coverage_and_redecodes(history: TronTransactions
 
 
 def test_later_rows_complete_a_transaction(database: DBHandler) -> None:
-    """A later row never drops the confirmation or the owner fields an earlier row stored, and
-    only a real change removes the decoded mark"""
+    """A later row never drops the confirmation or the owner fields an earlier row stored, the
+    latest status of an internal transfer wins, and only a real change removes the decoded
+    mark"""
     owned = TronTransaction(
         tx_hash=b'\x01' * 32, block_number=1, timestamp=TimestampMS(1000), confirmed=True,
         reverted=False, contract_ret='SUCCESS', owner_address=ACCOUNT, to_address=ACCOUNT,
         contract_type=1, native_amount=5, fee=7,
     )
     seen_pending = TronTransaction(tx_hash=owned.tx_hash, block_number=1, timestamp=owned.timestamp, confirmed=False, reverted=False)  # noqa: E501
+    reverted = TronInternalTransfer(tx_hash=owned.tx_hash, internal_hash=b'\x02' * 32, from_address=ACCOUNT, to_address=ACCOUNT, amount=1, success=False)  # noqa: E501
     with database.user_write() as write_cursor:
-        add_tron_history(write_cursor, ACCOUNT, [owned])
-        write_cursor.execute('INSERT INTO tron_tx_mappings(tx_id, value) SELECT identifier, 0 FROM tron_transactions')  # noqa: E501
-        add_tron_history(write_cursor, ACCOUNT, [seen_pending])
-        assert write_cursor.execute('SELECT COUNT(*) FROM tron_tx_mappings').fetchone() == (1,)
-        add_tron_history(write_cursor, TronAddress(OTHER_ACCOUNT), [seen_pending])  # a new party
-        assert write_cursor.execute('SELECT COUNT(*) FROM tron_tx_mappings').fetchone() == (0,)
+
+        def decoded_after(address: str, **rows: Any) -> bool:
+            write_cursor.execute('INSERT OR IGNORE INTO tron_tx_mappings(tx_id, value) SELECT identifier, 0 FROM tron_transactions')  # noqa: E501
+            add_tron_history(write_cursor, TronAddress(address), [seen_pending], **rows)
+            return write_cursor.execute('SELECT COUNT(*) FROM tron_tx_mappings').fetchone() == (1,)
+
+        add_tron_history(write_cursor, ACCOUNT, [owned], internal_transfers=[reverted])
+        assert decoded_after(ACCOUNT, internal_transfers=[reverted]) is True  # nothing new
+        assert decoded_after(OTHER_ACCOUNT) is False  # a new party
+        assert decoded_after(ACCOUNT, internal_transfers=[reverted._replace(success=True)]) is False  # noqa: E501
         assert write_cursor.execute(
-            'SELECT confirmed, contract_ret, owner_address, contract_type, native_amount, fee '
-            'FROM tron_transactions',
-        ).fetchall() == [(1, 'SUCCESS', ACCOUNT, 1, '5', '7')]
+            'SELECT confirmed, contract_ret, owner_address, contract_type, native_amount, fee, '
+            'success FROM tron_transactions JOIN tron_internal_transfers ON tx_id=identifier',
+        ).fetchall() == [(1, 'SUCCESS', ACCOUNT, 1, '5', '7', 1)]
 
 
 def test_identical_transfers_of_one_transaction_stay_distinct(history: TronTransactions) -> None:
@@ -306,32 +344,38 @@ def test_internal_rows_keep_only_trx_calls(history: TronTransactions) -> None:
     _sync(history, _Feeds({'internal-transaction': [
         row,
         row | {'internal_hash': 'e' * 64, 'call_value': 0},
-        row | {'internal_hash': 'f' * 64, 'token_list': row['token_list'] | {'token_id': '1002000'}},  # noqa: E501
+        row | {'internal_hash': 'f' * 64, 'token_id': '1002000'},
     ]}), second - 10, second + 10)
     assert _query(history, 'SELECT lower(hex(internal_hash)), success FROM tron_internal_transfers') == {(row['internal_hash'], 0)}  # noqa: E501
     assert _range(history, 'internal-transaction') == (second - 10, second + 10)
 
 
-@pytest.mark.parametrize(('change', 'error'), [
-    pytest.param({'to': OTHER_ACCOUNT}, 'Row of another account or window', id='another account'),
-    pytest.param({'timestamp': INTERNAL_ROW['timestamp'] + 11000}, 'Row of another account or window', id='outside the window'),  # noqa: E501
-    pytest.param({'call_value': 1.5}, 'Invalid raw amount 1.5', id='fractional amount'),
-    pytest.param({'call_value': -1}, 'Invalid raw amount -1', id='negative amount'),
+@pytest.mark.parametrize(('feed', 'row', 'party', 'error'), [
+    pytest.param('internal-transaction', INTERNAL_ROW | {'to': OTHER_ACCOUNT}, INTERNAL_ROW['to'], 'Row of another account or window', id='another account'),  # noqa: E501
+    pytest.param('internal-transaction', INTERNAL_ROW | {'timestamp': INTERNAL_ROW['timestamp'] + 11000}, INTERNAL_ROW['to'], 'Row of another account or window', id='outside the window'),  # noqa: E501
+    pytest.param('internal-transaction', INTERNAL_ROW | {'call_value': 1.5}, INTERNAL_ROW['to'], 'Invalid raw amount 1.5', id='fractional amount'),  # noqa: E501
+    pytest.param('internal-transaction', INTERNAL_ROW | {'call_value': -1}, INTERNAL_ROW['to'], 'Invalid raw amount -1', id='negative amount'),  # noqa: E501
+    pytest.param('internal-transaction', INTERNAL_ROW | {'rejected': None}, INTERNAL_ROW['to'], 'Invalid internal transfer status', id='unknown rejection'),  # noqa: E501
+    pytest.param('token_trc20/transfers', TRC20_ROW | {'contract_type': None}, TRC20_ROW['from_address'], 'Invalid TRC20 row classification', id='unknown TRC20 classification'),  # noqa: E501
+    pytest.param('transaction', TRANSFER_ROW | {'contractData': {}}, TRANSFER_ROW['toAddress'], "'amount'", id='transfer without amount'),  # noqa: E501
 ])
 def test_unexpected_rows_fail_their_window(
         history: TronTransactions,
-        change: dict[str, Any],
+        feed: str,
+        row: dict[str, Any],
+        party: str,
         error: str,
 ) -> None:
-    """Every row must be a well formed row of the queried account and window (section 3.6)"""
-    second = INTERNAL_ROW['timestamp'] // 1000
+    """Every row must be a well formed row of the queried account and window (section 3.6),
+    so a malformed one is neither skipped as unsupported nor completes the window"""
+    second = INTERNAL_ROW['timestamp'] // 1000 if 'window' in error else row[TIME_KEYS[feed]] // 1000  # noqa: E501
     with (
-        patch.object(history.tronscan, 'query_feed_page', side_effect=lambda feed, *args: [INTERNAL_ROW | change] if feed == 'internal-transaction' else []),  # noqa: E501
-        pytest.raises(RemoteError, match=f'Unexpected TronScan internal-transaction data for {ACCOUNT}: {error}'),  # noqa: E501
+        patch.object(history.tronscan, 'query_feed_page', side_effect=lambda queried, *args: [row] if queried == feed else []),  # noqa: E501
+        pytest.raises(RemoteError, match=f'Unexpected TronScan {feed} data for {party}: {error}'),
     ):
-        history.query_transactions([ACCOUNT], Timestamp(second - 10), Timestamp(second + 10))
+        history.query_transactions([TronAddress(party)], Timestamp(second - 10), Timestamp(second + 10))  # noqa: E501
 
-    assert _range(history, 'internal-transaction') is None
+    assert _range(history, feed, party) is None
     assert _query(history, 'SELECT COUNT(*) FROM tron_transactions') == {(0,)}
 
 

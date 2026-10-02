@@ -69,8 +69,9 @@ def add_tron_history(
     through any feed, page or account, stores them once.
 
     A later observation completes a transaction: it never loses confirmation, and fields only
-    an owner's row has are kept. Whenever anything changes for a transaction, its decoded
-    marker is removed so that the decoder runs again.
+    an owner's row has are kept. The latest status of an internal transfer wins. Whenever
+    anything changes for a transaction, its decoded marker is removed so that the decoder runs
+    again.
     """
     changed: set[bytes] = set()
     for tx in transactions:
@@ -106,11 +107,12 @@ def add_tron_history(
         if write_cursor.rowcount != 0:
             changed.add(transfer.tx_hash)
 
-    for internal in internal_transfers:
+    for internal in internal_transfers:  # its status may change, as a parent's does
         write_cursor.execute(
-            'INSERT OR IGNORE INTO tron_internal_transfers(tx_id, internal_hash, from_address, '
+            'INSERT INTO tron_internal_transfers(tx_id, internal_hash, from_address, '
             'to_address, amount, success) SELECT identifier, ?, ?, ?, ?, ? '
-            'FROM tron_transactions WHERE tx_hash=?',
+            'FROM tron_transactions WHERE tx_hash=? ON CONFLICT(tx_id, internal_hash) '
+            'DO UPDATE SET success=excluded.success WHERE success IS NOT excluded.success',
             (
                 internal.internal_hash, internal.from_address, internal.to_address,
                 str(internal.amount), internal.success, internal.tx_hash,
