@@ -3382,6 +3382,12 @@
       "description": "rotki uses the Graph to obtain a variety of information such as balancer balances and ENS data",
       "hint": "Enter your The Graph API key",
       "title": "The Graph"
+    },
+    "tronscan": {
+      "api_key_message": "A TronScan API key is needed to query TRON balances and transactions.",
+      "description": "Required for TRON. rotki queries TRON balances and transactions only from the official TronScan API.",
+      "hint": "Enter your TronScan API key",
+      "title": "TronScan"
     }
   },
   "file_upload": {
@@ -4903,6 +4909,10 @@
       "thegraph": {
         "message": "rotki cannot query {location} data because you don't have {service} API key configured, or the API key you are using isn't authorized for {location}. Press @.quote:notification_messages.missing_api_key.get_key to make one or @.quote:notification_messages.missing_api_key.action to add it in the app. Read the docs {docs} for more information.",
         "title": "{service} API key for {location}"
+      },
+      "tronscan": {
+        "message": "TRON balances and transactions can't be queried because you don't have a TronScan API key configured. Press @.quote:notification_messages.missing_api_key.get_key to make one or @.quote:notification_messages.missing_api_key.action to add it in the app.",
+        "title": "{service} API key for TRON"
       }
     },
     "monerium_session_key_expired": {

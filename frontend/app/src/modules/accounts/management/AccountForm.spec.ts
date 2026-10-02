@@ -1,10 +1,20 @@
+import type { useExternalApiKeys } from '@/modules/settings/api-keys/external/use-external-api-keys';
 import { Blockchain } from '@rotki/common';
-import { mount, type VueWrapper } from '@vue/test-utils';
+import { createMock } from '@test/utils/create-mock';
+import { mount, RouterLinkStub, type VueWrapper } from '@vue/test-utils';
 import { afterEach, assert, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type ComponentPublicInstance, nextTick } from 'vue';
 import { XpubKeyType } from '@/modules/accounts/blockchain-accounts';
 import { type AccountManageState, createNewBlockchainAccount } from '@/modules/accounts/blockchain/use-account-manage';
 import AccountForm from '@/modules/accounts/management/AccountForm.vue';
+
+const mockApiKeys = new Map<string, string>();
+
+vi.mock('@/modules/settings/api-keys/external/use-external-api-keys', () => ({
+  useExternalApiKeys: vi.fn(() => createMock<ReturnType<typeof useExternalApiKeys>>({
+    getApiKey: (name: string): string => mockApiKeys.get(name) ?? '',
+  })),
+}));
 
 /**
  * `AccountForm.validate()` falls back to `true` when the selected child does not expose a
@@ -40,6 +50,7 @@ function createWrapper(modelValue: AccountManageState): VueWrapper<InstanceType<
         BtcAddressInput: inputStub('BtcAddressInput'),
         Eth2Input: inputStub('Eth2Input'),
         ModuleActivator: true,
+        RouterLink: RouterLinkStub,
       },
     },
     props: {
@@ -96,6 +107,7 @@ describe('modules/accounts/management/AccountForm', () => {
     setActivePinia(createPinia());
     inputValidate.mockReset();
     inputValidate.mockResolvedValue(false);
+    mockApiKeys.clear();
   });
 
   afterEach(() => {
@@ -203,6 +215,36 @@ describe('modules/accounts/management/AccountForm', () => {
       // Opening on a chain is not choosing one. The rebuild used to run on mount as well, so the
       // form answered a question nobody had asked yet.
       expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+    });
+  });
+
+  /*
+   * TronScan is the only TRON data source and refuses keyless requests, so a new TRON account
+   * without a key gets the hint that links to the key. The hint is advice only: the form still
+   * validates through its child form, so a valid address can be saved without a key.
+   */
+  describe('the tronscan key hint', () => {
+    function tronAccount(): AccountManageState {
+      return { ...createNewBlockchainAccount(), chain: 'tron' };
+    }
+
+    it('should link a new TRON account without a key to the TronScan key', async () => {
+      inputValidate.mockResolvedValue(true);
+      wrapper = createWrapper(tronAccount());
+
+      expect(wrapper.text()).toContain('external_services.tronscan.api_key_message');
+      expect(wrapper.findComponent(RouterLinkStub).props('to')).toEqual({
+        name: '/api-keys/external/',
+        query: { service: 'tronscan' },
+      });
+      expect(await wrapper.vm.validate()).toBe(true);
+    });
+
+    it('should drop the hint once a TronScan key is set', () => {
+      mockApiKeys.set('tronscan', 'key');
+      wrapper = createWrapper(tronAccount());
+
+      expect(wrapper.text()).not.toContain('external_services.tronscan.api_key_message');
     });
   });
 });

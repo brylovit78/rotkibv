@@ -29,6 +29,10 @@ const services = [
     name: 'helius',
   },
   {
+    component: defineAsyncComponent(() => import('@/modules/settings/api-keys/external/TronscanApiKey.vue')),
+    name: 'tronscan',
+  },
+  {
     component: defineAsyncComponent(() => import('@/modules/settings/api-keys/external/CryptoCompareApiKey.vue')),
     name: 'cryptocompare',
   },

@@ -130,6 +130,11 @@ export function createMissingApiKeyHandler(t: ReturnType<typeof useI18n>['t'], r
         messageKey: msg.$t('notification_messages.missing_api_key.thegraph.message'),
         titleKey: msg.$t('notification_messages.missing_api_key.thegraph.title'),
       },
+      [SuppressibleMissingKeyService.TRONSCAN]: {
+        category: NotificationCategory.TRONSCAN,
+        messageKey: msg.$t('notification_messages.missing_api_key.tronscan.message'),
+        titleKey: msg.$t('notification_messages.missing_api_key.tronscan.title'),
+      },
     };
 
     const config = serviceConfig[service] || serviceConfig[SuppressibleMissingKeyService.ETHERSCAN];
