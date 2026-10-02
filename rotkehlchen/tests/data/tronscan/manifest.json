@@ -982,12 +982,13 @@
     "history-energy-burn-and-failed-call",
     "status-pending-then-confirmed",
     "status-failed-calls-attempted-transfer",
-    "synthetic-reverted-transaction"
+    "synthetic-reverted-transaction",
+    "synthetic-rejected-internal-transfer"
    ]
   },
   "fees": {
    "status": "verified_live",
-   "notes": "Paid fee = transaction-list cost.fee; balances of 7 accounts reconcile to the sun. transaction-info cost.fee excludes energy and bandwidth fees. Memo fee only synthetic.",
+   "notes": "Provider balances reconciled on 9 research accounts; 5 complete account histories are committed and checked. Detail fee excludes energy/bandwidth.",
    "cases": [
     "history-energy-burn-and-failed-call",
     "history-account-creation-fee",
@@ -8302,24 +8303,7 @@
      ]
     }
    ],
-   "expected": {
-    "page_lengths": {
-     "reference": 50,
-     "page0": 2,
-     "page1": 2,
-     "whole-second": 1,
-     "fractional-second": 1,
-     "after-second": 0,
-     "empty-window": 50,
-     "start9990": 0,
-     "start10000": 0,
-     "start10001": 0,
-     "limit100": 50,
-     "empty-positive-window": 0,
-     "empty-subsecond-window": 0,
-     "empty-genesis-window": 0
-    }
-   }
+   "expected": {}
   },
   {
    "id": "pagination-internal-endpoint",
@@ -8627,24 +8611,7 @@
      ]
     }
    ],
-   "expected": {
-    "page_lengths": {
-     "reference": 17,
-     "page0": 2,
-     "page1": 2,
-     "whole-second": 1,
-     "fractional-second": 1,
-     "after-second": 0,
-     "empty-window": 17,
-     "start9990": 0,
-     "start10000": 0,
-     "start10001": 0,
-     "limit100": 17,
-     "empty-positive-window": 0,
-     "empty-subsecond-window": 0,
-     "empty-genesis-window": 0
-    }
-   }
+   "expected": {}
   },
   {
    "id": "pagination-holdings-endpoint",
@@ -8744,12 +8711,6 @@
     }
    ],
    "expected": {
-    "page_lengths": {
-     "page0": 200,
-     "page1": 200,
-     "page2": 183,
-     "page3": 0
-    },
     "total": 583
    }
   },
@@ -8952,6 +8913,38 @@
       ]
      }
     ]
+   }
+  },
+  {
+   "id": "synthetic-rejected-internal-transfer",
+   "title": "Confirmed rejected internal TRX call has no monetary movement",
+   "origin": "synthetic",
+   "gates": [
+    "finality"
+   ],
+   "notes": "Counterfactual from the recorded internal-only receipt. A rejected call moves no money; a confirmed, non-reverted rejection can complete discovery. Not live rejection evidence.",
+   "tracked_accounts": [
+    "TPvyyoXHADnHkyCuHDACJirxvC6PK9zJjv"
+   ],
+   "exchanges": [
+    {
+     "role": "internal",
+     "method": "GET",
+     "endpoint": "/api/internal-transaction",
+     "auth": "n/a",
+     "params": {},
+     "captured_at": null,
+     "http_status": 200,
+     "content_type": "application/json",
+     "response": "responses/synthetic-rejected-internal-transfer/01-internal.json",
+     "transformations": [
+      "synthetic: copy sanitized internal-only receipt, change rejected to true"
+     ]
+    }
+   ],
+   "expected": {
+    "movements": [],
+    "completed_range_may_cover": true
    }
   }
  ]

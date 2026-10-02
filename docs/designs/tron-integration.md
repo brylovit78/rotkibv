@@ -85,8 +85,8 @@ reconciliation, and one busy exchange wallet for pagination limits. None belongs
 
 ### 2.3 Fixture corpus
 
-`rotkehlchen/tests/data/tronscan/manifest.json` lists 34 cases: 24 `live_capture` cases, one of
-which also holds the `documented_sample`, and 10 `synthetic` cases. Each case records:
+`rotkehlchen/tests/data/tronscan/manifest.json` lists 35 cases: 24 `live_capture` cases, one of
+which also holds the `documented_sample`, and 11 `synthetic` cases. Each case records:
 
 - origin and the gates it covers;
 - per HTTP exchange: method, endpoint, documentation page, auth mode, sanitized parameters,
@@ -119,7 +119,7 @@ test).
 
 ### 2.4 Executable check
 
-`rotkehlchen/tests/unit/test_tronscan_contract.py` has 32 tests. It reads only the corpus: no
+`rotkehlchen/tests/unit/test_tronscan_contract.py` has 33 tests. It reads only the corpus: no
 network, no VCR, no production TRON code. Its checks:
 
 - **Manifest integrity**: no orphaned or missing files; labels and gate coverage are consistent.
@@ -387,7 +387,8 @@ Live facts, reconciled exactly:
   window.
 - `revert: true` rows are treated like pending rows: no events, no completion
   (`synthetic-reverted-transaction`).
-- A failed call produces only its fee event.
+- A failed call produces only its fee event. A confirmed, non-reverted rejected internal
+  call produces no movement but can complete discovery (`synthetic-rejected-internal-transfer`).
 
 ### 3.10 Documentation discrepancies
 

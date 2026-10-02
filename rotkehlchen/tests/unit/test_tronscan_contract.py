@@ -212,6 +212,7 @@ def test_address_encoding_round_trips() -> None:
 
 def test_paid_fee_is_the_transaction_list_cost_fee() -> None:
     case = _case('fees-detail-versus-list')
+    listed_rows = {row['hash']: row for row in _rows(case, 'transactions-window', 'data')}
     details = {}
     for exchange in case['exchanges']:
         if exchange['role'].startswith('transaction-info'):
@@ -222,6 +223,7 @@ def test_paid_fee_is_the_transaction_list_cost_fee() -> None:
         components = sum(int(cost.get(key, 0)) for key in ('energy_fee', 'net_fee', 'multi_sign_fee', 'memoFee', 'account_create_fee'))  # noqa: E501
         extras = sum(int(cost.get(key, 0)) for key in ('multi_sign_fee', 'memoFee', 'account_create_fee'))  # noqa: E501
         assert int(expected['paid_fee_sun']) == expected['list_cost_fee'] == components
+        assert listed_rows[expected['tx_hash']]['cost']['fee'] == expected['list_cost_fee']
         assert expected['detail_cost_fee'] == int(cost['fee']) == extras
         assert _units(expected['paid_fee_sun'], 6) == Decimal(expected['paid_fee_trx'])
 
@@ -604,6 +606,8 @@ def test_each_history_endpoint_has_its_own_pagination_evidence(kind: str) -> Non
     assert _body(case, 'empty-window')[key] == reference  # zero bounds are ignored
     assert _body(case, 'start9990')[key] == _body(case, 'start10000')[key] == []
     assert _exchange(case, 'start10001')['http_status'] == 400
+    for role in ('empty-positive-window', 'empty-subsecond-window'):
+        assert _exchange(case, role)['http_status'] == 400
     if kind == 'trc20':
         assert len(_body(case, 'limit100')[key]) == 50
     else:
@@ -638,3 +642,11 @@ def test_synthetic_pagination_coverage_keeps_gaps_incomplete() -> None:
             end = max(end, stop)
         assert scenario['completed_range'] == [expected['start'], end], scenario['id']
         assert sorted(set(scenario['seen_identities'])) == scenario['unique_identities']
+
+
+def test_rejected_internal_call_has_no_movement_but_is_final() -> None:
+    case = _case('synthetic-rejected-internal-transfer')
+    (row,) = _body(case, 'internal')['data']
+    assert row['confirmed'] and not row['revert'] and row['rejected']
+    assert row['call_value'] > 0 and case['expected']['movements'] == []
+    assert row['confirmed'] is case['expected']['completed_range_may_cover']
