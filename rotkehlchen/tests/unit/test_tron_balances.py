@@ -119,28 +119,33 @@ def test_unknown_token_is_created_from_validated_metadata(manager: TronManager) 
         manager.query_balances([HISTORY_ACCOUNT])
 
 
-def test_rejected_metadata_is_not_stored(manager: TronManager, globaldb) -> None:
-    """Holdings and metadata decimals that disagree fail before the token is stored, so a
-    corrected provider response is accepted on the next query"""
-    fake = ('tokens-metadata-and-fake-usdt', 'fake-usdt-showall1')
-    metadata = tronscan_body(*fake)
-    contract = metadata['trc20_tokens'][0]['contract_address']
-    row = {'tokenId': contract, 'balance': '2000000000000000000', 'tokenDecimal': 18, 'tokenType': 'trc20'}  # noqa: E501
-    wrong = metadata | {'trc20_tokens': [metadata['trc20_tokens'][0] | {'decimals': 6}]}
+@pytest.mark.parametrize(('decimals', 'wrong'), [(18, 6), (18, 18.0), (0, False)])
+def test_rejected_metadata_is_not_stored(
+        manager: TronManager,
+        globaldb,
+        decimals: int,
+        wrong: Any,
+) -> None:
+    """Holdings and metadata decimals that disagree, also as a float or boolean equal to the
+    holdings integer, fail before the token is stored, so a corrected provider response is
+    accepted on the next query"""
+    metadata = tronscan_body('tokens-metadata-and-fake-usdt', 'fake-usdt-showall1')
+    contract = (token := metadata['trc20_tokens'][0])['contract_address']
+    row = {'tokenId': contract, 'balance': '2000000000000000000', 'tokenDecimal': decimals, 'tokenType': 'trc20'}  # noqa: E501
     with (
         patch.object(Inquirer, 'find_main_currency_prices', side_effect=_prices),
         patch.object(manager.tronscan.session, 'request', side_effect=[
-            tronscan_response(HISTORY_CASE, 'accountv2'), _holdings([row]), MockResponse(200, json.dumps(wrong)),  # noqa: E501
-            tronscan_response(HISTORY_CASE, 'accountv2'), _holdings([row]), tronscan_response(*fake),  # noqa: E501
+            tronscan_response(HISTORY_CASE, 'accountv2'), _holdings([row]), MockResponse(200, json.dumps(metadata | {'trc20_tokens': [token | {'decimals': wrong}]})),  # noqa: E501
+            tronscan_response(HISTORY_CASE, 'accountv2'), _holdings([row]), MockResponse(200, json.dumps(metadata | {'trc20_tokens': [token | {'decimals': decimals}]})),  # noqa: E501
         ]),
     ):
-        with pytest.raises(RemoteError, match='18 decimals in the holdings but 6 in its metadata'):
+        with pytest.raises(RemoteError, match=f'{decimals} decimals in the holdings but {wrong!r} in its metadata'):  # noqa: E501
             manager.query_balances([HISTORY_ACCOUNT])
         with globaldb.conn.read_ctx() as cursor:
             assert cursor.execute('SELECT COUNT(*) FROM tron_tokens WHERE address=?', (contract,)).fetchone() == (0,)  # noqa: E501
 
         balances = manager.query_balances([HISTORY_ACCOUNT])
-    assert balances[HISTORY_ACCOUNT].assets[CryptoAsset(tron_address_to_identifier(contract))][DEFAULT_BALANCE_LABEL].amount == FVal(2)  # noqa: E501
+    assert balances[HISTORY_ACCOUNT].assets[CryptoAsset(tron_address_to_identifier(contract))][DEFAULT_BALANCE_LABEL].amount == FVal(2 * 10 ** (18 - decimals))  # noqa: E501
 
 
 def test_concurrently_stored_decimals_win(manager: TronManager) -> None:

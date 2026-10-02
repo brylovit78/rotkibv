@@ -78,8 +78,8 @@ class TronManager(ChainManager[TronAddress]):
 
         if (metadata := self.tronscan.query_token_metadata(contract)) is None:
             raise RemoteError(f'TronScan returned no metadata for TRC20 contract {contract}')
-        if metadata['decimals'] != decimals:
-            raise DeserializationError(f'TRC20 {contract} has {decimals!r} decimals in the holdings but {metadata["decimals"]!r} in its metadata')  # noqa: E501
+        if type(metadata_decimals := metadata['decimals']) is not int or metadata_decimals != decimals:  # noqa: E501
+            raise DeserializationError(f'TRC20 {contract} has {decimals!r} decimals in the holdings but {metadata_decimals!r} in its metadata')  # noqa: E501
         if not isinstance(name := metadata.get('name'), str) or not isinstance(symbol := metadata.get('symbol'), str):  # noqa: E501
             raise DeserializationError(f'Invalid name or symbol for TRC20 contract {contract}')
 
