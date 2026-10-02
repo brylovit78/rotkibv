@@ -8,6 +8,7 @@ from rotkehlchen.types import (
     ChecksumEvmAddress,
     SolanaAddress,
     SupportedBlockchain,
+    TronAddress,
     TuplesOfBlockchainAddresses,
 )
 
@@ -34,6 +35,7 @@ class BlockchainAccounts:
     avax: tuple[ChecksumEvmAddress, ...] = field(default_factory=tuple)
     zksync_lite: tuple[ChecksumEvmAddress, ...] = field(default_factory=tuple)
     solana: tuple[SolanaAddress, ...] = field(default_factory=tuple)
+    tron: tuple[TronAddress, ...] = field(default_factory=tuple)
 
     @overload
     def get(self, blockchain: SUPPORTED_EVM_EVMLIKE_CHAINS_TYPE) -> tuple[ChecksumEvmAddress, ...]:
@@ -41,6 +43,10 @@ class BlockchainAccounts:
 
     @overload
     def get(self, blockchain: Literal[SupportedBlockchain.SOLANA]) -> tuple[SolanaAddress, ...]:
+        ...
+
+    @overload
+    def get(self, blockchain: Literal[SupportedBlockchain.TRON]) -> tuple[TronAddress, ...]:
         ...
 
     @overload
@@ -80,7 +86,7 @@ class BlockchainAccountData(NamedTuple):
 
 @dataclass(init=True, repr=True, eq=True, order=False, unsafe_hash=False, frozen=True)
 class SingleBlockchainAccountData[
-        AnyBlockchainAddress: (BTCAddress, ChecksumEvmAddress, SubstrateAddress, SolanaAddress),
+        AnyBlockchainAddress: (BTCAddress, ChecksumEvmAddress, SubstrateAddress, SolanaAddress, TronAddress),  # noqa: E501
 ]:
     address: AnyBlockchainAddress
     label: str | None = None

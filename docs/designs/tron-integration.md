@@ -796,6 +796,42 @@ Plan:
 
 ### #9: accounts and balances
 
+Implemented by #9:
+
+- `SupportedBlockchain.TRON` (key `tron`, name `TRON`, native token `TRX`, image `tron.svg`)
+  and its own `ChainType.TRON`. TRON is a non-Bitcoin chain with a chain manager. It is not in
+  the transaction, decoding or node tuples.
+- Address codec in `rotkehlchen/chain/tron/validation.py`, without a `rotkehlchen.types`
+  import, so that `types.py` and the DB layer can use it.
+- Accounts are stored canonical.
+  - The account schemas validate input and turn any form into Base58Check. The two forms of
+    one address in a request are a duplicate.
+  - Deletion takes either form. Balance queries take only the stored form.
+  - The DB loads only canonical rows. The address book recognizes TRON addresses.
+- `rotkehlchen/chain/tron/manager.py` (`TronManager`) takes TRX from `accountv2` and TRC20
+  from all holdings pages. The `_` row and TRC10/721/1155 rows are skipped.
+  - A short page ends the holdings. A list that does not end within the verified 10000 rows
+    fails.
+  - A known contract uses its stored decimals. An unknown one is created from matching
+    `token_trc20` metadata (§5.2). A holdings decimals value that disagrees with the stored one
+    fails.
+  - Any provider, key, metadata or parsing failure raises `RemoteError` for the whole chain, so
+    the aggregator keeps the previous balances. This follows the #9 handoff, which overrides
+    the per-token skip of §5.2. An account without assets is a successful zero snapshot.
+- `Rotkehlchen.tronscan` is created before the aggregator and shared with `TronManager`.
+- Frontend:
+  - `Blockchain.TRON`;
+  - a TRON `ChainInfo` that keeps `nativeToken`;
+  - TronScan explorer URLs;
+  - `/accounts/tron`, a TRON entry in the dashboard add-account menu, and a placeholder chain
+    image;
+  - the account-form key hint, which takes effect now (#8).
+
+Not done: a TRON chain badge on token icons and chain-filtered asset search for TRC20 assets.
+They matter for events (#10, #11), not for wallet balances.
+
+Plan:
+
 - `ChainManager` subclass wired through `rotkehlchen/chain/aggregator.py` (273-376, 1344).
 - Requests as in section 3.2. The snapshot replaces the cache only after every holdings page
   parsed (`_query_chain_balances`, 843).

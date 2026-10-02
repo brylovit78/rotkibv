@@ -55,6 +55,7 @@ from rotkehlchen.chain.substrate.utils import (
     KUSAMA_NODES_TO_CONNECT_AT_START,
     POLKADOT_NODES_TO_CONNECT_AT_START,
 )
+from rotkehlchen.chain.tron.manager import TronManager
 from rotkehlchen.chain.zksync_lite.manager import ZksyncLiteManager
 from rotkehlchen.concurrency import DEFAULT_CANCEL_GRACE_SECONDS, Task, wait
 from rotkehlchen.config import default_data_directory
@@ -429,6 +430,8 @@ class Rotkehlchen:
             blockchain_accounts = self.data.db.get_blockchain_accounts(cursor)
 
         self.monerium = Monerium(database=self.data.db)
+        # one TronScan client for every TRON account, reset by the External Services hook
+        self.tronscan = Tronscan(database=self.data.db)  # rotkibv
 
         # Initialize blockchain querying modules
         self.chains_aggregator = ChainsAggregator(
@@ -584,6 +587,7 @@ class Rotkehlchen:
                 jupiter=Jupiter(database=self.data.db),
                 premium=self.premium,
             ),
+            tron_manager=TronManager(tronscan=self.tronscan, database=self.data.db),
             msg_aggregator=self.msg_aggregator,
             database=self.data.db,
             task_supervisor=self.task_supervisor,
@@ -598,7 +602,6 @@ class Rotkehlchen:
         self.etherscan = etherscan
         self.blockscout = blockscout
         self.routescan = routescan
-        self.tronscan = Tronscan(database=self.data.db)  # rotkibv
         Inquirer().inject_evm_managers([
             (chain.to_chain_id(), self.chains_aggregator.get_chain_manager(chain))
             for chain in EVM_CHAINS_WITH_TRANSACTIONS
