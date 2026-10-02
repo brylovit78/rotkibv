@@ -918,10 +918,12 @@ Plan:
 - Internal transfers move value only for a successful parent or one known only from the
   internal feed, never for a failed parent.
 - Each chunk of transactions is read, decoded and replaced in one write, so a sync, account
-  removal or purge meanwhile can not leave events of an older state behind.
+  removal or purge meanwhile can not leave events of an older state behind. Transactions are
+  named by hash up to that write, since SQLite reuses the row id of a deleted row.
 - Redecoding keeps a transaction with a customized event as it is, unless custom events are
   deleted, as the shared decoder does. The transaction is found by its reference, so this
-  holds also for an event moved to another group.
+  holds also for an event moved to another group. A full redecode reset and account removal
+  keep such a transaction whole the same way.
 - Account removal deletes the events of the removed account's transactions and the stale
   events of the ones it shared, keeping customized ones. The shared transactions stay
   pending, so the next sync or pending decode decodes them for the remaining accounts.
@@ -931,7 +933,7 @@ Plan:
   detection, and TRON in the decode endpoints (given, pending, counts).
 - Repull reads the requested range of every feed again, also where a sync covered it, and
   records no coverage, since that range may not join the recorded one. It returns the hashes of
-  the transactions that were not stored before.
+  the account's transactions in that range that were not stored before.
 - Not reached by TRON: add by reference (no single-hash contract in section 3), the yearly
   statistics, and the transaction reference in accounting exports, which bitcoin also lacks.
 - Frontend: the `tron event` entry type and form, the history filters, the row actions

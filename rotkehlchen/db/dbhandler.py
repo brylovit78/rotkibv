@@ -85,7 +85,7 @@ from rotkehlchen.db.settings import (
     serialize_db_setting,
 )
 from rotkehlchen.db.solanatx import DBSolanaTx
-from rotkehlchen.db.trontx import delete_tron_history
+from rotkehlchen.db.trontx import customized_tron_transactions, delete_tron_history
 from rotkehlchen.db.upgrade_manager import DBUpgradeManager
 from rotkehlchen.db.utils import (
     DBAssetBalance,
@@ -2044,11 +2044,12 @@ class DBHandler:
                     tx_refs=deleted,  # type: ignore[arg-type]  # TRON refs are bytes
                     location=Location.TRON,
                 )
+                customized = customized_tron_transactions(write_cursor, kept)
                 dbevents.delete_events_by_tx_ref(
                     write_cursor=write_cursor,
-                    tx_refs=kept,  # type: ignore[arg-type]  # TRON refs are bytes
+                    tx_refs=[x for x in kept if x not in customized],  # type: ignore[misc]  # TRON refs are bytes
                     location=Location.TRON,
-                    customized_handling='preserve_transactions',
+                    customized_handling='delete',
                 )
 
         write_cursor.executemany(

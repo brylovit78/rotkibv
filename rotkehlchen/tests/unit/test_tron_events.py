@@ -265,8 +265,8 @@ def test_redecode_keeps_customized_events_unless_deleting_them(manager: TronMana
 def test_removed_account_events_go_and_shared_ones_are_decoded_again(manager: TronManager, customized: bool) -> None:  # noqa: E501
     """Removing an account deletes the events of its own transactions and of one it shares
     with a tracked account, which waits to be decoded again for that account. A movement keeps
-    its index whichever parties are tracked. A shared transaction with a customized event is
-    kept as it is."""
+    its index whichever parties are tracked. A shared transaction with a customized event,
+    also one moved to another group, is kept as it is."""
     shared, own = b'\x04' * 32, b'\x05' * 32
     track_tron_accounts(manager.database, [ALICE, BOB])
     with manager.database.user_write() as write_cursor:
@@ -276,18 +276,68 @@ def test_removed_account_events_go_and_shared_ones_are_decoded_again(manager: Tr
     assert manager.decoder.decode_transactions() == 2
     fee, transfer = [x for x in _events(manager.database) if x.tx_ref == shared.hex()]
     if customized:
-        transfer.notes = 'my own note'
+        transfer.notes, transfer.group_identifier = 'my own note', 'my own group'
         with manager.database.user_write() as write_cursor:
             DBHistoryEvents(manager.database).edit_history_event(write_cursor, transfer, HistoryMappingState.CUSTOMIZED)  # noqa: E501
 
     with manager.database.user_write() as write_cursor:
         manager.database.remove_single_blockchain_accounts(write_cursor, SupportedBlockchain.TRON, [ALICE])  # noqa: E501
-    kept = [(x.sequence_index, x.event_type, x.location_label, x.notes) for x in (fee, transfer)] if customized else []  # noqa: E501
-    assert [(x.sequence_index, x.event_type, x.location_label, x.notes) for x in _events(manager.database)] == kept  # noqa: E501
+    kept = [(x.sequence_index, x.group_identifier, x.event_type, x.notes) for x in (fee, transfer)] if customized else []  # noqa: E501
+    assert sorted((x.sequence_index, x.group_identifier, x.event_type, x.notes) for x in _events(manager.database)) == kept  # noqa: E501
     assert manager.decoder.decode_transactions() == 1
-    assert [(x.sequence_index, x.event_type, x.location_label) for x in _events(manager.database)] == (  # noqa: E501
-        [x[:3] for x in kept] if customized else [(transfer.sequence_index, HistoryEventType.RECEIVE, BOB)]  # noqa: E501
-    )
+    assert sorted((x.sequence_index, x.group_identifier, x.event_type, x.notes) for x in _events(manager.database)) == (kept or [  # noqa: E501
+        (transfer.sequence_index, transfer.group_identifier, HistoryEventType.RECEIVE, f'Receive 1 TRX from {ALICE} to {BOB}'),  # noqa: E501
+    ])
+
+
+def test_reset_keeps_a_transaction_with_a_moved_customized_event(manager: TronManager) -> None:
+    """A redecode of the whole TRON history keeps every event of a transaction with a
+    customized event, also one moved to another group, as the decoder keeps it"""
+    track_tron_accounts(manager.database, [ALICE])
+    with manager.database.user_write() as write_cursor:
+        add_tron_history(write_cursor=write_cursor, address=ALICE, transactions=[TronTransaction(tx_hash=b'\x07' * 32, block_number=1, timestamp=TimestampMS(1700000000000), confirmed=True, reverted=False, contract_ret='SUCCESS', owner_address=ALICE, to_address=BOB, contract_type=1, native_amount=10**6, fee=100000)])  # noqa: E501
+    assert manager.decoder.decode_transactions() == 1
+    fee, spend = _events(manager.database)
+    spend.notes, spend.group_identifier = 'my own note', 'my own group'
+    with manager.database.user_write() as write_cursor:
+        DBHistoryEvents(manager.database).edit_history_event(write_cursor, spend, HistoryMappingState.CUSTOMIZED)  # noqa: E501
+        DBHistoryEvents(manager.database).reset_events_for_redecode(write_cursor, Location.TRON)
+
+    manager.decoder.decode_transactions()
+    assert sorted((x.sequence_index, x.group_identifier, x.notes) for x in _events(manager.database)) == [  # noqa: E501
+        (0, fee.group_identifier, fee.notes),
+        (1, 'my own group', 'my own note'),
+    ]
+
+
+def test_redecode_of_a_removed_transaction_decodes_no_other(manager: TronManager) -> None:
+    """A transaction removed while its redecode queries token metadata fails that redecode,
+    and the transaction stored meanwhile under its reused row id is not decoded in its place"""
+    tx_a, tx_b = b'\x08' * 32, b'\x09' * 32
+    track_tron_accounts(manager.database, [ALICE])
+    with manager.database.user_write() as write_cursor:
+        add_tron_history(
+            write_cursor=write_cursor,
+            address=ALICE,
+            transactions=[TronTransaction(tx_hash=tx_a, block_number=1, timestamp=TimestampMS(1700000000000), confirmed=True, reverted=False, contract_ret='SUCCESS')],  # noqa: E501
+            trc20_transfers=[TronTRC20Transfer(tx_hash=tx_a, event_index=0, contract_address=TOKEN, from_address=BOB, to_address=ALICE, amount=10**6)],  # noqa: E501
+        )
+        row_id = write_cursor.execute('SELECT identifier FROM tron_transactions WHERE tx_hash=?', (tx_a,)).fetchone()  # noqa: E501
+
+    def replace_a(contract: TronAddress) -> dict[str, Any]:
+        """The metadata query runs before the write, while a removal and a sync may run"""
+        with manager.database.user_write() as write_cursor:
+            write_cursor.execute('DELETE FROM tron_transactions WHERE tx_hash=?', (tx_a,))
+            add_tron_history(write_cursor=write_cursor, address=ALICE, transactions=[TronTransaction(tx_hash=tx_b, block_number=2, timestamp=TimestampMS(1700000001000), confirmed=True, reverted=False, contract_ret='SUCCESS', owner_address=ALICE, to_address=BOB, contract_type=1, native_amount=10**6, fee=100000)])  # noqa: E501
+            assert write_cursor.execute('SELECT identifier FROM tron_transactions WHERE tx_hash=?', (tx_b,)).fetchone() == row_id  # noqa: E501
+        return {'contract_address': contract, 'decimals': 6, 'name': 'Token', 'symbol': 'TKN'}
+
+    with (
+        patch.object(manager.tronscan, 'query_token_metadata', side_effect=replace_a),
+        pytest.raises(RemoteError, match='removed meanwhile'),
+    ):
+        manager.decoder.decode_transactions([tx_a.hex()], delete_custom=True)  # type: ignore[list-item]  # a hex hash
+    assert _events(manager.database) == []
 
 
 @pytest.mark.parametrize('unavailable', [

@@ -903,7 +903,14 @@ class DBHistoryEvents:
         bindings: tuple = (location.serialize_for_db(),)
         filter_conditions = ''
         if events_to_keep_num != 0:
-            if customized_handling == 'preserve_transactions':
+            if customized_handling == 'preserve_transactions' and location == Location.TRON:
+                filter_conditions += (  # rotkibv: by reference, also for an event in another group
+                    ' AND identifier NOT IN (SELECT C2.identifier FROM chain_events_info C2 '
+                    'WHERE C2.tx_ref IN (SELECT C3.tx_ref FROM chain_events_info C3 '
+                    'INNER JOIN history_events_mappings M ON C3.identifier = M.parent_identifier '
+                    'WHERE M.name=? AND M.value IN (?, ?)))'
+                )
+            elif customized_handling == 'preserve_transactions':
                 filter_conditions += (
                     ' AND group_identifier NOT IN ('
                     'SELECT H2.group_identifier FROM history_events H2 '

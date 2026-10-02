@@ -2,13 +2,14 @@
 API. No request reaches TronScan: saving an account needs no key and queries no balance."""
 from http import HTTPStatus
 from threading import Event
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final
 from unittest.mock import patch
 
 import pytest
 import requests
 
 from rotkehlchen.concurrency.tasks import Task
+from rotkehlchen.db.trontx import TronTransaction, add_tron_history
 from rotkehlchen.tests.utils.api import (
     api_url_for,
     assert_error_response,
@@ -253,7 +254,7 @@ def test_tron_events_through_the_shared_history_api(rotkehlchen_api_server: APIS
 def test_tron_repull_reads_a_synced_range_again(rotkehlchen_api_server: APIServer) -> None:
     """A repull of a TRON account on its chains reads the range again, also where a sync
     covered it, and decodes what that sync missed. What was recorded as queried stays as it
-    was."""
+    was, and a transaction another account's sync stores meanwhile is not reported."""
     row = tronscan_body('history-internal-only-receipt', 'internal-page0')['data'][0]
     second = row['timestamp'] // 1000
     _track_and_sync(rotkehlchen_api_server, row, lambda *args: [], second + 5)  # missed it
@@ -266,7 +267,12 @@ def test_tron_repull_reads_a_synced_range_again(rotkehlchen_api_server: APIServe
     with rotki.data.db.conn.read_ctx() as cursor:
         ranges = cursor.execute('SELECT * FROM used_query_ranges').fetchall()
 
-    with patch.object(rotki.tronscan, 'query_feed_page', side_effect=_listing(row)):
+    def listing_with_another_sync(*args: Any) -> list[dict]:
+        with rotki.data.db.user_write() as write_cursor:
+            add_tron_history(write_cursor=write_cursor, address=TronAddress(OTHER_ACCOUNT), transactions=[TronTransaction(tx_hash=b'\x0a' * 32, block_number=1, timestamp=row['timestamp'], confirmed=True, reverted=False)])  # noqa: E501
+        return _listing(row)(*args)
+
+    with patch.object(rotki.tronscan, 'query_feed_page', side_effect=listing_with_another_sync):
         assert assert_proper_sync_response_with_result(requests.post(refetch_url, json={'address': row['to'], 'from_timestamp': second - 10, 'to_timestamp': second + 10})) == {  # noqa: E501
             'new_transactions': {'tron': [row['hash']]},
             'new_transactions_count': 1,

@@ -1,7 +1,9 @@
 """Storage of TRON history, see docs/designs/tron-integration.md sections 3.8 and 6.4"""
 from typing import TYPE_CHECKING, Final, NamedTuple
 
-from rotkehlchen.types import SupportedBlockchain, TimestampMS, TronAddress
+from rotkehlchen.db.constants import HISTORY_MAPPING_KEY_STATE, HistoryMappingState
+from rotkehlchen.types import Location, SupportedBlockchain, TimestampMS, TronAddress
+from rotkehlchen.utils.misc import get_chunks
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -125,6 +127,18 @@ def add_tron_history(
         'DELETE FROM tron_tx_mappings WHERE tx_id=(SELECT identifier FROM tron_transactions WHERE tx_hash=?)',  # noqa: E501
         [(tx_hash,) for tx_hash in changed],
     )
+
+
+def customized_tron_transactions(cursor: DBCursor, tx_hashes: list[bytes]) -> set[bytes]:
+    """The ones of these transactions with a customized event, whatever its group. Redecoding
+    and cleanup keep such a transaction whole, unless customized events are deleted."""
+    return {bytes(x[0]) for chunk in get_chunks(tx_hashes, 500) for x in cursor.execute(
+        'SELECT DISTINCT C.tx_ref FROM chain_events_info C '
+        'JOIN history_events H ON H.identifier=C.identifier '
+        'JOIN history_events_mappings M ON M.parent_identifier=H.identifier '
+        f'WHERE H.location=? AND M.name=? AND M.value=? AND C.tx_ref IN ({",".join("?" * len(chunk))})',  # noqa: E501
+        (Location.TRON.serialize_for_db(), HISTORY_MAPPING_KEY_STATE, HistoryMappingState.CUSTOMIZED.serialize_for_db(), *chunk),  # noqa: E501
+    )}
 
 
 def delete_tron_history(

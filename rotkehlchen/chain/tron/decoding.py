@@ -12,8 +12,9 @@ from rotkehlchen.chain.evm.decoding.constants import OUTGOING_EVENT_TYPES
 from rotkehlchen.chain.tron.constants import TRX_DECIMALS
 from rotkehlchen.chain.tron.utils import get_or_create_tron_token
 from rotkehlchen.constants import ZERO
-from rotkehlchen.db.constants import HISTORY_MAPPING_KEY_STATE, TX_DECODED, HistoryMappingState
+from rotkehlchen.db.constants import TX_DECODED
 from rotkehlchen.db.history_events import DBHistoryEvents
+from rotkehlchen.db.trontx import customized_tron_transactions
 from rotkehlchen.errors.misc import InputError, MissingAPIKey, RemoteError
 from rotkehlchen.errors.serialization import DeserializationError
 from rotkehlchen.globaldb.handler import GlobalDBHandler
@@ -64,38 +65,34 @@ class TronTransactionDecoder:
         - InputError if one of them is not stored
         - RemoteError if one could not be decoded, as the metadata of its tokens is not available
         """
-        with self.database.conn.read_ctx() as cursor:
+        with self.database.conn.read_ctx() as cursor:  # hashes, as a deleted row id is reused
             if tx_hashes is None:
-                tx_ids = [x[0] for x in cursor.execute(
-                    'SELECT identifier FROM tron_transactions WHERE identifier NOT IN '
+                hashes = [bytes(x[0]) for x in cursor.execute(
+                    'SELECT tx_hash FROM tron_transactions WHERE identifier NOT IN '
                     '(SELECT tx_id FROM tron_tx_mappings WHERE value=?) ORDER BY timestamp',
                     (TX_DECODED,),
                 )]
             else:
-                tx_ids = []
-                for tx_hash in dict.fromkeys(tx_hashes):
-                    if (row := cursor.execute(
-                        'SELECT identifier FROM tron_transactions WHERE tx_hash=?',
-                        (bytes.fromhex(tx_hash),),
-                    ).fetchone()) is None:
-                        raise InputError(f'TRON transaction {tx_hash} is not stored')
-                    tx_ids.append(row[0])
+                hashes = [bytes.fromhex(x) for x in dict.fromkeys(tx_hashes)]
+                for tx_hash in hashes:
+                    if cursor.execute('SELECT 1 FROM tron_transactions WHERE tx_hash=?', (tx_hash,)).fetchone() is None:  # noqa: E501
+                        raise InputError(f'TRON transaction {tx_hash.hex()} is not stored')
 
         dbevents, decoded = DBHistoryEvents(self.database), 0
-        for chunk in get_chunks(tx_ids, TRON_DECODING_CHUNK_SIZE):
+        for chunk in get_chunks(hashes, TRON_DECODING_CHUNK_SIZE):
             tokens = self._tokens(chunk)
             with self.database.user_write() as write_cursor:
                 tracked = set(self.database.get_blockchain_accounts(write_cursor).tron)
                 decoded_txs: dict[bytes, list[TronEvent]] = {}
-                for tx_id in chunk:
-                    if (decoded_tx := self._decode(write_cursor, tx_id, tracked, tokens)) is not None:  # noqa: E501
-                        decoded_txs[decoded_tx[0]] = decoded_tx[1]
+                for tx_hash in chunk:
+                    if (decoded_tx := self._decode(write_cursor, tx_hash, tracked, tokens)) is not None:  # noqa: E501
+                        decoded_txs[tx_hash] = decoded_tx[1]
                         write_cursor.execute(
                             'INSERT OR IGNORE INTO tron_tx_mappings(tx_id, value) VALUES(?, ?)',
-                            (tx_id, TX_DECODED),
+                            (decoded_tx[0], TX_DECODED),
                         )
 
-                kept = set() if delete_custom else self._customized(write_cursor, [*decoded_txs])
+                kept = set() if delete_custom else customized_tron_transactions(write_cursor, [*decoded_txs])  # noqa: E501
                 dbevents.delete_events_by_tx_ref(
                     write_cursor=write_cursor,
                     tx_refs=[x for x in decoded_txs if x not in kept],  # type: ignore[misc]  # TRON refs are bound as bytes
@@ -108,28 +105,18 @@ class TronTransactionDecoder:
                 )
             decoded += len(decoded_txs)
 
-        if tx_hashes is not None and decoded != len(tx_ids):
-            raise RemoteError(f'Could not decode {len(tx_ids) - decoded} of the given TRON transactions, as the metadata of their TRC20 tokens is not available')  # noqa: E501
+        if tx_hashes is not None and decoded != len(hashes):
+            raise RemoteError(f'Could not decode {len(hashes) - decoded} of the given TRON transactions, as they were removed meanwhile or the metadata of their TRC20 tokens is not available')  # noqa: E501
 
         return decoded
 
-    @staticmethod
-    def _customized(cursor: DBCursor, tx_hashes: list[bytes]) -> set[bytes]:
-        """The transactions with a customized event, also one moved to another group"""
-        return {bytes(x[0]) for chunk in get_chunks(tx_hashes, 500) for x in cursor.execute(
-            'SELECT DISTINCT C.tx_ref FROM chain_events_info C '
-            'JOIN history_events H ON H.identifier=C.identifier '
-            'JOIN history_events_mappings M ON M.parent_identifier=H.identifier '
-            f'WHERE H.location=? AND M.name=? AND M.value=? AND C.tx_ref IN ({",".join("?" * len(chunk))})',  # noqa: E501
-            (Location.TRON.serialize_for_db(), HISTORY_MAPPING_KEY_STATE, HistoryMappingState.CUSTOMIZED.serialize_for_db(), *chunk),  # noqa: E501
-        )}
-
-    def _tokens(self, tx_ids: list[int]) -> dict[TronAddress, Token]:
+    def _tokens(self, tx_hashes: list[bytes]) -> dict[TronAddress, Token]:
         """The tokens of the TRC20 transfers of these transactions. A contract whose metadata
         is not available is left out, so its transactions stay pending decoding."""
         with self.database.conn.read_ctx() as cursor:
-            contracts = {x[0] for chunk in get_chunks(tx_ids, 500) for x in cursor.execute(
-                f'SELECT DISTINCT contract_address FROM tron_trc20_transfers WHERE tx_id IN ({",".join("?" * len(chunk))})',  # noqa: E501
+            contracts = {x[0] for chunk in get_chunks(tx_hashes, 500) for x in cursor.execute(
+                'SELECT DISTINCT contract_address FROM tron_trc20_transfers WHERE tx_id IN '
+                f'(SELECT identifier FROM tron_transactions WHERE tx_hash IN ({",".join("?" * len(chunk))}))',  # noqa: E501
                 chunk,
             )}
 
@@ -145,25 +132,26 @@ class TronTransactionDecoder:
     def _decode(
             self,
             cursor: DBCursor,
-            tx_id: int,
+            tx_hash: bytes,
             tracked: set[TronAddress],
             tokens: dict[TronAddress, Token],
-    ) -> tuple[bytes, list[TronEvent]] | None:
+    ) -> tuple[int, list[TronEvent]] | None:
         """The hash and events of one stored transaction in the order of section 7: the fee,
         the native transfer or call value, the TRC20 transfers by event index and the internal
         transfers by internal hash. The fee is always index 0 and a movement its position in
         that order, so tracking another account moves no event. Unconfirmed and reverted
-        transactions have no events, and only a successful one moves value. None if the
-        transaction is gone or needs a token whose metadata is not available."""
+        transactions have no events, and only a successful one moves value. Returns the row id
+        and the events, or None if the transaction is gone or needs a token whose metadata is
+        not available."""
         if (row := cursor.execute(
-            'SELECT tx_hash, timestamp, confirmed, reverted, contract_ret, owner_address, '
+            'SELECT identifier, timestamp, confirmed, reverted, contract_ret, owner_address, '
             'to_address, contract_type, native_amount, fee FROM tron_transactions '
-            'WHERE identifier=?',
-            (tx_id,),
+            'WHERE tx_hash=?',
+            (tx_hash,),
         ).fetchone()) is None:
             return None
 
-        tx_hash, timestamp, confirmed, reverted, result, owner, to, contract_type, native, fee = row  # noqa: E501
+        tx_id, timestamp, confirmed, reverted, result, owner, to, contract_type, native, fee = row
         trc20 = cursor.execute(
             'SELECT contract_address, from_address, to_address, amount FROM '
             'tron_trc20_transfers WHERE tx_id=? ORDER BY event_index',
@@ -172,9 +160,8 @@ class TronTransactionDecoder:
         if any(x[0] not in tokens for x in trc20):
             return None
 
-        tx_hash = bytes(tx_hash)
         if not confirmed or reverted:
-            return tx_hash, []
+            return tx_id, []
 
         transfers: list[tuple[Asset, int, int, TronAddress | None, TronAddress | None]] = []  # asset, decimals, raw amount, from, to  # noqa: E501
         if result == 'SUCCESS':
@@ -236,7 +223,7 @@ class TronTransactionDecoder:
                 counterparty=counterparty,
             ))
 
-        return tx_hash, events
+        return tx_id, events
 
     def _token(self, contract: TronAddress) -> Token | None:
         """The asset and decimals of a TRC20 contract. A new contract is created from its
