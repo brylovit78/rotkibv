@@ -21,6 +21,7 @@ from rotkehlchen.logging import RotkehlchenLogsAdapter
 from rotkehlchen.utils.misc import ts_now
 from rotkehlchen.utils.upgrades import DBUpgradeProgressHandler, UpgradeRecord
 
+from .rotkibv import apply_rotkibv_schema_extension
 from .v2_v3 import migrate_to_v3
 from .v3_v4 import migrate_to_v4
 from .v4_v5 import migrate_to_v5
@@ -241,6 +242,8 @@ def configure_globaldb(
     else:
         maybe_apply_globaldb_migrations(connection)
 
+    with connection.write_ctx() as write_cursor:
+        apply_rotkibv_schema_extension(write_cursor)
     connection.schema_sanity_check()
     # Only now that WAL mode and the final schema are guaranteed, spin up the pool
     # of read-only connections that isolates read_ctx() readers from write commits

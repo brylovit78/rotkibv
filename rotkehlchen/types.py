@@ -174,6 +174,9 @@ SolanaAddress = NewType('SolanaAddress', T_SolanaAddress)
 T_HyperliquidTokenAddress = str
 HyperliquidTokenAddress = NewType('HyperliquidTokenAddress', T_HyperliquidTokenAddress)
 
+T_TronAddress = str
+TronAddress = NewType('TronAddress', T_TronAddress)  # canonical Base58Check
+
 BlockchainAddress = BTCAddress | ChecksumEvmAddress | SubstrateAddress | SolanaAddress
 AnyBlockchainAddress = TypeVar(
     'AnyBlockchainAddress',
@@ -815,6 +818,8 @@ class Location(DBCharEnumMixIn):
     GATE = 59
     BIT2ME = 60
     COINEX = 61
+    # rotkibv: far above upstream's sequence to avoid collisions; must stay the last member
+    TRON = 100
 
     @staticmethod
     def from_chain_id(chain_id: EVM_CHAIN_IDS_WITH_TRANSACTIONS_TYPE) -> EVM_LOCATIONS_TYPE:

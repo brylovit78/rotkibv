@@ -178,6 +178,17 @@ CREATE TABLE IF NOT EXISTS hyperliquid_tokens (
     FOREIGN KEY(identifier) REFERENCES assets(identifier) ON UPDATE CASCADE ON DELETE CASCADE
 );"""
 
+# rotkibv: TRC20 contracts. The Base58Check address keeps the default binary (case-sensitive)
+# collation and is unique, so one contract maps to exactly one asset.
+DB_CREATE_TRON_TOKENS = """
+CREATE TABLE IF NOT EXISTS tron_tokens (
+    identifier TEXT PRIMARY KEY NOT NULL COLLATE NOCASE,
+    address VARCHAR[34] NOT NULL UNIQUE,
+    decimals INTEGER NOT NULL CHECK (decimals BETWEEN 0 AND 255),
+    protocol TEXT,
+    FOREIGN KEY(identifier) REFERENCES assets(identifier) ON UPDATE CASCADE ON DELETE CASCADE
+);"""
+
 # The multiassets_mappings table and asset_collections table work together. This table allows to
 # create a relation between the representation of the same asset in different chains. For example
 # for USDC we would create a row in asset_collections and then we would create as many entries in
@@ -413,6 +424,7 @@ BEGIN TRANSACTION;
 {DB_CREATE_COUNTERPARTY_ASSET_MAPPINGS}
 {DB_CREATE_SOLANA_TOKENS}
 {DB_CREATE_HYPERLIQUID_TOKENS}
+{DB_CREATE_TRON_TOKENS}
 {DB_CREATE_INDEXES}
 COMMIT;
 PRAGMA foreign_keys=on;

@@ -8,7 +8,7 @@ from collections import defaultdict
 from contextlib import contextmanager, suppress
 from pathlib import Path
 from threading import Semaphore
-from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Unpack, cast, overload
+from typing import TYPE_CHECKING, Any, Final, Literal, NamedTuple, Unpack, cast, overload
 
 from sqlcipher3 import dbapi2 as sqlcipher
 
@@ -177,6 +177,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 log = RotkehlchenLogsAdapter(logger)
+
+ROTKIBV_MIN_USER_DB_VERSION: Final = 53  # the upstream schema fork additions target
 
 DBINFO_FILENAME = 'dbinfo.json'
 TRANSIENT_DB_NAME = 'rotkehlchen_transient.db'
@@ -400,6 +402,13 @@ class DBHandler:
                     'INSERT OR REPLACE INTO settings(name, value) VALUES(?, ?)',
                     ('version', str(ROTKEHLCHEN_DB_VERSION)),
                 )
+        else:  # rotkibv: fork-only location rows reach upgraded DBs without a version bump
+            with self.conn.write_ctx() as write_cursor:
+                if self.get_setting(write_cursor, 'version') >= ROTKIBV_MIN_USER_DB_VERSION:
+                    write_cursor.execute(
+                        'INSERT OR IGNORE INTO location(location, seq) VALUES(?, ?)',
+                        (Location.TRON.serialize_for_db(), Location.TRON.value),
+                    )
 
         # run checks on the database
         self.conn.schema_sanity_check()
