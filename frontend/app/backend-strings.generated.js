@@ -224,6 +224,7 @@ export const backendMappingKeys = [
   'backend_mappings.trade_location.solana',
   'backend_mappings.trade_location.sushiswap',
   'backend_mappings.trade_location.total',
+  'backend_mappings.trade_location.tron',
   'backend_mappings.trade_location.uniswap',
   'backend_mappings.trade_location.uphold',
   'backend_mappings.trade_location.woo',

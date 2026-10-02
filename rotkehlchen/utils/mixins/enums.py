@@ -180,7 +180,10 @@ class DBCharEnumMixIn(SerializableEnumNameMixin, DBEnumMixIn):
 
         if number < 65 or number > list(cls)[-1].value + 64:
             raise DeserializationError(f'Failed to deserialize {cls.__name__} DB value {value}')
-        return cls(number - 64)
+        try:
+            return cls(number - 64)
+        except ValueError as e:  # an unused value between members, e.g. below Location.TRON
+            raise DeserializationError(f'Failed to deserialize {cls.__name__} DB value {value}') from e  # noqa: E501
 
 
 class DBIntEnumMixIn(SerializableEnumNameMixin, DBEnumMixIn):

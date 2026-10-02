@@ -126,6 +126,8 @@ INSERT OR IGNORE INTO location(location, seq) VALUES ('{', 59);
 INSERT OR IGNORE INTO location(location, seq) VALUES ('|', 60);
 /* CoinEx */
 INSERT OR IGNORE INTO location(location, seq) VALUES ('}', 61);
+/* TRON (rotkibv reserved value) */
+INSERT OR IGNORE INTO location(location, seq) VALUES ('\xa4', 100);
 """
 
 # Custom enum table for Balance categories (asset/liability)

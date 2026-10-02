@@ -494,13 +494,15 @@ Live facts, reconciled exactly:
   checked. A conflicting already-mapped contract follows the canonical policy above; do not
   attach the legacy row to the same contract or infer identity by symbol.
 - **Updater, reset and Colibri (#7):**
-  - add `tron_tokens` to `required_tables` in `rotkehlchen/globaldb/asset_updates/manager.py:64`
-    and to both reset table lists in `rotkehlchen/globaldb/handler.py` (hard reset 1947,
-    soft reset 2046);
+  - an assets update copies only the tables in `required_tables` to a temporary DB and back
+    (`rotkehlchen/globaldb/asset_updates/manager.py:59-122`), so `tron_tokens` stays untouched
+    and is deliberately not listed (`test_tron_tokens_survive_asset_updates_and_resets`);
+  - both resets copy `tron_tokens` from the packaged DB (`rotkehlchen/globaldb/handler.py`);
   - upstream asset updates carry no TRON tokens: the parser has regexes for EVM, Solana and
     Hyperliquid only;
   - Colibri sends every non-`0x` address to `solana_tokens`
-    (`colibri/src/api/assets.rs:297-350`) and needs a TRON branch.
+    (`colibri/src/api/assets.rs:297-350`); it needs a TRON branch only once TRC20 assets are
+    looked up by contract through Colibri.
 
 ## 6. Database and upstream compatibility
 
@@ -538,12 +540,15 @@ fork it would be harmful:
 Instead:
 
 - The fork keeps `ROTKEHLCHEN_DB_VERSION` and `GLOBAL_DB_VERSION` equal to upstream.
-- TRON objects come from a **fork schema extension**. A setting `rotkibv_schema_extension`
-  (integer) counts the applied steps in the user DB `settings` table and, separately, in the
-  global DB `settings` table.
-- Extension steps are idempotent (`CREATE TABLE IF NOT EXISTS`, `INSERT OR IGNORE`). They run
-  after the upstream upgrade chain and before data migrations and the schema sanity check.
-- Fresh-create scripts contain the same objects and set the counter to the latest step.
+- TRON objects come from a **fork schema extension** that runs after the upstream upgrade
+  chain and before the schema sanity check.
+- Global DB: `rotkehlchen/globaldb/upgrades/rotkibv.py` records the applied steps in the
+  `settings` row `rotkibv_schema_extension`. Each step runs once, so seeds a user later
+  deletes or edits are not restored.
+- User DB: its only fork object so far, the TRON `location` row, is in the fresh-create
+  script and is inserted idempotently after upgrades on every start
+  (`rotkehlchen/db/dbhandler.py`). The user DB gets the same counter with its first
+  non-idempotent step.
 - The minimized schemas include the fork tables.
 - The released upgrade scripts are never edited.
 
@@ -566,7 +571,7 @@ the existing DBCharEnumMixIn.deserialize_from_db and raises DeserializationError
 Add one absent-gap value check and a valid TRON round trip in the shared enum tests; callers
 already handling DeserializationError must keep that contract. No TRON-only deserializer.
 
-### 6.4 DDL (#7 implements, #10 fills)
+### 6.4 DDL (#7: global DB and location row; #10: transaction tables)
 
 Global DB:
 
@@ -595,7 +600,7 @@ INSERT OR IGNORE INTO multiasset_mappings(collection_id, asset)
     WHERE main_asset = 'eip155:1/erc20:0xdAC17F958D2ee523a2206206994597C13D831ec7';
 ```
 
-User DB:
+User DB (#7 adds only the location row; #10 adds the tables as user DB extension steps):
 
 ```sql
 INSERT OR IGNORE INTO location(location, seq) VALUES (char(164), 100);  -- Location.TRON
@@ -663,12 +668,17 @@ Account removal deletes TRON transaction data through `tron_tx_address_mappings`
 
 ### 6.5 Fresh versus upgraded equivalence, packaged data, resets
 
-- #7 adds tests that build a fresh user DB and global DB, upgrade copies of a 53/17 database
-  through the extension, and compare the normalized `sqlite_master`. Both must pass the sanity
-  check. Seed rows (`TRX`, USDT, the location row) must be identical.
-- The packaged `rotkehlchen/data/global.db` is a fork data artifact. Regenerate it by applying
-  the global extension to upstream's packaged file. On every upstream sync, take upstream's
-  file, re-apply the extension and re-run the packaged-DB consistency tests.
+- `rotkehlchen/tests/unit/test_tron.py` undoes the extension on a copy of the packaged global
+  DB, opens it through the normal startup and compares schema and seed rows. So an existing
+  upstream DB gets the extension once, and the packaged file cannot drift from the extension
+  code. It also checks that fresh and existing user DBs carry the location row.
+- The packaged `rotkehlchen/data/global.db` is a fork data artifact: upstream's packaged file
+  plus the global extension. After every upstream sync, regenerate it from upstream's file and
+  re-run the packaged-DB tests:
+
+  ```bash
+  uv run python -c "import sqlite3; from rotkehlchen.globaldb.upgrades.rotkibv import apply_rotkibv_schema_extension as apply; c = sqlite3.connect('rotkehlchen/data/global.db'); apply(c.cursor()); c.commit()"
+  ```
 - The version-equality guard of the hard and soft resets stays satisfied because the version
   does not change. Both resets copy `tron_tokens`.
 
@@ -713,27 +723,30 @@ Anchors are at the baseline. Verify them before editing.
 
 ### #7: identity, addresses, assets, schema
 
-**Backend registrations:**
+Implemented by #7:
 
-- `rotkehlchen/types.py`:
-  - `SupportedBlockchain` (447), names and images (598-627);
-  - `get_native_token_id` (502), `get_chain_type` (521; unmatched chains currently fall back
-    to `ETH2`);
-  - chain tuples (649-659, 697-714, 752), `Location` (755, appended last), `from_chain` (878);
-  - address unions (171-186), `ExternalService` (103).
-- `rotkehlchen/history/events/structures/base.py:137` (`TRON_EVENT = 100`).
-- `rotkehlchen/assets/asset.py`: a `TronToken` like `SolanaToken`, 794-887.
-- `rotkehlchen/constants/resolver.py`: an identifier builder next to 110-121.
-- The global DB handler dispatch sites listed in section 5.2.
+- `Location.TRON = 100`, the last member, with its `location` row (section 6.4) and a
+  `LOCATION_DETAILS` entry. The shared `DBCharEnumMixIn.deserialize_from_db` turns an unused
+  value into `DeserializationError`.
+- `TronAddress` and `rotkehlchen/chain/tron/utils.py`: `deserialize_tron_address` (Base58Check
+  and both hex forms to canonical Base58), `tron_address_to_identifier` and
+  `get_or_create_tron_token` (canonical contract, contract lookup first, decimals 0..255, the
+  shared spam check marking `protocol` and the ignored list).
+- TRC20 assets are generic `TRON_TOKEN` `CryptoAsset`s plus a `tron_tokens` row, as the legacy
+  rows already are. No `TronToken` class or handler dispatch is added until a caller needs
+  typed token data.
+- Global DB: `tron_tokens`, the extension, the minimized schema, both reset lists and the
+  regenerated packaged DB.
+- Tests: `rotkehlchen/tests/unit/test_tron.py`.
 
-**Schema and validation:**
+Moved to later tasks, because registering them earlier would expose TRON before it works:
 
-- The fork extension and its tests; the minimized schemas.
-- Address validation in `rotkehlchen/api/v1/schemas.py:2449-2538` and `4563-4588`.
-
-**Tests:**
-
-- The guard test from section 6.3.
+- `SupportedBlockchain.TRON`, the address unions, chain type, native token and image, account
+  API validation and `BlockchainAccounts`: #9, together with the chain manager. The enum member
+  alone would list TRON in the supported-chains API (`rotkehlchen/api/rest.py:926-940`) and
+  enable account endpoints that have no manager behind them.
+- `ExternalService.TRONSCAN`: #8. Chain tuples: #10. `HistoryBaseEntryType.TRON_EVENT = 100`
+  (reserved in section 6.3): #11.
 
 ### #8: TronScan client and External Services key
 

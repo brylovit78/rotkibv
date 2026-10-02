@@ -2009,6 +2009,7 @@ class GlobalDBHandler:
                             write_cursor.execute('INSERT INTO assets SELECT * FROM clean_db.assets;')  # noqa: E501
                             write_cursor.execute('INSERT INTO evm_tokens SELECT * FROM clean_db.evm_tokens;')  # noqa: E501
                             write_cursor.execute('INSERT INTO solana_tokens SELECT * FROM clean_db.solana_tokens;')  # noqa: E501
+                            write_cursor.execute('INSERT INTO tron_tokens SELECT * FROM clean_db.tron_tokens;')  # noqa: E501
                             if clean_db_has_hyperliquid_tokens:
                                 write_cursor.execute('INSERT INTO hyperliquid_tokens SELECT * FROM clean_db.hyperliquid_tokens;')  # noqa: E501
                             write_cursor.execute('INSERT INTO underlying_tokens_list SELECT * FROM clean_db.underlying_tokens_list;')  # noqa: E501
@@ -2096,6 +2097,7 @@ class GlobalDBHandler:
                     write_cursor.execute(f'DELETE FROM evm_tokens WHERE identifier IN ({asset_ids});')  # noqa: E501
                     write_cursor.execute(f'DELETE FROM solana_tokens WHERE identifier IN ({asset_ids});')  # noqa: E501
                     write_cursor.execute(f'DELETE FROM hyperliquid_tokens WHERE identifier IN ({asset_ids});')  # noqa: E501
+                    write_cursor.execute(f'DELETE FROM tron_tokens WHERE identifier IN ({asset_ids});')  # noqa: E501
                     write_cursor.execute(f'DELETE FROM underlying_tokens_list WHERE parent_token_entry IN ({asset_ids});')  # noqa: E501
                     write_cursor.execute(f'DELETE FROM common_asset_details WHERE identifier IN ({asset_ids});')  # noqa: E501
                     write_cursor.execute(f'DELETE FROM asset_collections WHERE id IN ({collection_ids})')  # noqa: E501
@@ -2104,6 +2106,7 @@ class GlobalDBHandler:
                     write_cursor.execute('INSERT INTO assets SELECT * FROM clean_db.assets;')
                     write_cursor.execute('INSERT INTO evm_tokens SELECT * FROM clean_db.evm_tokens;')  # noqa: E501
                     write_cursor.execute('INSERT INTO solana_tokens SELECT * FROM clean_db.solana_tokens;')  # noqa: E501
+                    write_cursor.execute('INSERT INTO tron_tokens SELECT * FROM clean_db.tron_tokens;')  # noqa: E501
                     if clean_db_has_hyperliquid_tokens:
                         write_cursor.execute('INSERT INTO hyperliquid_tokens SELECT * FROM clean_db.hyperliquid_tokens;')  # noqa: E501
                     write_cursor.execute('INSERT INTO underlying_tokens_list SELECT * FROM clean_db.underlying_tokens_list;')  # noqa: E501
