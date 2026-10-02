@@ -151,12 +151,37 @@ export function isValidSs58Address(address?: string): boolean {
   }
 }
 
+/** The 0x41 version byte, 20 address bytes and a four-byte checksum. */
+const TRON_VERSION = 0x41;
+const TRON_DECODED_LENGTH = 25;
+
+/**
+ * Whether the value is a TRON address in its canonical Base58Check form.
+ *
+ * As for substrate, the double SHA-256 checksum is not verified here: the version byte and the
+ * decoded length already reject anything that is not an address, and the backend's
+ * `check_chain_ecosystem` answers any surviving bad value.
+ */
+export function isValidTronAddress(address?: string): boolean {
+  if (address?.length !== 34)
+    return false;
+
+  try {
+    const decoded = decodeBase58(address);
+    return decoded.length === TRON_DECODED_LENGTH && decoded[0] === TRON_VERSION;
+  }
+  catch {
+    return false;
+  }
+}
+
 export function isValidAddress(address?: string): boolean {
   return isValidEthAddress(address)
     || isValidBtcAddress(address)
     || isValidBchAddress(address)
     || isValidSolanaAddress(address)
-    || isValidSs58Address(address);
+    || isValidSs58Address(address)
+    || isValidTronAddress(address);
 }
 
 export function isValidEvmTxHash(address?: string): boolean {

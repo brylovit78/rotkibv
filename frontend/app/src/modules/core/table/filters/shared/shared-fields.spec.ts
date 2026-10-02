@@ -74,6 +74,7 @@ describe('decorateSharedField', () => {
     // Every ecosystem the backend accepts, not just EVM.
     expect(decorated.validate?.('13UVJyLnbVp9RBZYFwFGyDvVd1y27Tt8tkntv6Q7JVPhFsTB')).toBe(true);
     expect(decorated.validate?.('1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa')).toBe(true);
+    expect(decorated.validate?.(' TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t ')).toBe(true); // TRON, trimmed
   });
 
   it('should keep the key, operators and binding the table declared', () => {
