@@ -11,7 +11,8 @@ from pathlib import Path
 
 class VersionDiscoveryTests(unittest.TestCase):
     def test_fork_tags_preserve_upstream_and_dirty_versions(self):
-        config = tomllib.loads((Path(__file__).resolve().parents[2] / 'pyproject.toml').read_text())
+        config_path = Path(__file__).resolve().parents[2] / 'pyproject.toml'
+        config = tomllib.loads(config_path.read_text())
         command = shlex.split(config['tool']['setuptools_scm']['git_describe_command'])
         with tempfile.TemporaryDirectory() as directory:
             def git(*args):
