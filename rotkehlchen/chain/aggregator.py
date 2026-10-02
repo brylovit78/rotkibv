@@ -163,6 +163,7 @@ if TYPE_CHECKING:
     from rotkehlchen.chain.scroll.manager import ScrollManager
     from rotkehlchen.chain.solana.manager import SolanaManager
     from rotkehlchen.chain.substrate.manager import SubstrateManager
+    from rotkehlchen.chain.tron.manager import TronManager
     from rotkehlchen.chain.zksync_lite.manager import ZksyncLiteManager
     from rotkehlchen.db.dbhandler import DBHandler
     from rotkehlchen.db.drivers.sqlite import DBCursor
@@ -290,6 +291,7 @@ class ChainsAggregator(CacheableMixIn, LockableQueryMixIn):
             bitcoin_manager: BitcoinManager,
             bitcoin_cash_manager: BitcoinCashManager,
             solana_manager: SolanaManager,
+            tron_manager: TronManager,
             msg_aggregator: MessagesAggregator,
             database: DBHandler,
             task_supervisor: TaskSupervisor,
@@ -318,6 +320,7 @@ class ChainsAggregator(CacheableMixIn, LockableQueryMixIn):
         self.bitcoin = bitcoin_manager
         self.bitcoin_cash = bitcoin_cash_manager
         self.solana = solana_manager
+        self.tron = tron_manager
         self.database = database
         self.msg_aggregator = msg_aggregator
         self.accounts = blockchain_accounts
@@ -344,6 +347,7 @@ class ChainsAggregator(CacheableMixIn, LockableQueryMixIn):
         self.binance_sc_lock = Semaphore()
         self.monad_lock = Semaphore()
         self.zksync_lite_lock = Semaphore()
+        self.tron_lock = Semaphore()
 
         # Guards every iteration/mutation of self.balances and self.totals: per-chain
         # query tasks, xpub derivation, account removal and API serialization touch
@@ -880,7 +884,7 @@ class ChainsAggregator(CacheableMixIn, LockableQueryMixIn):
                             existing_balances.pop(address, None)  # type: ignore[call-overload]
             else:
                 for account in accounts:
-                    existing_balances.pop(account, None)  # type: ignore[arg-type]
+                    existing_balances.pop(account, None)  # type: ignore[arg-type, call-overload]
             existing_balances.update(new_balances)  # type: ignore[arg-type]  # chain/balance types match per chain
 
     def flush_chain_balance_query_cache(self, blockchain: SupportedBlockchain) -> None:
@@ -1331,6 +1335,10 @@ class ChainsAggregator(CacheableMixIn, LockableQueryMixIn):
 
     @overload
     def get_chain_manager(self, blockchain: Literal[SupportedBlockchain.SOLANA]) -> SolanaManager:
+        ...
+
+    @overload
+    def get_chain_manager(self, blockchain: Literal[SupportedBlockchain.TRON]) -> TronManager:
         ...
 
     @overload

@@ -41,6 +41,7 @@ def test_supported_blockchain_native_token():
         SupportedBlockchain.BINANCE_SC: A_BSC_BNB,
         SupportedBlockchain.ZKSYNC_LITE: A_ETH,
         SupportedBlockchain.SOLANA: A_SOL,
+        SupportedBlockchain.TRON: Asset('TRX'),
     }
     for chain in SupportedBlockchain:
         assert expected_assets[chain] == Asset(chain.get_native_token_id())

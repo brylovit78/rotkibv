@@ -1,49 +1,28 @@
 """TRON address and TRC20 asset identity, see docs/designs/tron-integration.md sections 4-5"""
-import hashlib
 from typing import TYPE_CHECKING, Any
 
 from rotkehlchen.assets.asset import CryptoAsset
 from rotkehlchen.assets.types import AssetType
 from rotkehlchen.assets.utils import check_if_spam_token
+from rotkehlchen.chain.tron.validation import canonical_tron_address
 from rotkehlchen.errors.serialization import DeserializationError
 from rotkehlchen.globaldb.handler import GlobalDBHandler
 from rotkehlchen.types import SPAM_PROTOCOL, TronAddress
-from rotkehlchen.utils.base58 import b58decode, b58encode
+from rotkehlchen.utils.base58 import b58decode
 
 if TYPE_CHECKING:
     from rotkehlchen.db.dbhandler import DBHandler
 
 
-def _checksum(payload: bytes) -> bytes:
-    return hashlib.sha256(hashlib.sha256(payload).digest()).digest()[:4]
-
-
 def deserialize_tron_address(value: Any) -> TronAddress:
-    """Return the canonical Base58Check form of a TRON address.
-
-    Accepts case-sensitive Base58Check and the provider hex forms 41 + 20 bytes and
-    0x + 20 bytes. Testnets share the 0x41 version byte, so mainnet is a property of the
-    client, not of the address.
+    """Return the canonical Base58Check form of a TRON address, see canonical_tron_address.
 
     May raise DeserializationError if the value is not a valid TRON address.
     """
-    if not isinstance(value, str):
+    if not isinstance(value, str) or (address := canonical_tron_address(value)) is None:
         raise DeserializationError(f'Invalid TRON address {value!r}')
 
-    try:
-        if len(value) == 42 and value[:2] in ('0x', '41'):
-            payload = b'\x41' + bytes.fromhex(value[2:])
-        elif len(raw := b58decode(value.encode())) == 25 and _checksum(raw[:21]) == raw[21:]:
-            payload = raw[:21]
-        else:
-            payload = b''
-    except ValueError:  # non-hex or non-base58 characters
-        payload = b''
-
-    if len(payload) != 21 or payload[0] != 0x41:
-        raise DeserializationError(f'Invalid TRON address {value}')
-
-    return TronAddress(b58encode(payload + _checksum(payload)).decode())
+    return TronAddress(address)
 
 
 def tron_address_to_identifier(address: TronAddress) -> str:

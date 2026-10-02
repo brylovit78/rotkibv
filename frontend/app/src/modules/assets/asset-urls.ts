@@ -108,6 +108,12 @@ export const explorerUrls: AssetExplorerUrls = {
     token: 'https://solscan.io/token/',
     transaction: 'https://solscan.io/tx/',
   },
+  [Blockchain.TRON]: {
+    address: 'https://tronscan.org/#/address/',
+    block: 'https://tronscan.org/#/block/',
+    token: 'https://tronscan.org/#/token20/',
+    transaction: 'https://tronscan.org/#/transaction/',
+  },
   [Blockchain.ZKSYNC_LITE]: {
     address: 'https://zkscan.io/explorer/accounts/',
     block: 'https://zkscan.io/explorer/blocks/',

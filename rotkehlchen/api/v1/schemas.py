@@ -54,6 +54,7 @@ from rotkehlchen.chain.substrate.utils import (
     get_substrate_address_from_public_key,
     is_valid_substrate_address,
 )
+from rotkehlchen.chain.tron.validation import canonical_tron_address
 from rotkehlchen.constants.assets import A_BCH, A_BTC, A_ETH, A_ETH2
 from rotkehlchen.constants.misc import ONE, VALID_LOGLEVELS, ZERO
 from rotkehlchen.constants.resolver import EVM_CHAIN_DIRECTIVE
@@ -2520,6 +2521,21 @@ def _validate_blockchain_account_schemas(
                 )
             given_addresses.add(address)
 
+    elif chain == SupportedBlockchain.TRON:  # the hex and Base58 forms of one address are one
+        tron_addresses: set[str] = set()
+        for account_data in data['accounts']:
+            if (tron_address := canonical_tron_address(address_getter(account_data))) is None:
+                raise ValidationError(
+                    f'Given value {address_getter(account_data)} is not a valid TRON address',
+                    field_name='address',
+                )
+            if tron_address in tron_addresses:
+                raise ValidationError(
+                    f'Address {tron_address} appears multiple times in the request data',
+                    field_name='address',
+                )
+            tron_addresses.add(tron_address)
+
     # Make sure substrate addresses are valid (either ss58 format or ENS domain)
     elif chain.is_substrate():
         for account_data in data['accounts']:
@@ -2765,6 +2781,9 @@ class BlockchainAccountsPatchSchema(AsyncQueryArgumentSchema):
                     given_address=account['address'],
                     chain=data['blockchain'],
                 )
+        elif data['blockchain'] == SupportedBlockchain.TRON:  # validated above
+            for account in data['accounts']:
+                account['address'] = canonical_tron_address(account['address'])
 
         return data
 
@@ -2816,6 +2835,8 @@ class BlockchainAccountsDeleteSchema(StringAccountSchema, AsyncQueryArgumentSche
                 _transform_substrate_address(
                     self.ethereum_inquirer, x, data['blockchain']) for x in data['accounts']
             ]
+        if data['blockchain'] == SupportedBlockchain.TRON:  # validated above
+            data['accounts'] = [canonical_tron_address(x) for x in data['accounts']]
 
         return data
 
@@ -4564,12 +4585,17 @@ def _is_valid_solana(address: str, _chain: SupportedBlockchain) -> bool:
     return is_valid_solana_address(address)
 
 
+def _is_valid_tron(address: str, _chain: SupportedBlockchain) -> bool:
+    return canonical_tron_address(address) == address  # accounts are stored canonical
+
+
 ADDRESS_VALIDATORS: Final[dict[ChainType, Callable[[str, SupportedBlockchain], bool]]] = {
     ChainType.BITCOIN: _is_valid_btc,
     ChainType.SUBSTRATE: _is_valid_substrate,
     ChainType.EVM: _is_valid_evm,
     ChainType.EVMLIKE: _is_valid_evm,
     ChainType.SOLANA: _is_valid_solana,
+    ChainType.TRON: _is_valid_tron,
 }
 
 

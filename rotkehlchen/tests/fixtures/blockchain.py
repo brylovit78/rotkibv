@@ -42,6 +42,7 @@ from rotkehlchen.chain.scroll.node_inquirer import ScrollInquirer
 from rotkehlchen.chain.solana.manager import SolanaManager
 from rotkehlchen.chain.solana.node_inquirer import SolanaInquirer
 from rotkehlchen.chain.substrate.manager import SubstrateChainProperties, SubstrateManager
+from rotkehlchen.chain.tron.manager import TronManager
 from rotkehlchen.chain.zksync_lite.manager import ZksyncLiteManager
 from rotkehlchen.constants.assets import A_DOT, A_KSM
 from rotkehlchen.db.settings import DEFAULT_BTC_DERIVATION_GAP_LIMIT
@@ -53,6 +54,7 @@ from rotkehlchen.externalapis.jupiter import Jupiter
 from rotkehlchen.externalapis.monerium import Monerium
 from rotkehlchen.externalapis.opensea import Opensea
 from rotkehlchen.externalapis.routescan import Routescan
+from rotkehlchen.externalapis.tronscan import Tronscan
 from rotkehlchen.premium.premium import Premium
 from rotkehlchen.tests.utils.blockchain import maybe_modify_rpc_nodes
 from rotkehlchen.tests.utils.decoders import patch_decoder_reload_data
@@ -67,7 +69,13 @@ from rotkehlchen.tests.utils.substrate import (
     POLKADOT_SS58_FORMAT,
     wait_until_all_substrate_nodes_connected,
 )
-from rotkehlchen.types import BTCAddress, ChecksumEvmAddress, SolanaAddress, SupportedBlockchain
+from rotkehlchen.types import (
+    BTCAddress,
+    ChecksumEvmAddress,
+    SolanaAddress,
+    SupportedBlockchain,
+    TronAddress,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -224,6 +232,11 @@ def fixture_solana_accounts() -> list[SolanaAddress]:
     return []
 
 
+@pytest.fixture(name='tron_accounts')
+def fixture_tron_accounts() -> list[TronAddress]:
+    return []
+
+
 @pytest.fixture(name='ksm_accounts')
 def fixture_ksm_accounts() -> list[SubstrateAddress]:
     """As per feature requirements, instantiating SubstrateManager won't trigger
@@ -278,6 +291,7 @@ def fixture_blockchain_accounts(
         ksm_accounts: list[SubstrateAddress],
         dot_accounts: list[SubstrateAddress],
         solana_accounts: list[SolanaAddress],
+        tron_accounts: list[TronAddress],
 ) -> BlockchainAccounts:
     return BlockchainAccounts(
         eth=tuple(ethereum_accounts),
@@ -297,6 +311,7 @@ def fixture_blockchain_accounts(
         ksm=tuple(ksm_accounts),
         dot=tuple(dot_accounts),
         solana=tuple(solana_accounts),
+        tron=tuple(tron_accounts),
     )
 
 
@@ -1034,6 +1049,11 @@ def fixture_solana_manager(solana_inquirer, database):
     )
 
 
+@pytest.fixture(name='tron_manager')
+def fixture_tron_manager(database):
+    return TronManager(tronscan=Tronscan(database=database), database=database)
+
+
 @pytest.fixture(name='blockchain')
 def fixture_blockchain(
         ethereum_manager,
@@ -1053,6 +1073,7 @@ def fixture_blockchain(
         bitcoin_manager,
         bitcoin_cash_manager,
         solana_manager,
+        tron_manager,
         blockchain_accounts,
         inquirer,  # pylint: disable=unused-argument
         messages_aggregator,
@@ -1094,6 +1115,7 @@ def fixture_blockchain(
         bitcoin_manager=bitcoin_manager,
         bitcoin_cash_manager=bitcoin_cash_manager,
         solana_manager=solana_manager,
+        tron_manager=tron_manager,
         msg_aggregator=messages_aggregator,
         database=database,
         task_supervisor=task_supervisor,

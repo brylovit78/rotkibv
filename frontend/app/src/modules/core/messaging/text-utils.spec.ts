@@ -12,6 +12,7 @@ import {
   isValidSolanaAddress,
   isValidSolanaSignature,
   isValidSs58Address,
+  isValidTronAddress,
   isValidTxHashOrSignature,
   isValidUrl,
   toCapitalCase,
@@ -174,6 +175,7 @@ describe('text-utils', () => {
     expect(isValidAddress('7EqQdEULxWcraVx3mXKFjc84LhCkMGZCkRuDpvcMwJeK')).toBe(true); // SOL
     expect(isValidAddress('13UVJyLnbVp9RBZYFwFGyDvVd1y27Tt8tkntv6Q7JVPhFsTB')).toBe(true); // DOT
     expect(isValidAddress('HNZata7iMYWmk5RvZRTiAsSDhV8366zq2YGb3tLH5Upf74F')).toBe(true); // KSM
+    expect(isValidAddress('TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t')).toBe(true); // TRON
 
     // Invalid
     expect(isValidAddress('invalid-address')).toBe(false);
@@ -182,6 +184,19 @@ describe('text-utils', () => {
     // A half-typed address is the case that reaches the filter bar.
     expect(isValidAddress('0x')).toBe(false);
     expect(isValidAddress('0x742d35Cc6634C0532925a3b844Bc9e7595f0')).toBe(false);
+  });
+
+  it('should validate TRON addresses', () => {
+    const usdt = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'; // the USDT contract
+    expect(isValidTronAddress(usdt)).toBe(true);
+    expect(isValidTronAddress('TXM3pBpWRemyMFtpRsXCiXSgPJqmuZG4c4')).toBe(true);
+
+    expect(isValidTronAddress('')).toBe(false);
+    expect(isValidTronAddress(undefined)).toBe(false);
+    expect(isValidTronAddress(usdt.slice(0, -1))).toBe(false); // one character short
+    expect(isValidTronAddress(`${usdt.slice(0, -1)}0`)).toBe(false); // 0 is not base58
+    expect(isValidTronAddress('1BoatSLRHtKNngkdXEeobR76b53LETtpyT')).toBe(false); // bitcoin version byte
+    expect(isValidTronAddress('41a614f803b6fd780986a42c78ec9c7f77e6ded13c')).toBe(false); // hex, not canonical
   });
 
   it('should validate substrate addresses', () => {

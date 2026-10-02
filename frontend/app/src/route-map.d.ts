@@ -80,6 +80,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/accounts/tron/': RouteRecordInfo<
+      '/accounts/tron/',
+      '/accounts/tron',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/address-book-manager/': RouteRecordInfo<
       '/address-book-manager/',
       '/address-book-manager',
@@ -584,6 +591,14 @@ declare module 'vue-router/auto-routes' {
     'src/pages/accounts/substrate/index.vue': {
       routes:
         | '/accounts/substrate/'
+      views:
+        | never
+      pathParamNames:
+        | never
+    }
+    'src/pages/accounts/tron/index.vue': {
+      routes:
+        | '/accounts/tron/'
       views:
         | never
       pathParamNames:

@@ -17,6 +17,7 @@ from eth_typing import ChecksumAddress
 from eth_utils.address import to_checksum_address
 
 from rotkehlchen.chain.solana.validation import is_valid_solana_address
+from rotkehlchen.chain.tron.validation import canonical_tron_address
 from rotkehlchen.constants import ZERO
 from rotkehlchen.db.constants import InternalTxSource
 from rotkehlchen.errors.misc import AddressNotSupported, InputError
@@ -178,16 +179,17 @@ HyperliquidTokenAddress = NewType('HyperliquidTokenAddress', T_HyperliquidTokenA
 T_TronAddress = str
 TronAddress = NewType('TronAddress', T_TronAddress)  # canonical Base58Check
 
-BlockchainAddress = BTCAddress | ChecksumEvmAddress | SubstrateAddress | SolanaAddress
+BlockchainAddress = BTCAddress | ChecksumEvmAddress | SubstrateAddress | SolanaAddress | TronAddress  # noqa: E501
 AnyBlockchainAddress = TypeVar(
     'AnyBlockchainAddress',
     BTCAddress,
     ChecksumEvmAddress,
     SubstrateAddress,
     SolanaAddress,
+    TronAddress,
 )
-ListOfBlockchainAddresses = list[BTCAddress] | list[ChecksumEvmAddress] | list[SubstrateAddress] | list[SolanaAddress]  # noqa: E501
-TuplesOfBlockchainAddresses = tuple[BTCAddress, ...] | tuple[ChecksumEvmAddress, ...] | tuple[SubstrateAddress, ...] | tuple[SolanaAddress, ...]  # noqa: E501
+ListOfBlockchainAddresses = list[BTCAddress] | list[ChecksumEvmAddress] | list[SubstrateAddress] | list[SolanaAddress] | list[TronAddress]  # noqa: E501
+TuplesOfBlockchainAddresses = tuple[BTCAddress, ...] | tuple[ChecksumEvmAddress, ...] | tuple[SubstrateAddress, ...] | tuple[SolanaAddress, ...] | tuple[TronAddress, ...]  # noqa: E501
 
 
 T_Price = FVal
@@ -430,6 +432,7 @@ class ChainType(SerializableEnumNameMixin):
     BITCOIN = auto()
     ETH2 = auto()
     SOLANA = auto()
+    TRON = auto()  # rotkibv
 
     def type_to_blockchains(self) -> Sequence[SupportedBlockchain]:
         """Return the set of valid blockchains for the chain type"""
@@ -444,6 +447,9 @@ class ChainType(SerializableEnumNameMixin):
 
         if self == ChainType.SOLANA:
             return [SupportedBlockchain.SOLANA]
+
+        if self == ChainType.TRON:
+            return [SupportedBlockchain.TRON]
 
         raise InputError(f'Invalid chain type {self} when removing accounts')
 
@@ -470,6 +476,7 @@ class SupportedBlockchain(SerializableEnumValueMixin):
     MONAD = 'MONAD'
     ZKSYNC_LITE = 'ZKSYNC_LITE'
     SOLANA = 'SOLANA'
+    TRON = 'TRON'  # rotkibv
 
     def __str__(self) -> str:
         return SUPPORTED_BLOCKCHAIN_NAMES_MAPPING.get(self, super().__str__())
@@ -519,6 +526,8 @@ class SupportedBlockchain(SerializableEnumValueMixin):
             return 'HYPE'
         if self == SupportedBlockchain.SOLANA:
             return 'SOL'
+        if self == SupportedBlockchain.TRON:
+            return 'TRX'
 
         return self.value
 
@@ -529,6 +538,7 @@ class SupportedBlockchain(SerializableEnumValueMixin):
         ChainType.SUBSTRATE,
         ChainType.ETH2,
         ChainType.SOLANA,
+        ChainType.TRON,
     ]:
         """Chain type to return to the API supported chains endpoint"""
         if self.is_evm():
@@ -541,6 +551,8 @@ class SupportedBlockchain(SerializableEnumValueMixin):
             return ChainType.BITCOIN
         if self == SupportedBlockchain.SOLANA:
             return ChainType.SOLANA
+        if self == SupportedBlockchain.TRON:
+            return ChainType.TRON
         # else
         return ChainType.ETH2  # the outlier
 
@@ -549,6 +561,7 @@ class SupportedBlockchain(SerializableEnumValueMixin):
         ChainType.BITCOIN,
         ChainType.SUBSTRATE,
         ChainType.SOLANA,
+        ChainType.TRON,
     ]:
         match (chain_type := self.get_chain_type()):
             case ChainType.EVM | ChainType.EVMLIKE | ChainType.ETH2:
@@ -607,6 +620,7 @@ SUPPORTED_BLOCKCHAIN_NAMES_MAPPING = {
     SupportedBlockchain.HYPERLIQUID: 'Hyperliquid',
     SupportedBlockchain.ZKSYNC_LITE: 'ZKSync Lite',
     SupportedBlockchain.BINANCE_SC: 'Binance Smart Chain',
+    SupportedBlockchain.TRON: 'TRON',
 }
 
 SUPPORTED_BLOCKCHAIN_IMAGE_NAME_MAPPING = {
@@ -628,6 +642,7 @@ SUPPORTED_BLOCKCHAIN_IMAGE_NAME_MAPPING = {
     SupportedBlockchain.BINANCE_SC: 'binance_sc.svg',
     SupportedBlockchain.MONAD: 'monad.svg',
     SupportedBlockchain.SOLANA: 'solana.svg',
+    SupportedBlockchain.TRON: 'tron.svg',
 }
 
 EVM_CHAINS_WITH_TRANSACTIONS_TYPE = Literal[
@@ -715,6 +730,7 @@ SUPPORTED_NON_BITCOIN_CHAINS = Literal[
     SupportedBlockchain.BINANCE_SC,
     SupportedBlockchain.MONAD,
     SupportedBlockchain.SOLANA,
+    SupportedBlockchain.TRON,
 ]
 
 SUPPORTED_BITCOIN_CHAINS_TYPE = Literal[
@@ -753,7 +769,7 @@ NON_EVM_CHAINS = set(SupportedBlockchain) - set(SUPPORTED_BLOCKCHAIN_TO_CHAINID.
 CHAINS_WITH_NODES_TYPE = CHAINS_WITH_TRANSACTION_DECODERS_TYPE
 CHAINS_WITH_NODES: tuple[CHAINS_WITH_NODES_TYPE, ...] = CHAINS_WITH_TRANSACTION_DECODERS
 
-CHAINS_WITH_CHAIN_MANAGER = SUPPORTED_EVM_CHAINS_TYPE | SUPPORTED_EVMLIKE_CHAINS_TYPE | SUPPORTED_BITCOIN_CHAINS_TYPE | SUPPORTED_SUBSTRATE_CHAINS_TYPE | Literal[SupportedBlockchain.SOLANA]  # noqa: E501
+CHAINS_WITH_CHAIN_MANAGER = SUPPORTED_EVM_CHAINS_TYPE | SUPPORTED_EVMLIKE_CHAINS_TYPE | SUPPORTED_BITCOIN_CHAINS_TYPE | SUPPORTED_SUBSTRATE_CHAINS_TYPE | Literal[SupportedBlockchain.SOLANA, SupportedBlockchain.TRON]  # noqa: E501
 
 
 class Location(DBCharEnumMixIn):
@@ -1031,6 +1047,7 @@ class AddressbookEntry(NamedTuple):
         ChainType.EVMLIKE,
         ChainType.SUBSTRATE,
         ChainType.SOLANA,
+        ChainType.TRON,
     ]:
         """Get the chain ecosystem for the provided address.
 
@@ -1050,6 +1067,8 @@ class AddressbookEntry(NamedTuple):
             return ChainType.SUBSTRATE
         if is_valid_solana_address(address=address):
             return ChainType.SOLANA
+        if canonical_tron_address(address) == address:  # Base58Check; 0x hex is EVM-like above
+            return ChainType.TRON
 
         # Whenever we add a new ecosystem we need to update this function.
         raise AddressNotSupported(f'Unsupported address {address}')
