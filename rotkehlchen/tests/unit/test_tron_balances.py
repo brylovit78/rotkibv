@@ -114,9 +114,57 @@ def test_unknown_token_is_created_from_validated_metadata(manager: TronManager) 
             tronscan_response(HISTORY_CASE, 'accountv2'),
             _holdings([usdt_row]),  # USDT has 6 decimals, not 18
         ]),
-        pytest.raises(RemoteError, match='18 decimals instead of 6'),
+        pytest.raises(RemoteError, match='18 decimals in the holdings instead of 6'),
     ):
         manager.query_balances([HISTORY_ACCOUNT])
+
+
+def test_rejected_metadata_is_not_stored(manager: TronManager, globaldb) -> None:
+    """Holdings and metadata decimals that disagree fail before the token is stored, so a
+    corrected provider response is accepted on the next query"""
+    fake = ('tokens-metadata-and-fake-usdt', 'fake-usdt-showall1')
+    metadata = tronscan_body(*fake)
+    contract = metadata['trc20_tokens'][0]['contract_address']
+    row = {'tokenId': contract, 'balance': '2000000000000000000', 'tokenDecimal': 18, 'tokenType': 'trc20'}  # noqa: E501
+    wrong = metadata | {'trc20_tokens': [metadata['trc20_tokens'][0] | {'decimals': 6}]}
+    with (
+        patch.object(Inquirer, 'find_main_currency_prices', side_effect=_prices),
+        patch.object(manager.tronscan.session, 'request', side_effect=[
+            tronscan_response(HISTORY_CASE, 'accountv2'), _holdings([row]), MockResponse(200, json.dumps(wrong)),  # noqa: E501
+            tronscan_response(HISTORY_CASE, 'accountv2'), _holdings([row]), tronscan_response(*fake),  # noqa: E501
+        ]),
+    ):
+        with pytest.raises(RemoteError, match='18 decimals in the holdings but 6 in its metadata'):
+            manager.query_balances([HISTORY_ACCOUNT])
+        with globaldb.conn.read_ctx() as cursor:
+            assert cursor.execute('SELECT COUNT(*) FROM tron_tokens WHERE address=?', (contract,)).fetchone() == (0,)  # noqa: E501
+
+        balances = manager.query_balances([HISTORY_ACCOUNT])
+    assert balances[HISTORY_ACCOUNT].assets[CryptoAsset(tron_address_to_identifier(contract))][DEFAULT_BALANCE_LABEL].amount == FVal(2)  # noqa: E501
+
+
+def test_new_spam_is_not_a_balance(manager: TronManager, database: DBHandler) -> None:
+    """A token that the shared spam check ignores on discovery is neither priced nor returned,
+    as the frontend does not learn about the new ignored asset during the refresh"""
+    fake = ('tokens-metadata-and-fake-usdt', 'fake-usdt-showall1')
+    metadata = tronscan_body(*fake)
+    contract = metadata['trc20_tokens'][0]['contract_address']
+    spam = metadata | {'trc20_tokens': [metadata['trc20_tokens'][0] | {'name': 'Claim rewards at https://example.com'}]}
+    with (
+        patch.object(Inquirer, 'find_main_currency_prices', side_effect=_prices) as prices,
+        patch.object(manager.tronscan.session, 'request', side_effect=[
+            tronscan_response(HISTORY_CASE, 'accountv2'),
+            _holdings([{'tokenId': contract, 'balance': '1', 'tokenDecimal': 18, 'tokenType': 'trc20'}]),  # noqa: E501
+            MockResponse(200, json.dumps(spam)),
+        ]),
+    ):
+        balances = manager.query_balances([HISTORY_ACCOUNT])
+
+    token_id = tron_address_to_identifier(contract)
+    with database.conn.read_ctx() as cursor:
+        assert token_id in database.get_ignored_asset_ids(cursor)
+    assert {x.identifier for x in balances[HISTORY_ACCOUNT].assets} == {'TRX'}
+    assert [x.identifier for x in prices.call_args.args[0]] == ['TRX']
 
 
 def test_holdings_end_on_a_short_page(manager: TronManager) -> None:
@@ -128,7 +176,10 @@ def test_holdings_end_on_a_short_page(manager: TronManager) -> None:
         tronscan_response(case, f'page{i}') for i in range(3)
     ]) as request:
         assert len(manager._query_holdings(address)) == _expected(case)['total']
-    assert [x.kwargs['params']['start'] for x in request.call_args_list] == [0, 200, 400]
+    assert [x.kwargs['params'] for x in request.call_args_list] == [  # the filter listing all
+        {'address': address, 'start': start, 'limit': 200, 'hidden': 0, 'show': 0}
+        for start in (0, 200, 400)
+    ]
 
     full_page = _holdings([{'tokenId': '_'}] * TRONSCAN_HOLDINGS_LIMIT)
     with (
@@ -170,9 +221,17 @@ def test_missing_key_is_a_failure_without_requests(database: DBHandler) -> None:
 
 
 @pytest.mark.parametrize('tron_accounts', [[HISTORY_ACCOUNT]])
+@pytest.mark.parametrize('failure', [
+    pytest.param([tronscan_response('errors-authentication', 'invalid-key-key-required-endpoint')], id='invalid key'),  # noqa: E501
+    pytest.param([
+        tronscan_response(HISTORY_CASE, 'accountv2'),
+        _holdings([row | {'tokenType': None} if row['tokenType'] == 'trc20' else row for row in tronscan_body(HISTORY_CASE, 'account-tokens')['data']]),  # noqa: E501
+    ], id='unknown token type'),
+])
 def test_failed_query_keeps_the_previous_balances(
         blockchain: ChainsAggregator,
         database: DBHandler,
+        failure: list[MockResponse],
 ) -> None:
     """The aggregator swaps in TRON balances only after a complete snapshot"""
     set_tronscan_key(database, 'test-tronscan-key')
@@ -188,8 +247,8 @@ def test_failed_query_keeps_the_previous_balances(
     assert (previous := dict(blockchain.balances.tron)) != {}
 
     with (
-        patch.object(tronscan.session, 'request', return_value=tronscan_response('errors-authentication', 'invalid-key-key-required-endpoint')),  # noqa: E501
-        pytest.raises(RemoteError, match='rejected the API key'),
+        patch.object(tronscan.session, 'request', side_effect=failure),
+        pytest.raises(RemoteError),
     ):
         blockchain.query_balances(blockchain=SupportedBlockchain.TRON, ignore_cache=True)
     assert dict(blockchain.balances.tron) == previous
