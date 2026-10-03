@@ -1,5 +1,6 @@
 import type { APIRequestContext } from '@playwright/test';
 import { backendUrl } from '../../../playwright.config';
+import { waitForAsyncQuery } from './api';
 
 /**
  * Payload for adding an EVM event. Timestamps are milliseconds and addresses must be
@@ -106,4 +107,16 @@ export async function apiAddOnlineEvent(
     throw new Error(`failed to add online event ${event.groupIdentifier}: ${JSON.stringify(body)}`);
 
   return body.result.identifier;
+}
+
+/**
+ * Decodes the pending transactions of `chain` via `POST /api/1/blockchains/transactions/decode`
+ * and returns how many were decoded.
+ */
+export async function apiDecodeTransactions(request: APIRequestContext, chain: string): Promise<unknown> {
+  const response = await request.post(`${backendUrl}/api/1/blockchains/transactions/decode`, {
+    data: { async_query: true, chain },
+  });
+  const { result } = await response.json();
+  return waitForAsyncQuery(request, result.task_id);
 }
