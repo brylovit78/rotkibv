@@ -159,6 +159,45 @@ UI може показувати базову frontend-версію upstream; д
 Dockerfile upstream містить змінні зовнішні base tags/tool downloads, тому
 повторний build не обіцяє бітової ідентичності: розгортати збережений digest.
 
+### Репетиція оновлення та rollback
+
+Після публікації нового образу й до release notes його перевіряють репетицією
+backup / upgrade / rollback на окремих тестових volumes:
+
+```bash
+R=ghcr.io/brylovit78/rotkibv
+python3 tools/fork/docker_rehearse.py deploy/compose.yml \
+  $R@sha256:OLD_DIGEST $R@sha256:NEW_DIGEST
+```
+
+Аргументи: Compose-файл, попередній образ (той, що працює на сервері) і новий;
+образ задають як tag або `image@sha256:digest`. Потрібні запущений Docker і
+мережа (GHCR, оновлення assets із GitHub). Скрипт має власний Compose-проєкт
+`rotkibv-rehearsal`, volumes і порт `127.0.0.1:18080`, запускає образи як
+`linux/amd64` і не залежить від `deploy/.env`: зокрема, завжди працює без
+`ROTKI_SESSION_KEY`. Він не використовує ключ TronScan чи реальні дані.
+Наприкінці, також після невдалої перевірки чи переривання, він видаляє свої
+контейнери, volumes і backup; якщо Docker у цей момент не відповідає, залишки
+прибирає команда, яку покаже наступний запуск.
+
+Попередній образ створює профіль із тестовими даними (TRON — якщо він його вже
+підтримує), далі backup усіх volumes, новий образ на тих самих volumes з
+оновленням assets, як його пропонує UI, і rollback: попередній образ із backup
+на нових volumes. Дані порівнюються за вмістом (тег, події, TRON-акаунт), а не
+за кількістю.
+
+Успіх — код виходу 0 і останній рядок `PASS: ...`. Рядки обов'язкових перевірок
+закінчуються на `True`: `new: user data kept`, `assets update … applied`
+(наприклад, `local` 41 → 42; якщо оновлення немає — `no assets update is
+offered`), `fork assets … in their collections` для TRX і TRON USDT,
+`rollback: user data kept`. Невдала перевірка зупиняє репетицію рядком
+`FAIL: ...` і ненульовим кодом; такий образ не випускати.
+
+Крок `downgrade without restore` (попередній образ без backup на мігрованих
+volumes) лише інформаційний і результат не змінює: це не rollback. Наприклад,
+`v1.44.0-bv.2` після `v1.44.1-bv.3` відповідає HTTP 500
+`100 is not a valid HistoryBaseEntryType`.
+
 ## Розгортання на сервері
 
 ```bash

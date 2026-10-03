@@ -712,6 +712,10 @@ kept, and the removed account's query ranges are deleted.
 4. Rollback means restoring the previous immutable image together with the matching backup of
    all volumes. A migrated database is never downgraded.
 
+Every new image is rehearsed against item 4 after it is published and before the release notes:
+`python3 tools/fork/docker_rehearse.py deploy/compose.yml <previous image> <new image>` (FORK.md).
+A pass exits with 0 and ends with a `PASS` line; a failed check exits non-zero with `FAIL: <check>`.
+
 `upstream` is a `blob:none` partial clone. If a merge cannot fetch blobs lazily ("not our ref"),
 fetch the missing blobs of the merged tip first:
 `git ls-tree -r <ref> | awk '$2=="blob"{print $3}' | sort -u | GIT_NO_LAZY_FETCH=1 git cat-file --batch-check | awk '$2=="missing"{print $1}' | git fetch upstream --stdin`.
