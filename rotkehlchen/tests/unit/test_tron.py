@@ -86,7 +86,8 @@ def test_tron_location_reserved_value() -> None:
     assert list(Location)[-1] is Location.TRON  # deserialization bounds on the last member
     assert Location.deserialize_from_db(Location.TRON.serialize_for_db()) is Location.TRON
     with pytest.raises(DeserializationError):  # an unused value below TRON, not a ValueError
-        Location.deserialize_from_db(chr(62 + 64))
+        # derived, since upstream keeps assigning the next values (develop already uses 62-66)
+        Location.deserialize_from_db(chr(min(set(range(1, Location.TRON.value)) - {x.value for x in Location}) + 64))  # noqa: E501
 
     # #11: after any upstream member, which auto() numbers from the member before it
     assert (list(HistoryBaseEntryType)[-1], HistoryBaseEntryType.TRON_EVENT.value) == (HistoryBaseEntryType.TRON_EVENT, 100)  # noqa: E501
