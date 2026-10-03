@@ -84,6 +84,15 @@ def snapshot(tags, history, db_version, tron=None):
     return state
 
 
+def chain_ids(status, chains):
+    """The ids of the chains that an image lists as supported. None for any other answer, so
+    that a failed request never reads as an image without TRON"""
+    if status != 200 or not isinstance(chains, list) or not chains:
+        return None
+    ids = [x.get('id') if isinstance(x, dict) else None for x in chains]
+    return ids if all(isinstance(x, str) and x for x in ids) else None
+
+
 def stored(state, tron_events):
     """The image returns the test data as it was stored; `tron_events` is None without TRON"""
     return state['tag'] == TAG and state['kraken_events'] == [EVENT] and (
@@ -135,6 +144,14 @@ def docker(*args, image=None):
     return subprocess.check_output(['docker', *args], text=True, env=env).strip()
 
 
+def envelope(raw):
+    """The JSON object that every answer of the API is; anything else is a ValueError"""
+    answer = json.loads(raw or b'{}')
+    if not isinstance(answer, dict):
+        raise ValueError(f'the API answered {answer!r}, not a JSON object')
+    return answer
+
+
 def api(method, path, body=None):
     request = urllib.request.Request(
         f'{API}/{path}',
@@ -144,9 +161,9 @@ def api(method, path, body=None):
     )
     try:
         with urllib.request.urlopen(request, timeout=300) as response:
-            return response.status, json.loads(response.read())
+            return response.status, envelope(response.read())
     except urllib.error.HTTPError as e:
-        return e.code, json.loads(e.read() or b'{}')
+        return e.code, envelope(e.read())
 
 
 def result_of(method, path, body=None):
@@ -174,19 +191,24 @@ def logout():
 
 def supports_tron(label):
     status, body = api('GET', 'blockchains/supported')
-    chains = [x.get('id') for x in body.get('result') or []]
-    check(label, f'supported chains listed (HTTP {status})', status == 200 and bool(chains))
+    chains = chain_ids(status, body.get('result'))
+    check(label, f'supported chains listed (HTTP {status})', chains is not None)
     print(f'{label}: TRON', 'supported' if 'tron' in chains else 'not supported')
     return 'tron' in chains
 
 
+def count(history):
+    """How many events a history answer found; None for an answer without that number"""
+    return history.get('entries_found') if isinstance(history, dict) else None
+
+
 def entries_found(**filters):
-    return (result_of('POST', 'history/events', filters) or {}).get('entries_found')
+    return count(result_of('POST', 'history/events', filters))
 
 
 def all_events(label):
     status, body = api('POST', 'history/events', {})
-    found = (body.get('result') or {}).get('entries_found')
+    found = count(body.get('result'))
     print(f'{label}: all history events HTTP {status} found {found} {said(body)!r}')
 
 

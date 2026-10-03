@@ -11,7 +11,10 @@ from docker_rehearse import (
     TAG,
     TRON_ACCOUNT,
     TRON_EVENTS,
+    chain_ids,
     check,
+    count,
+    envelope,
     fork_assets,
     kept,
     snapshot,
@@ -56,6 +59,29 @@ class DockerRehearseTests(unittest.TestCase):
             {'tag': dict.fromkeys(TAG), 'kraken_events': [], 'db_version': None} |
             {'tron_accounts': [], 'tron_events': []},
         )
+
+    def test_only_a_listed_chain_set_decides_on_tron(self):
+        chains = [{'id': 'eth', 'name': 'ethereum'}, {'id': 'tron', 'name': 'tron'}]
+        self.assertEqual(chain_ids(200, chains), ['eth', 'tron'])
+        self.assertEqual(chain_ids(200, chains[:1]), ['eth'])
+        # a failed or malformed answer is not an image without TRON
+        self.assertIsNone(chain_ids(503, None))
+        self.assertIsNone(chain_ids(401, chains))
+        self.assertIsNone(chain_ids(200, []))
+        for broken in ({'name': 'TRON'}, {'id': None}, {'id': ''}, {'id': 100}, 'tron'):
+            self.assertIsNone(chain_ids(200, [chains[0], broken]))
+        self.assertIsNone(chain_ids(200, {'id': 'eth'}))
+
+    def test_answer_must_be_a_json_object(self):
+        self.assertEqual(envelope(b'{"result": null, "message": "no"}')['message'], 'no')
+        self.assertEqual(envelope(b''), {})
+        for raw in (b'null', b'[]', b'"text"', b'<html>502</html>'):
+            with self.assertRaises(ValueError):
+                envelope(raw)
+        # the informational step reads a count from whatever result the old image gives
+        self.assertEqual(count({'entries': [], 'entries_found': 3}), 3)
+        for result in (None, [3], 'text', True, {}):
+            self.assertIsNone(count(result))
 
     def test_test_data_must_come_back_as_stored(self):
         self.assertTrue(stored(STATE, None))
