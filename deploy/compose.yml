@@ -5,6 +5,7 @@ services:
     restart: unless-stopped
     environment:
       ROTKI_SESSION_KEY: ${ROTKI_SESSION_KEY:-}
+      ROTKI_SESSION_COOKIE_SECURE: ${ROTKI_SESSION_COOKIE_SECURE:-}
     ports:
       - "${ROTKIBV_BIND:-127.0.0.1}:${ROTKIBV_PORT:-8080}:80"
     volumes:

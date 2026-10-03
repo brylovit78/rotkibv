@@ -197,6 +197,12 @@ chmod 600 .env &&
 нового профілю. Ключ зберігати сталим і не публікувати. Докладніше:
 `packaging/docker/README.md`.
 
+За HTTPS proxy додати до `.env` рядок `ROTKI_SESSION_COOKIE_SECURE=1`, тоді
+cookie має позначку `Secure`. Якщо той самий контейнер відкривають і напряму по
+HTTP, задати `forwarded`: позначку отримують лише запити з
+`X-Forwarded-Proto: https`. Без HTTPS значення `1` не задавати: браузер не
+поверне таку cookie по HTTP.
+
 Перед оновленням: зупинити контейнер, зробити snapshot/backup **усіх** data,
 config і logs volumes, записати попередній image digest. Потім змінити image,
 pull/up --wait, перевірити вхід, баланси та історію. Для rollback після
