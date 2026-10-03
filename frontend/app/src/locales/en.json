@@ -762,7 +762,8 @@
             "success": "Skipped events exported to CSV successfully"
           },
           "title": "CSV Export"
-        }
+        },
+        "unavailable": "{queryType} is not available"
       },
       "warning": {
         "missing_api_key": {
@@ -906,14 +907,6 @@
         "error": {
           "message": "Error at periodic client query: {message}",
           "title": "Periodic client query"
-        }
-      },
-      "refresh_general_cache": {
-        "error": {
-          "message": "Failed to refresh protocol data {name}: {message}"
-        },
-        "task": {
-          "title": "Refresh protocol data ({name})"
         }
       },
       "tag_add": {
@@ -1282,7 +1275,7 @@
       "find_match_anyway": "Find match anyway",
       "ignore": "Ignore",
       "ignore_tooltip": "Mark this asset movement as having no corresponding event.",
-      "ignored_description": "These asset movements have been marked as having no corresponding event. Restore them to retry matching.",
+      "ignored_description": "These asset movements are left out of automatic matching, either because they were marked as having no corresponding event or because you unlinked them. Match one by hand at any time, or restore it to let automatic matching consider it again.",
       "manual_action": "Manual Action",
       "matching_for": "Finding matches for the following asset movement.",
       "matching_hint": "You can select one or more events to link.",
@@ -1878,7 +1871,7 @@
       "direction_in": "Bridge in",
       "direction_out": "Bridge out",
       "ignore_tooltip": "Mark this bridge transaction as having no corresponding event.",
-      "ignored_description": "These bridge transactions have been marked as having no corresponding event. Restore them to retry matching.",
+      "ignored_description": "These bridge transactions are left out of automatic matching, either because they were marked as having no corresponding event or because you unlinked them. Match one by hand at any time, or restore it to let automatic matching consider it again.",
       "manual_action": "Manual Action",
       "mark_external": "External",
       "mark_external_in_tooltip": "Resolve this bridge withdrawal as income from an external (untracked) source.",
@@ -2259,7 +2252,7 @@
     "title": "Create Account",
     "title_restore": "Restore Account",
     "usage_analytics": {
-      "description": "rotki is a local application and anonymous usage analytics is the only way for us to have an idea of how many people use our software, where they are from etc. These data are really important to us, are completely anonymous and help us create a better product for you.",
+      "description": "Usage analytics are optional and support product improvements. When enabled, rotki sends anonymous analytics about application use. The metrics collected may change as the product evolves while remaining anonymous. You can change this setting at any time in General Settings.",
       "label_confirm": "Submit anonymous usage analytics"
     }
   },
@@ -2449,7 +2442,12 @@
             "nft_amount": "NFT amount isn't 1"
           },
           "flagged": "This entry may need attention",
-          "hidden": "no rows hidden | {count} hidden | {count} hidden",
+          "hidden": "{reasons} hidden",
+          "hidden_reason": {
+            "ignored": "{count} ignored",
+            "spam": "{count} spam",
+            "zero_value": "{count} zero-value"
+          },
           "liability": "Liabilities",
           "locked": "This snapshot's totals don't reconcile. Use the reconcile options above to align them before editing balances.",
           "nft": "NFTs",
@@ -2458,6 +2456,7 @@
           "show_ignored": "Show ignored | Show ignored ({count}) | Show ignored ({count})",
           "show_spam": "Show spam | Show spam ({count}) | Show spam ({count})",
           "title": "Balances",
+          "total_with_hidden": "Total | Total, including {count} hidden | Total, including {count} hidden",
           "zero_value": {
             "label": "Zero-value | Zero-value ({count}) | Zero-value ({count})",
             "only": "Only",
@@ -2501,8 +2500,9 @@
           "empty": "No locations in this snapshot",
           "net_worth": "Net worth",
           "reconcile": {
-            "description": "Locations are off by {amount} from the stored net worth. Distribute the difference across your locations to realign the allocation.",
+            "description": "Locations are off by {amount} from the net worth. Distribute the net worth across your locations to realign the allocation.",
             "distribute": "Distribute across locations",
+            "split_hint": "Enter the full value each location should hold, not the difference. Together they must add up to the net worth.",
             "title": "Allocation doesn't match net worth"
           },
           "share": "% net worth",
@@ -2510,11 +2510,18 @@
           "title": "Locations"
         },
         "mismatch": {
+          "assets_more": "{assets} and {count} more",
           "balances_sum": "Sum of balances",
-          "description": "The balances, locations and stored total don't agree. The balances are the source of truth — reconcile to the balances sum by absorbing the difference into a location, or just set the total to the balances sum.",
+          "description": "The balances, locations and stored total don't agree. The balances are the source of truth, so the total already follows them. Reconcile the locations by absorbing the difference into one of them, or edit the locations yourself.",
+          "excluded_gap": "The difference is the {amount} held in {assets}, which is marked as spam or ignored. The locations already leave it out, so removing the balance makes the totals agree. | The difference is the {amount} held in {assets}, which are marked as spam or ignored. The locations already leave them out, so removing the balances makes the totals agree.",
+          "excluded_gap_partial": "Most of the difference is the {amount} held in {assets}, which is marked as spam or ignored. The locations leave it out, so removing the balance leaves {rest} to reconcile. | Most of the difference is the {amount} held in {assets}, which are marked as spam or ignored. The locations leave them out, so removing the balances leaves {rest} to reconcile.",
+          "gap_alternative": "To keep it, absorb the difference into a location instead.",
           "locations_sum": "Sum of locations",
+          "no_reconcile_target": "No single location holds enough to absorb the difference. Edit the locations to lower them instead.",
           "reconcile_apply": "Reconcile locations",
           "reconcile_into": "Absorb difference into",
+          "remove_rows": "Remove {assets}",
+          "row_gap": "The difference is the {amount} held in {assets}. If the locations leave it out on purpose, removing the balance makes the totals agree.",
           "title": "Totals do not match"
         },
         "navigation": {
@@ -2530,6 +2537,7 @@
           "add_row": "Add location",
           "available": "Available:",
           "distribute": "Distribute evenly",
+          "fill_available": "Fill",
           "hint": "Distribute this balance's value across locations. The split must add up to the full value.",
           "location_after": "After:",
           "remaining": "Remaining",
@@ -2542,7 +2550,10 @@
           "delta_percent": "({percent}%)",
           "edit_locations": "Edit locations",
           "exclude_nfts": "Exclude NFTs from net worth",
+          "excludes_ignored": "Excludes {amount} in ignored assets",
+          "excludes_nfts": "Excludes {amount} in NFTs, per your NFT settings",
           "net_worth": "Net worth",
+          "show_excluded": "Show them",
           "since": "since"
         },
         "unsaved_changes": "{count} unsaved change | {count} unsaved changes",
@@ -3062,8 +3073,7 @@
       "chain_order": "{chain} Indexer Order",
       "chain_updated": "{chain} indexer order updated",
       "chain_warnings": {
-        "base_limited_indexers": "Blockscout is the only freely available indexer for Base. Consider setting it as your first priority. Blockscout is currently reindexing Base, so data may be temporarily incomplete.",
-        "gnosis_key_required": "Gnosis needs an API key for one of these two indexers: a Blockscout key, or a paid Etherscan plan (Etherscan no longer serves Gnosis on the free tier). Either one on its own is enough, and an indexer with no usable key is skipped so the other one is used.",
+        "key_required": "This chain needs an API key for one of these two indexers: a Blockscout key (the free plan is enough), or a paid Etherscan plan (Etherscan does not serve it on the free tier). Either one on its own is enough, and an indexer with no usable key is skipped so the other one is used.",
         "optimism_blockscout": "Blockscout does not have properly indexed transactions for Optimism before the Bedrock upgrade. Pre-Bedrock transaction history may be incomplete when using Blockscout."
       },
       "data_name": "indexer",
@@ -3156,12 +3166,10 @@
       "experimental": "The integration for this exchange is experimental, and you may find some imperfections. Please let us know if you encounter any issues.",
       "futures_api_key": "Futures API Key",
       "futures_api_secret": "Futures API Secret",
-      "id": "ID",
       "kraken_account": "Select the type of your Kraken account",
       "kraken_futures_keys": "Futures Keys",
       "passphrase": "Passphrase",
       "private_key": "Private Key",
-      "secret": "Secret",
       "signing_key": "Signing Key"
     },
     "keys": "Keys",
@@ -3224,7 +3232,7 @@
       "title": "Beaconcha.in"
     },
     "blockscout": {
-      "api_key_message": "Blockscout API key is needed to query historical EVM transactions.",
+      "api_key_message": "Transactions on {chains} are queried from Blockscout first, which needs an API key. Add a Blockscout key (the free plan is enough) to query their history. Where Etherscan serves the chain, a paid Etherscan key works too.",
       "description": "Alternative to Etherscan for querying EVM blockchain balances and transactions.",
       "hint": "Enter your Blockscout API key",
       "title": "Blockscout"
@@ -3818,7 +3826,7 @@
     },
     "title": "General Settings",
     "usage_analytics": {
-      "label": "Submit anonymous usage analytics data to help improve rotki, your privacy remains protected.",
+      "label": "Submit anonymous usage analytics to help improve rotki; your privacy remains protected.",
       "title": "Usage analytics",
       "validation": {
         "error": "Error setting anonymous usage analytics"
@@ -4073,7 +4081,7 @@
         "return": "Return a receipt token to a protocol to reclaim the underlying asset.",
         "self_transaction": "A transaction you sent to your own address.",
         "send": "Send crypto out as a payment or expense, with nothing tradeable received back.",
-        "spam": "Spam or phishing tokens sent to you. Ignored in accounting.",
+        "spam": "Spam, phishing or dust sent to you. Counted in accounting like any other receive.",
         "stake_deposit": "Stake assets into a protocol or validator.",
         "stake_exit": "Exit a staking position, withdrawing the staked principal.",
         "staking_reward": "Receive staking rewards. Taxed as income.",
@@ -4197,10 +4205,10 @@
     }
   },
   "ignore_buttons": {
-    "ignore": "Exclude",
-    "ignore_tooltip": "Excluded the selected actions from the profit/loss report",
-    "unignore": "Include",
-    "unignore_tooltip": "Included the selected actions in the profit/loss report"
+    "ignore": "Ignore",
+    "ignore_tooltip": "Ignore the selected assets",
+    "unignore": "Unignore",
+    "unignore_tooltip": "Stop ignoring the selected assets"
   },
   "import_data": {
     "binance": {
@@ -4891,6 +4899,8 @@
       },
       "blockscout": {
         "message": "rotki is using {service} as a transaction indexer but it requires an API key, so its queries are being skipped. Add an API key for {service}, or adjust the indexer order to prioritize a different service.",
+        "rejected_message": "The configured {service} API key cannot query {location}. It may be invalid, expired, out of quota, or missing the required plan. Update the key or your Blockscout plan, or change the indexer order.",
+        "rejected_title": "{service} API access unavailable for {location}",
         "title": "{service} API key"
       },
       "change_indexer_order": "Change indexer order",
@@ -4927,13 +4937,33 @@
     },
     "no_available_indexers": {
       "action": "Configure indexers",
+      "blockscout_incomplete_response": {
+        "message": "rotki could not query {chain} transactions from any indexer. Blockscout returned incomplete transaction data because some internal transactions have not yet been processed. Its response could not be trusted. Retry the query later or configure another indexer.",
+        "title": "{chain} transaction query failed"
+      },
+      "blockscout_or_paid_etherscan_key_required": {
+        "message": "rotki could not query {chain} transactions from any indexer. Add a free Blockscout API key to resume queries, or use a paid Etherscan API key.",
+        "title": "{chain} transactions need an API key"
+      },
       "do_not_show_again": "Do not show again for this chain",
+      "enter_blockscout_key": "Enter free Blockscout key",
+      "enter_etherscan_key": "Enter Etherscan key",
       "message": "No indexers are available for {chain}. Transaction queries for this chain were skipped. You can configure indexer settings to resolve this.",
+      "paid_key_required": {
+        "message": "rotki could not query {chain} transactions from any indexer. Etherscan's free tier does not cover {chain} and the free alternatives no longer do either, so a paid Etherscan API key is needed to query {chain} transactions. The queries will resume once a key is added.",
+        "title": "{chain} transactions need a paid Etherscan key"
+      },
       "suppress_confirm": {
         "message": "Future \"No indexers available\" notifications for {chain} will be suppressed. You can re-enable them later from the EVM settings page.",
         "title": "Suppress notifications for {chain}?"
       },
       "title": "No indexers available"
+    },
+    "oracle_penalized": {
+      "action": "Configure price oracles",
+      "message_errors": "{oracle} kept failing price queries and is skipped for {minutes} minutes. Prices come from the other oracles in the meantime.",
+      "message_timeout": "{oracle} stopped answering price queries and is skipped for {minutes} minutes. Prices come from the other oracles in the meantime.",
+      "title": "Price oracle {oracle} set aside"
     },
     "premium": {
       "active": {
@@ -5923,6 +5953,7 @@
   "sync_progress": {
     "chains_label": "chain | chains",
     "complete": "Sync Complete",
+    "complete_cancelled": "Sync Cancelled",
     "complete_with_warnings": "Sync Complete with warnings",
     "completed_chains": "{count} chain complete | {count} chains complete",
     "completed_decoding": "{count} chain decoded | {count} chains decoded",
@@ -5934,6 +5965,10 @@
     "events": "Events",
     "explanation": "The first sync downloads and decodes your entire on-chain history locally. You can keep using rotki; results appear as they are ready.",
     "explanation_etherscan_hint": "A personal (free) Etherscan API key speeds this up significantly.",
+    "finished_chains": "{count} chain finished | {count} chains finished",
+    "finished_decoding": "{count} chain decoding finished | {count} chains decoding finished",
+    "finished_locations": "{count} location finished | {count} locations finished",
+    "finished_protocol_cache": "{count} protocol finished | {count} protocols finished",
     "locations_label": "location | locations",
     "period": {
       "beginning": "Beginning"
@@ -6421,7 +6456,9 @@
           "indexer_order_title": "Indexer Order"
         },
         "unlink": {
-          "message": "Are you sure you want to unlink these matched events? The matched event may need manual attention after unlinking.",
+          "bridge_message": "Are you sure you want to unlink this bridge transfer? Both legs are restored to how they were before matching and then ignored, so automatic matching leaves them alone instead of linking them straight back. They stay in the ignored tab of the bridge matching window, where you can restore them or match them by hand.",
+          "bridge_synthetic_message": "Are you sure you want to unlink this bridge transfer? The counterpart event rotki created to complete the match is deleted, and the remaining leg is restored to how it was before matching and then ignored, so automatic matching leaves it alone. It stays in the ignored tab of the bridge matching window, where you can restore it or match it by hand.",
+          "message": "Are you sure you want to unlink these matched events? The movement is restored to how it was before matching and then ignored, so automatic matching leaves it alone instead of linking it straight back. It stays in the ignored tab of the asset movement matching window, where you can restore it or match it by hand.",
           "title": "Unlink Matched Events"
         }
       },
@@ -6678,6 +6715,7 @@
           }
         }
       },
+      "unlink_bridge_error": "Failed to unlink bridge transfer",
       "unlink_error": "Failed to unlink asset movement",
       "view": {
         "load_more": "Load more events ({length})"

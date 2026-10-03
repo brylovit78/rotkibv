@@ -919,6 +919,26 @@ class HistoryEventStateMarkersJoinsFilter(DBFilter):
         return [query], bindings
 
 
+@dataclass(init=True, repr=True, eq=True, order=False, unsafe_hash=False, frozen=False)
+class DBUntrackedWithdrawalsFilter(DBFilter):
+    """Excludes eth withdrawal events whose withdrawal address is not a tracked ETH account.
+
+    The withdrawn ETH lands on ethereum mainnet, so an address we don't track there is not
+    ours and its withdrawals are neither income nor part of the portfolio. This is evaluated
+    against blockchain_accounts at query time so that tracking or untracking the address
+    later flips the events in and out of view without any stored state to keep in sync.
+    """
+
+    def prepare(self) -> tuple[list[str], list[Any]]:
+        return [
+            ('(entry_type!=? OR location_label IN '
+             '(SELECT account FROM blockchain_accounts WHERE blockchain=?))'),
+        ], [
+            HistoryBaseEntryType.ETH_WITHDRAWAL_EVENT.serialize_for_db(),
+            SupportedBlockchain.ETHEREUM.value,
+        ]
+
+
 class HistoryBaseEntryFilterQuery(DBFilterQuery, FilterWithTimestamp, FilterWithLocation, ABC):
 
     @classmethod
@@ -944,6 +964,7 @@ class HistoryBaseEntryFilterQuery(DBFilterQuery, FilterWithTimestamp, FilterWith
             group_identifiers: list[str] | None = None,
             entry_types: IncludeExcludeFilterData | None = None,
             exclude_ignored_assets: bool = False,
+            exclude_untracked_withdrawals: bool = False,
             state_markers: list[HistoryMappingState] | None = None,
             notes_substring: str | None = None,
             min_amount: FVal | None = None,
@@ -1070,6 +1091,8 @@ class HistoryBaseEntryFilterQuery(DBFilterQuery, FilterWithTimestamp, FilterWith
                 column='ignored',
                 value=0,
             ))
+        if exclude_untracked_withdrawals is True:
+            filters.append(DBUntrackedWithdrawalsFilter(and_op=True))
         if identifiers is not None:
             filters.append(
                 DBMultiIntegerFilter(
@@ -1166,6 +1189,7 @@ class AssetMovementMatchFilterQuery(HistoryEventFilterQuery):
             group_identifiers: list[str] | None = None,
             entry_types: IncludeExcludeFilterData | None = None,
             exclude_ignored_assets: bool = False,
+            exclude_untracked_withdrawals: bool = False,
             state_markers: list[HistoryMappingState] | None = None,
             notes_substring: str | None = None,
             min_amount: FVal | None = None,
@@ -1202,6 +1226,7 @@ class AssetMovementMatchFilterQuery(HistoryEventFilterQuery):
                 operator='NOT IN',
             ),
             exclude_ignored_assets=exclude_ignored_assets,
+            exclude_untracked_withdrawals=exclude_untracked_withdrawals,
             state_markers=state_markers,
             notes_substring=notes_substring,
             min_amount=min_amount,
@@ -1240,6 +1265,7 @@ class HistoryEventWithTxRefFilterQuery(HistoryBaseEntryFilterQuery):
             group_identifiers: list[str] | None = None,
             entry_types: IncludeExcludeFilterData | None = None,
             exclude_ignored_assets: bool = False,
+            exclude_untracked_withdrawals: bool = False,
             state_markers: list[HistoryMappingState] | None = None,
             notes_substring: str | None = None,
             min_amount: FVal | None = None,
@@ -1278,6 +1304,7 @@ class HistoryEventWithTxRefFilterQuery(HistoryBaseEntryFilterQuery):
             group_identifiers=group_identifiers,
             entry_types=entry_types,
             exclude_ignored_assets=exclude_ignored_assets,
+            exclude_untracked_withdrawals=exclude_untracked_withdrawals,
             state_markers=state_markers,
             notes_substring=notes_substring,
             min_amount=min_amount,
@@ -1350,6 +1377,7 @@ class HistoryEventWithCounterpartyFilterQuery(HistoryEventWithTxRefFilterQuery):
             group_identifiers: list[str] | None = None,
             entry_types: IncludeExcludeFilterData | None = None,
             exclude_ignored_assets: bool = False,
+            exclude_untracked_withdrawals: bool = False,
             state_markers: list[HistoryMappingState] | None = None,
             notes_substring: str | None = None,
             min_amount: FVal | None = None,
@@ -1390,6 +1418,7 @@ class HistoryEventWithCounterpartyFilterQuery(HistoryEventWithTxRefFilterQuery):
             group_identifiers=group_identifiers,
             entry_types=entry_types,
             exclude_ignored_assets=exclude_ignored_assets,
+            exclude_untracked_withdrawals=exclude_untracked_withdrawals,
             state_markers=state_markers,
             notes_substring=notes_substring,
             min_amount=min_amount,
@@ -1445,6 +1474,7 @@ class SolanaEventFilterQuery(HistoryEventWithCounterpartyFilterQuery):
             group_identifiers: list[str] | None = None,
             entry_types: IncludeExcludeFilterData | None = None,
             exclude_ignored_assets: bool = False,
+            exclude_untracked_withdrawals: bool = False,
             state_markers: list[HistoryMappingState] | None = None,
             notes_substring: str | None = None,
             min_amount: FVal | None = None,
@@ -1480,6 +1510,7 @@ class SolanaEventFilterQuery(HistoryEventWithCounterpartyFilterQuery):
             group_identifiers=group_identifiers,
             entry_types=entry_types,
             exclude_ignored_assets=exclude_ignored_assets,
+            exclude_untracked_withdrawals=exclude_untracked_withdrawals,
             state_markers=state_markers,
             notes_substring=notes_substring,
             min_amount=min_amount,
@@ -1558,6 +1589,7 @@ class EvmEventFilterQuery(HistoryEventWithCounterpartyFilterQuery):
             group_identifiers: list[str] | None = None,
             entry_types: IncludeExcludeFilterData | None = None,
             exclude_ignored_assets: bool = False,
+            exclude_untracked_withdrawals: bool = False,
             state_markers: list[HistoryMappingState] | None = None,
             notes_substring: str | None = None,
             min_amount: FVal | None = None,
@@ -1591,6 +1623,7 @@ class EvmEventFilterQuery(HistoryEventWithCounterpartyFilterQuery):
             group_identifiers=group_identifiers,
             entry_types=entry_types,
             exclude_ignored_assets=exclude_ignored_assets,
+            exclude_untracked_withdrawals=exclude_untracked_withdrawals,
             state_markers=state_markers,
             notes_substring=notes_substring,
             min_amount=min_amount,
@@ -1679,6 +1712,7 @@ class EthStakingEventFilterQuery(HistoryBaseEntryFilterQuery, ABC):
             group_identifiers: list[str] | None = None,
             entry_types: IncludeExcludeFilterData | None = None,
             exclude_ignored_assets: bool = False,
+            exclude_untracked_withdrawals: bool = False,
             state_markers: list[HistoryMappingState] | None = None,
             notes_substring: str | None = None,
             min_amount: FVal | None = None,
@@ -1710,6 +1744,7 @@ class EthStakingEventFilterQuery(HistoryBaseEntryFilterQuery, ABC):
             group_identifiers=group_identifiers,
             entry_types=entry_types,
             exclude_ignored_assets=exclude_ignored_assets,
+            exclude_untracked_withdrawals=exclude_untracked_withdrawals,
             state_markers=state_markers,
             notes_substring=notes_substring,
             min_amount=min_amount,
@@ -1765,6 +1800,7 @@ class EthWithdrawalFilterQuery(EthStakingEventFilterQuery):
             group_identifiers: list[str] | None = None,
             entry_types: IncludeExcludeFilterData | None = None,
             exclude_ignored_assets: bool = False,
+            exclude_untracked_withdrawals: bool = False,
             state_markers: list[HistoryMappingState] | None = None,
             notes_substring: str | None = None,
             min_amount: FVal | None = None,
@@ -1797,6 +1833,7 @@ class EthWithdrawalFilterQuery(EthStakingEventFilterQuery):
             group_identifiers=group_identifiers,
             entry_types=entry_types,
             exclude_ignored_assets=exclude_ignored_assets,
+            exclude_untracked_withdrawals=exclude_untracked_withdrawals,
             state_markers=state_markers,
             notes_substring=notes_substring,
             min_amount=min_amount,
@@ -1841,6 +1878,7 @@ class EthDepositEventFilterQuery(EvmEventFilterQuery, EthStakingEventFilterQuery
             group_identifiers: list[str] | None = None,
             entry_types: IncludeExcludeFilterData | None = None,
             exclude_ignored_assets: bool = False,
+            exclude_untracked_withdrawals: bool = False,
             state_markers: list[HistoryMappingState] | None = None,
             tx_hashes: list[EVMTxHash] | None = None,
             validator_indices: list[int] | None = None,
@@ -1870,6 +1908,7 @@ class EthDepositEventFilterQuery(EvmEventFilterQuery, EthStakingEventFilterQuery
             group_identifiers=group_identifiers,
             entry_types=entry_types,
             exclude_ignored_assets=exclude_ignored_assets,
+            exclude_untracked_withdrawals=exclude_untracked_withdrawals,
             tx_hashes=tx_hashes,
             state_markers=state_markers,
         )

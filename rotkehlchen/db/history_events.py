@@ -259,6 +259,26 @@ class DBHistoryEvents:
             self._mark_events_modified(write_cursor=write_cursor, timestamp=min_ts)
         return count
 
+    def mark_events_stale_by_query(
+            self,
+            write_cursor: DBCursor,
+            query: str,
+            bindings: tuple,
+    ) -> int:
+        """Mark the historical balances stale from the earliest timestamp the given query
+        selects, without modifying any event.
+
+        This is for changes that alter how already stored events are interpreted (e.g. an
+        eth account being tracked or untracked flipping whether its validator withdrawals
+        count) rather than changing the events themselves.
+
+        The query must select a single timestamp column. Returns the number of rows it matched.
+        """
+        return self._execute_and_track_modified(
+            write_cursor=write_cursor,
+            result=write_cursor.execute(query, bindings),
+        )
+
     def delete_events_and_track(
             self,
             write_cursor: DBCursor,
@@ -2026,6 +2046,27 @@ class DBHistoryEvents:
                     f'is not in the assets database. {e!s}',
                 )
         return assets
+
+    @staticmethod
+    def get_counterparties_at_location(
+            cursor: DBCursor,
+            location: Location,
+            entry_types: Sequence[HistoryBaseEntryType],
+    ) -> set[str]:
+        """Return the distinct counterparties the user has events of `entry_types` for at
+        `location`.
+
+        One scan answering "which protocols appear at all on this chain", so a caller with a
+        long list of protocols to check can skip the ones that cannot match instead of running
+        a narrow per-protocol query only to get an empty result back.
+        """
+        placeholders = ','.join(['?'] * len(entry_types))
+        return {row[0] for row in cursor.execute(
+            'SELECT DISTINCT counterparty FROM history_events INNER JOIN chain_events_info ON '
+            'history_events.identifier=chain_events_info.identifier '
+            f'WHERE location=? AND entry_type IN ({placeholders}) AND counterparty IS NOT NULL',
+            (location.serialize_for_db(), *(x.serialize_for_db() for x in entry_types)),
+        )}
 
     def get_history_event_group_position(
             self,

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import type { RouteLocationRaw } from 'vue-router';
 
-const { service } = defineProps<{
+const { service, chains = [] } = defineProps<{
   service: 'etherscan' | 'helius' | 'beaconchain' | 'consensusRpc' | 'blockscout' | 'tronscan';
+  /** Chain names the Blockscout message lists as waiting on its key. */
+  chains?: string[];
 }>();
 
 const { t } = useI18n({ useScope: 'global' });
@@ -23,7 +25,7 @@ const message = computed<string>(() => {
   if (service === 'tronscan')
     return t('external_services.tronscan.api_key_message');
 
-  return t('external_services.blockscout.api_key_message');
+  return t('external_services.blockscout.api_key_message', { chains: chains.join(', ') });
 });
 
 const [DefineOptionBlock, ReuseOptionBlock] = createReusableTemplate<{

@@ -1,9 +1,10 @@
 import random
+import threading
 import time
 from collections import defaultdict
 from contextlib import ExitStack
 from http import HTTPStatus
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 from unittest.mock import patch
 
 import pytest
@@ -29,6 +30,7 @@ from rotkehlchen.constants.assets import (
     A_USDT,
 )
 from rotkehlchen.db.settings import CachedSettings
+from rotkehlchen.db.utils import LocationData
 from rotkehlchen.errors.misc import RemoteError
 from rotkehlchen.fval import FVal
 from rotkehlchen.globaldb.handler import GlobalDBHandler
@@ -56,9 +58,14 @@ from rotkehlchen.tests.utils.constants import A_RDN
 from rotkehlchen.tests.utils.ethereum import get_decoded_events_of_transaction
 from rotkehlchen.tests.utils.exchanges import (
     assert_binance_balances_result,
+    create_test_coinbase,
     try_get_first_exchange,
 )
-from rotkehlchen.tests.utils.factories import UNIT_BTC_ADDRESS1, UNIT_BTC_ADDRESS2
+from rotkehlchen.tests.utils.factories import (
+    UNIT_BTC_ADDRESS1,
+    UNIT_BTC_ADDRESS2,
+    make_evm_address,
+)
 from rotkehlchen.tests.utils.rotkehlchen import BalancesTestSetup, setup_balances
 from rotkehlchen.tests.utils.substrate import KUSAMA_TEST_NODES, SUBSTRATE_ACC1_KSM_ADDR
 from rotkehlchen.types import (
@@ -75,9 +82,13 @@ from rotkehlchen.utils.misc import ts_now
 
 if TYPE_CHECKING:
     from rotkehlchen.api.server import APIServer
+    from rotkehlchen.chain.balances import BlockchainBalancesUpdate
     from rotkehlchen.db.dbhandler import DBHandler
     from rotkehlchen.tests.fixtures.websockets import WebsocketReader
     from rotkehlchen.types import BTCAddress, ChecksumEvmAddress
+
+# how long a source waits at the barrier before deciding the others are not coming
+CONCURRENT_QUERY_TIMEOUT: Final = 15
 
 
 def assert_all_balances(
@@ -176,7 +187,11 @@ def assert_all_balances(
 # Use real current price querying in this test since it's very extensive
 # and we can make sure that we can query current prices properly in the real app
 @pytest.mark.freeze_time('2026-06-05 04:27:20 GMT', tick=True)
-@pytest.mark.vcr
+# the balance sources are queried in parallel, so whether a source finds an asset's price
+# already in the cache or asks the oracle for it again is a race. The cassette holds every
+# request that can come out of it and playback repeats are allowed for the ones that can
+# be made twice.
+@pytest.mark.vcr(allow_playback_repeats=True)
 @pytest.mark.parametrize('should_mock_current_price_queries', [False])
 @pytest.mark.parametrize('number_of_eth_accounts', [2])
 @pytest.mark.parametrize('btc_accounts', [[UNIT_BTC_ADDRESS1, UNIT_BTC_ADDRESS2]])
@@ -568,6 +583,48 @@ def test_query_all_balances_warms_price_cache(rotkehlchen_api_server: APIServer)
     assert set(price_mock.call_args_list[0].args[0]) == {A_ETH, A_LUSD}
 
 
+def test_query_all_balances_queries_sources_concurrently(
+        rotkehlchen_api_server: APIServer,
+) -> None:
+    """Test that query_balances queries all the exchanges and the chains in parallel.
+
+    Every source blocks on a shared barrier, so a serial query can never get past the first
+    source and the barrier breaks instead of the test hanging.
+    """
+    rotki = rotkehlchen_api_server.rest_api.rotkehlchen
+    for exchange_name in ('coinbase1', 'coinbase2'):
+        rotki.exchange_manager.connected_exchanges[Location.COINBASE].append(create_test_coinbase(
+            database=rotki.data.db,
+            msg_aggregator=rotki.msg_aggregator,
+            name=exchange_name,
+        ))
+
+    assert len(exchanges := list(rotki.exchange_manager.iterate_exchanges())) == 2
+    barrier = threading.Barrier(parties=len(exchanges) + 1, timeout=CONCURRENT_QUERY_TIMEOUT)
+
+    def blocking_exchange_query(**kwargs: Any) -> tuple[dict, str]:
+        barrier.wait()
+        return {}, ''
+
+    def blocking_chain_query(**kwargs: Any) -> BlockchainBalancesUpdate:
+        barrier.wait()
+        return rotki.chains_aggregator.get_balances_update(chain=None)
+
+    with ExitStack() as stack:
+        for exchange in exchanges:
+            stack.enter_context(patch.object(
+                exchange,
+                'query_balances',
+                side_effect=blocking_exchange_query,
+            ))
+        stack.enter_context(patch.object(
+            rotki.chains_aggregator,
+            'query_balances',
+            side_effect=blocking_chain_query,
+        ))
+        rotki.query_balances(requested_save_data=False)
+
+
 def test_protocol_balances_all_chains(rotkehlchen_api_server: APIServer) -> None:
     """Test that all chains in CHAIN_TO_BALANCE_PROTOCOLS get their protocol balances queried.
     Regression test for https://github.com/rotki/rotki/pull/9173
@@ -640,6 +697,49 @@ def test_uniswap_v3_v4_balances(
     asset_balances = result['per_account']['arbitrum_one'][user_address]['assets']
     assert asset_balances[v3_nft]['uniswap-v3']['amount'] == '1'
     assert asset_balances[v4_nft]['uniswap-v4']['amount'] == '1'
+
+
+@pytest.mark.vcr(filter_query_parameters=['apikey'])
+@pytest.mark.parametrize('should_mock_current_price_queries', [False])
+@pytest.mark.parametrize('number_of_eth_accounts', [0])
+@pytest.mark.parametrize('arbitrum_one_accounts', [['0x706A70067BE19BdadBea3600Db0626859Ff25D74']])
+def test_historical_positions_decoded_after_snapshot_are_detected(
+        arbitrum_one_accounts: list[ChecksumEvmAddress],
+        rotkehlchen_api_server: APIServer,
+) -> None:
+    """Regression test for https://github.com/rotki/rotki/issues/13226
+
+    Positions minted before the latest balance snapshot but decoded after it must show up
+    in the first fresh balance query without an explicit token re-detection.
+    """
+    rotki = rotkehlchen_api_server.rest_api.rotkehlchen
+    with rotki.data.db.user_write() as write_cursor:  # snapshot newer than both mints
+        rotki.data.db.add_multiple_location_data(
+            write_cursor=write_cursor,
+            location_data=[LocationData(
+                time=ts_now(),
+                location=Location.TOTAL.serialize_for_db(),
+                usd_value='1',
+            )],
+        )
+
+    for tx_hash in (
+        '0x0ca4942007ea1e93a7b979da6066bb9b5ac25c14ebd8a8a4002bd03c339c0606',
+        '0xe2b6233758c84618e8f08c8df0782e45b3ba4a012c8d5fe0b4281fae7cbcce50',
+    ):
+        get_decoded_events_of_transaction(
+            evm_inquirer=rotki.chains_aggregator.arbitrum_one.node_inquirer,
+            tx_hash=deserialize_evm_tx_hash(tx_hash),
+        )
+
+    response = requests.post(
+        api_url_for(rotkehlchen_api_server, 'blockchainbalancesresource'),
+        json={'blockchain': SupportedBlockchain.ARBITRUM_ONE.serialize()},
+    )
+    result = assert_proper_sync_response_with_result(response)
+    asset_balances = result['per_account']['arbitrum_one'][arbitrum_one_accounts[0]]['assets']
+    assert asset_balances['eip155:42161/erc721:0xC36442b4a4522E871399CD717aBDD847Ab11FE88/4818837']['uniswap-v3']['amount'] == '1'  # noqa: E501
+    assert asset_balances['eip155:42161/erc721:0xd88F38F930b7952f2DB2432Cb002E7abbF3dD869/61912']['uniswap-v4']['amount'] == '1'  # noqa: E501
 
 
 @pytest.mark.parametrize('number_of_eth_accounts', [0])
@@ -1547,3 +1647,71 @@ def test_blockchain_balances_specific_addresses(
     eth_balances = result['per_account']['eth']
     for address in ethereum_accounts:
         assert address in eth_balances
+
+
+@pytest.mark.parametrize('ethereum_accounts', [[make_evm_address()]])
+@pytest.mark.parametrize('optimism_accounts', [[make_evm_address()]])
+@pytest.mark.parametrize('legacy_messages_via_websockets', [True])
+def test_blockchain_balances_partial_chain_failure(
+        rotkehlchen_api_server: APIServer,
+        websocket_connection: WebsocketReader,
+) -> None:
+    """Test that when every node of one chain fails, querying all blockchain balances
+    returns the balances of the other chains with the failure named in the message, and
+    that the balance snapshot keeps the blockchain balances instead of dropping them all.
+    Regression test for https://github.com/rotki/rotki/issues/12795"""
+    rotki = rotkehlchen_api_server.rest_api.rotkehlchen
+    chains_aggregator = rotki.chains_aggregator
+    eth_address, optimism_address = chains_aggregator.accounts.eth[0], chains_aggregator.accounts.optimism[0]  # noqa: E501
+    chains_aggregator.balances.optimism[optimism_address].assets[A_ETH][DEFAULT_BALANCE_LABEL] = Balance(amount=FVal(5), value=FVal(10))  # from a previous successful query  # noqa: E501
+
+    def mock_query_chain_balances(blockchain: SupportedBlockchain, **kwargs: Any) -> None:
+        if blockchain == SupportedBlockchain.OPTIMISM:
+            raise RemoteError('Error querying information from optimism')
+        chains_aggregator.balances.eth[eth_address].assets[A_ETH][DEFAULT_BALANCE_LABEL] = Balance(amount=ONE, value=FVal(2))  # noqa: E501
+
+    with patch.object(chains_aggregator, '_query_chain_balances', side_effect=mock_query_chain_balances):  # noqa: E501
+        result = assert_proper_sync_response_with_result(
+            response=requests.post(
+                api_url_for(rotkehlchen_api_server, 'blockchainbalancesresource'),
+                json={'async_query': False},
+            ),
+            message='Failed to query optimism balances: Error querying information from optimism',
+        )
+        assert result['failed_chains'] == {'optimism': 'Error querying information from optimism'}
+        assert result['per_account']['eth'][eth_address]['assets'] == {A_ETH.identifier: {DEFAULT_BALANCE_LABEL: {'amount': '1', 'value': '2'}}}  # noqa: E501
+        assert result['per_account']['optimism'][optimism_address]['assets'] == {A_ETH.identifier: {DEFAULT_BALANCE_LABEL: {'amount': '5', 'value': '10'}}}  # noqa: E501
+        assert result['totals']['assets'] == {A_ETH.identifier: {DEFAULT_BALANCE_LABEL: {'amount': '6', 'value': '12'}}}  # noqa: E501
+
+        # querying the failing chain alone is still an error
+        assert_error_response(
+            response=requests.post(
+                api_url_for(rotkehlchen_api_server, 'blockchainbalancesresource'),
+                json={'async_query': False, 'blockchain': 'OPTIMISM'},
+            ),
+            contained_in_msg='Error querying information from optimism',
+            status_code=HTTPStatus.BAD_GATEWAY,
+        )
+
+        # the snapshot is not saved on a failure unless errors are ignored, but when it is
+        # saved the blockchain balances are all still there
+        for ignore_errors in (False, True):
+            result = assert_proper_sync_response_with_result(requests.get(
+                api_url_for(rotkehlchen_api_server, 'allbalancesresource'),
+                json={'async_query': False, 'save_data': True, 'ignore_errors': ignore_errors},
+            ))
+            assert result['assets'][A_ETH.identifier]['amount'] == '6'
+            assert result['location'].keys() == {'blockchain'}
+            websocket_connection.wait_until_messages_num(num=1, timeout=10)
+            assert websocket_connection.pop_message() == {
+                'type': 'balance_snapshot_error',
+                'data': {
+                    'location': 'optimism balances query',
+                    'error': 'Error querying information from optimism',
+                },
+            }
+            with rotki.data.db.conn.read_ctx() as cursor:
+                assert cursor.execute(
+                    'SELECT COUNT(*) FROM timed_location_data WHERE location=?',
+                    (Location.BLOCKCHAIN.serialize_for_db(),),
+                ).fetchone()[0] == int(ignore_errors)

@@ -1,9 +1,11 @@
 import datetime
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
+from rotkehlchen.api.websockets.typedefs import WSMessageType
 from rotkehlchen.assets.asset import Asset, CryptoAsset
 from rotkehlchen.constants.assets import (
     A_BSC_BNB,
@@ -21,6 +23,7 @@ from rotkehlchen.constants.assets import (
     A_EUR,
     A_USD,
 )
+from rotkehlchen.db.settings import CachedSettings
 from rotkehlchen.errors.misc import RemoteError
 from rotkehlchen.externalapis.cryptocompare import (
     CRYPTOCOMPARE_SPECIAL_CASES_MAPPING,
@@ -335,6 +338,24 @@ def test_starknet_historical_price_after_ticker_change(cryptocompare: Cryptocomp
 
 @pytest.mark.vcr(filter_query_parameters=['api_key'])
 def test_special_cases(cryptocompare: Cryptocompare) -> None:
+    """Test that _special_case_handling combines the two queries it makes into one price.
+
+    The cassette for this test is hand-edited and is no longer a recording. DPI is priced
+    through mainnet WETH (see CRYPTOCOMPARE_SPECIAL_CASES_MAPPING), and assets update 42
+    repointed that token's cryptocompare mapping from the thin WETH ticker to ETH, so every
+    request made here moved from WETH to ETH. Cryptocompare needs an api key for both of its
+    endpoints now, so the cassette could not be re-recorded and its WETH labels were rewritten
+    to ETH in place.
+
+    That makes the numbers below stubs rather than market data. The recorded current price of
+    1198.44 came from the broken WETH ticker -- the same cassette's historical rows put ETH at
+    3170-3462 EUR on that same day -- which is why the expected 325.97568 is roughly a third of
+    what DPI really cost in EUR then. Only the arithmetic is under test. The two historical
+    assertions were always taken from the working ticker and are unaffected.
+
+    Whoever obtains an api key and re-records this should expect the current price to come out
+    near 870 EUR, and should treat that as the correction it is rather than a regression.
+    """
     a_eur, a_dpi = A_EUR.resolve_to_asset_with_oracles(), A_DPI.resolve_to_asset_with_oracles()
     current_price = cryptocompare._special_case_handling(
         method_name='query_current_price',
@@ -438,3 +459,29 @@ def test_query_multiple_current_prices_handles_special_case_exceptions(cryptocom
         # CDAI should not be in results due to failure
         assert A_CDAI not in prices
         assert len(prices) == 2
+
+
+def test_cryptocompare_timeout_penalizes_immediately(cryptocompare):
+    """A silent host penalizes cryptocompare after a single read timeout instead of counting
+    toward the failure threshold, the remaining price chunks are not attempted since each
+    would stall the same way, and the user is told about it"""
+    cryptocompare.msg_aggregator = (msg_aggregator := MagicMock())
+    with (
+        patch('rotkehlchen.externalapis.cryptocompare.MAX_FSYMS_CHARS', 5),  # one asset per chunk
+        patch.object(cryptocompare.session, 'get', side_effect=requests.exceptions.ReadTimeout('Read timed out.')) as get_mock,  # noqa: E501
+    ):
+        assert cryptocompare.query_multiple_current_prices(
+            from_assets=[x.resolve_to_asset_with_oracles() for x in (A_BTC, A_ETH, A_DAI)],
+            to_asset=A_USD.resolve_to_asset_with_oracles(),
+        ) == {}
+
+    assert get_mock.call_count == 1
+    assert cryptocompare.is_penalized() is True
+    msg_aggregator.add_message.assert_called_once_with(
+        message_type=WSMessageType.ORACLE_PENALIZED,
+        data={
+            'oracle': 'cryptocompare',
+            'reason': 'timeout',
+            'penalty_duration': CachedSettings().oracle_penalty_duration,
+        },
+    )

@@ -57,7 +57,7 @@ from rotkehlchen.chain.substrate.utils import (
 )
 from rotkehlchen.chain.tron.manager import TronManager
 from rotkehlchen.chain.zksync_lite.manager import ZksyncLiteManager
-from rotkehlchen.concurrency import DEFAULT_CANCEL_GRACE_SECONDS, Task, wait
+from rotkehlchen.concurrency import DEFAULT_CANCEL_GRACE_SECONDS, Task, result_of, spawn, wait
 from rotkehlchen.config import default_data_directory
 from rotkehlchen.constants import ONE, ZERO
 from rotkehlchen.constants.assets import A_USD
@@ -103,6 +103,7 @@ from rotkehlchen.history.price import Price, PriceHistorian
 from rotkehlchen.history.processing import HistoryProcessingCoordinator
 from rotkehlchen.history.types import HistoricalPrice, HistoricalPriceOracle
 from rotkehlchen.icons import IconManager
+from rotkehlchen.indexer_stats import IndexerStats
 from rotkehlchen.inquirer import Inquirer
 from rotkehlchen.logging import RotkehlchenLogsAdapter
 from rotkehlchen.oracles.structures import CurrentPriceOracle
@@ -210,12 +211,12 @@ class Rotkehlchen:
             self.msg_aggregator,
             sql_vm_instructions_cb=args.sqlite_instructions,
         )
-        self.cryptocompare = Cryptocompare(database=None)
-        self.coingecko = Coingecko(database=None)
-        self.defillama = Defillama(database=None)
+        self.cryptocompare = Cryptocompare(database=None, msg_aggregator=self.msg_aggregator)
+        self.coingecko = Coingecko(database=None, msg_aggregator=self.msg_aggregator)
+        self.defillama = Defillama(database=None, msg_aggregator=self.msg_aggregator)
         self.kraken = Kraken()
-        self.alchemy = Alchemy(database=None)
-        self.moralis = Moralis(database=None)
+        self.alchemy = Alchemy(database=None, msg_aggregator=self.msg_aggregator)
+        self.moralis = Moralis(database=None, msg_aggregator=self.msg_aggregator)
         self.icon_manager = IconManager(
             data_dir=self.data_dir,
             coingecko=self.coingecko,
@@ -241,6 +242,8 @@ class Rotkehlchen:
         # Initialize EVM Contracts common abis
         EvmContracts.initialize_common_abis()
         self.task_manager: TaskManager | None = None
+        self.indexer_stats: IndexerStats | None = None
+        self._closing_indexer_stats: IndexerStats | None = None
         self.monerium: Monerium | None = None
         self.shutdown_event = threading.Event()
         self.migration_manager = DataMigrationManager(self)
@@ -313,6 +316,7 @@ class Rotkehlchen:
             if instance.db is not None:  # unset DB if needed
                 instance.unset_database()
         CachedSettings().reset()
+        self.indexer_stats = None
 
     def _perform_new_db_actions(self) -> None:
         """Actions to perform at creation of a new DB"""
@@ -412,6 +416,7 @@ class Rotkehlchen:
         with self.data.db.conn.read_ctx() as cursor:
             settings = self.get_settings(cursor)
             CachedSettings().initialize(settings)  # initialize with saved DB settings
+            self.indexer_stats = IndexerStats()
             self.task_supervisor.spawn_and_track(
                 after_seconds=None,
                 task_name='submit_usage_analytics',
@@ -443,14 +448,17 @@ class Rotkehlchen:
                     etherscan=(etherscan := Etherscan(
                         database=self.data.db,
                         msg_aggregator=self.data.db.msg_aggregator,
+                        indexer_stats=self.indexer_stats,
                     )),
                     blockscout=(blockscout := Blockscout(
                         database=self.data.db,
                         msg_aggregator=self.msg_aggregator,
+                        indexer_stats=self.indexer_stats,
                     )),
                     routescan=(routescan := Routescan(
                         database=self.data.db,
                         msg_aggregator=self.msg_aggregator,
+                        indexer_stats=self.indexer_stats,
                     )),
                 )),
                 premium=self.premium,
@@ -643,6 +651,7 @@ class Rotkehlchen:
         self.data_updater = RotkiDataUpdater(
             msg_aggregator=self.msg_aggregator,
             user_db=self.data.db,
+            chains_aggregator=self.chains_aggregator,
         )
         self.task_manager = TaskManager(
             max_tasks_num=DEFAULT_MAX_TASKS_NUM,
@@ -717,6 +726,11 @@ class Rotkehlchen:
         self.task_manager.clear()  # type: ignore  # task_manager is not None here
         self.task_manager = None
         self.task_supervisor.clear()
+        stats = self.indexer_stats
+        if stats is not None:
+            stats.start_close()
+            self._closing_indexer_stats = stats
+            self.indexer_stats = None
 
         self.data.logout()
         self.monerium = None
@@ -807,6 +821,11 @@ class Rotkehlchen:
     def main_loop(self) -> None:
         """rotki main loop that fires often and runs the task manager's scheduler"""
         while self.shutdown_event.wait(timeout=MAIN_LOOP_SECS_DELAY) is not True:
+            if (stats := self.indexer_stats) is not None:
+                try:
+                    stats.maybe_flush()
+                except RuntimeError:
+                    log.exception('Failed to flush indexer usage analytics')
             # read the attribute once: logout sets it to None concurrently and a second
             # read hitting that window would kill the main loop with AttributeError
             if (task_manager := self.task_manager) is not None and self.args.disable_task_manager is False:  # noqa: E501
@@ -1214,8 +1233,25 @@ class Rotkehlchen:
 
         balances: dict[str, dict[Asset, Balance]] = {}
         problem_free = True
-        for exchange in self.exchange_manager.iterate_exchanges():
-            exchange_balances, error_msg = exchange.query_balances(ignore_cache=ignore_cache)
+        # Query every exchange and all the chains concurrently. Each exchange talks to its own
+        # remote and is guarded by its own per-instance lock, and the chain query already fans
+        # out internally, so the total wait becomes the slowest single source instead of the
+        # sum of all of them.
+        exchange_tasks = [
+            (exchange, spawn(exchange.query_balances, ignore_cache=ignore_cache))
+            for exchange in self.exchange_manager.iterate_exchanges()
+        ]
+        blockchain_task = spawn(
+            self.chains_aggregator.query_balances,
+            blockchain=None,
+            ignore_cache=ignore_cache,
+        )
+        wait([task for _, task in exchange_tasks] + [blockchain_task])
+
+        exchange_balances: dict[AssetWithOracles, Balance] | None
+        for exchange, task in exchange_tasks:
+            # result_of reraises whatever the query died with, as the serial call used to
+            exchange_balances, error_msg = result_of(task)
             # If we got an error, disregard that exchange but make sure we don't save data
             if not isinstance(exchange_balances, dict):
                 problem_free = False
@@ -1235,10 +1271,15 @@ class Rotkehlchen:
 
         liabilities: dict[Asset, Balance]
         try:
-            blockchain_result = self.chains_aggregator.query_balances(
-                blockchain=None,
-                ignore_cache=ignore_cache,
-            )  # copies below since if cache is used we end up modifying the balance sheet object
+            # copies below since if cache is used we end up modifying the balance sheet object
+            blockchain_result = result_of(blockchain_task)
+            # chains that failed keep the balances of their last successful query
+            for chain, error in blockchain_result.failed_chains.items():
+                problem_free = False
+                self.msg_aggregator.add_message(
+                    message_type=WSMessageType.BALANCE_SNAPSHOT_ERROR,
+                    data={'location': f'{chain!s} balances query', 'error': error},
+                )
 
             blockchain_assets: dict[Asset, Balance] = {}
             for asset, asset_balances in blockchain_result.totals.assets.items():
@@ -1472,6 +1513,8 @@ class Rotkehlchen:
 
         with self.data.db.user_write() as cursor:
             self.data.db.set_settings(cursor, settings)
+        if settings.submit_usage_analytics is not None and self.indexer_stats is not None:
+            self.indexer_stats.discard()
 
         return True, ''
 
@@ -1579,6 +1622,12 @@ class Rotkehlchen:
     def shutdown(self) -> None:
         self.logout()
         self.shutdown_event.set()
+
+    def wait_for_indexer_stats_close(self) -> None:
+        """Wait for the final analytics upload after other shutdown cleanup completes."""
+        if self._closing_indexer_stats is not None:
+            self._closing_indexer_stats.wait_for_close()
+            self._closing_indexer_stats = None
 
     def create_oracle_cache(
             self,

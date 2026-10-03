@@ -1,27 +1,26 @@
 <script setup lang="ts">
+import type {
+  AccountManageState,
+  StakingValidatorManage,
+  XpubManage,
+} from '@/modules/accounts/blockchain/use-account-manage';
 import type { ValidationErrors } from '@/modules/core/api/types/errors';
 import { assert, Blockchain } from '@rotki/common';
 import { startPromise } from '@shared/utils';
-import { camelCase } from 'es-toolkit';
 import { XpubKeyType } from '@/modules/accounts/blockchain-accounts';
-import {
-  type AccountManageState,
-  createNewBlockchainAccount,
-  type StakingValidatorManage,
-  type XpubManage,
-} from '@/modules/accounts/blockchain/use-account-manage';
+import { createNewAccountForChain } from '@/modules/accounts/blockchain/new-account-state';
 import AccountFormApiKeyAlertContent from '@/modules/accounts/management/AccountFormApiKeyAlertContent.vue';
 import AccountSelector from '@/modules/accounts/management/inputs/AccountSelector.vue';
 import AddressAccountForm from '@/modules/accounts/management/types/AddressAccountForm.vue';
 import AgnosticAddressAccountForm from '@/modules/accounts/management/types/AgnosticAddressAccountForm.vue';
 import BtcAccountForm from '@/modules/accounts/management/types/BtcAccountForm.vue';
 import ValidatorAccountForm from '@/modules/accounts/management/types/ValidatorAccountForm.vue';
+import { useAccountFormIndexerKeys } from '@/modules/accounts/management/use-account-form-indexer-keys';
 import { isBtcChain } from '@/modules/core/common/chains';
 import { InputMode } from '@/modules/core/common/input-mode';
 import { logger } from '@/modules/core/common/logging/logging';
 import { useSupportedChains } from '@/modules/core/common/use-supported-chains';
 import { useExternalApiKeys } from '@/modules/settings/api-keys/external/use-external-api-keys';
-import { EvmIndexer } from '@/modules/settings/types/evm-indexer';
 import { useSetting } from '@/modules/settings/use-setting';
 
 const modelValue = defineModel<AccountManageState>({ required: true });
@@ -58,41 +57,16 @@ function setValidator(data: StakingValidatorManage['data']): void {
   set(modelValue, { ...state, data });
 }
 
-const { getChainName, isEarlyIntegrationChain, isEvm, isSolanaChains, txEvmChains } = useSupportedChains();
+const { getChainName, isEarlyIntegrationChain, isSolanaChains } = useSupportedChains();
 const { t } = useI18n({ useScope: 'global' });
 const { getApiKey } = useExternalApiKeys();
 
 const beaconRpcEndpoint = useSetting('beaconRpcEndpoint');
-const defaultEvmIndexerOrder = useSetting('defaultEvmIndexerOrder');
-const evmIndexersOrder = useSetting('evmIndexersOrder');
 
-/**
- * Checks if etherscan is the top priority indexer for a given chain.
- */
-function isEtherscanTopPriority(chainId: string): boolean {
-  const chainOrders = get(evmIndexersOrder);
-  const evmChainName = camelCase(get(txEvmChains).find(c => c.id === chainId)?.evmChainName || '');
-  const indexerOrder = evmChainName && chainOrders[evmChainName]
-    ? chainOrders[evmChainName]
-    : get(defaultEvmIndexerOrder);
-
-  return indexerOrder[0] === EvmIndexer.ETHERSCAN;
-}
-
-/**
- * Checks if etherscan is the top priority for the selected chain(s).
- * For 'all', returns true if etherscan is top priority for any EVM chain.
- */
-function shouldShowEtherscanWarning(selectedChain: string): boolean {
-  if (selectedChain === 'all') {
-    return get(txEvmChains).some(chain => isEtherscanTopPriority(chain.id));
-  }
-
-  if (!isEvm(selectedChain))
-    return false;
-
-  return isEtherscanTopPriority(selectedChain);
-}
+const { blockscoutKeyChainNames, missingIndexerKeys } = useAccountFormIndexerKeys(chain, () => {
+  const state = get(modelValue);
+  return state.mode === 'add' && state.type !== 'validator';
+});
 
 /** Without a beaconchain key, validators fall back to a consensus RPC, which needs its own endpoint. */
 function validatorKeyService(): 'beaconchain' | 'consensusRpc' | undefined {
@@ -102,18 +76,7 @@ function validatorKeyService(): 'beaconchain' | 'consensusRpc' | undefined {
   return get(beaconRpcEndpoint) ? 'beaconchain' : 'consensusRpc';
 }
 
-/** Both indexers are only worth warning about on chains that actually use them. */
-function indexerKeyService(chain: string): 'etherscan' | 'blockscout' | undefined {
-  if (!shouldShowEtherscanWarning(chain))
-    return undefined;
-
-  if (!getApiKey('etherscan'))
-    return 'etherscan';
-
-  return getApiKey('blockscout') ? undefined : 'blockscout';
-}
-
-const missingApiKeyService = computed<'etherscan' | 'helius' | 'beaconchain' | 'consensusRpc' | 'blockscout' | 'tronscan' | undefined>(() => {
+const missingApiKeyService = computed<'helius' | 'beaconchain' | 'consensusRpc' | 'tronscan' | undefined>(() => {
   const selectedChain = get(chain);
   const currentModelValue = get(modelValue);
 
@@ -129,7 +92,7 @@ const missingApiKeyService = computed<'etherscan' | 'helius' | 'beaconchain' | '
   if (selectedChain === 'tron') // TronScan is the only TRON data source and needs a key
     return getApiKey('tronscan') ? undefined : 'tronscan';
 
-  return indexerKeyService(selectedChain);
+  return undefined;
 });
 
 const showSolanaInitialAlert = computed<boolean>(() => {
@@ -181,6 +144,8 @@ const warnings = computed<WarningItem[]>(() => {
   const service = get(missingApiKeyService);
   if (service && !isBeaconchainService(service))
     result.push({ service, type: 'apiKey' });
+  for (const indexer of get(missingIndexerKeys))
+    result.push({ service: indexer, type: 'apiKey' });
   if (get(showSolanaInitialAlert))
     result.push({ type: 'solana' });
   const earlyChain = get(earlyIntegrationChain);
@@ -282,21 +247,16 @@ function selectChain(next: string | undefined): void {
   if (get(inputMode) === InputMode.XPUB_ADD)
     set(inputMode, InputMode.MANUAL_ADD);
 
-  if (next === Blockchain.ETH2) {
-    set(modelValue, {
-      chain: Blockchain.ETH2,
-      data: {},
-      mode: 'add',
-      type: 'validator',
-    } satisfies StakingValidatorManage);
+  const state = createNewAccountForChain(next);
+  if (state.type === 'validator') {
+    set(modelValue, state);
     return;
   }
 
   // Only the chain was answered, so addresses already typed still answer a different question.
   const data = get(modelValue).data;
   set(modelValue, {
-    ...createNewBlockchainAccount(),
-    chain: next,
+    ...state,
     ...(Array.isArray(data) ? { data } : {}),
   });
 }
@@ -323,12 +283,7 @@ watch(inputMode, (mode) => {
     } satisfies XpubManage);
   }
   else {
-    const account = createNewBlockchainAccount();
-
-    set(modelValue, {
-      ...account,
-      chain: selectedChain,
-    });
+    set(modelValue, createNewAccountForChain(selectedChain));
   }
 });
 
@@ -355,10 +310,13 @@ defineExpose({
       <ul :class="hasMultipleWarnings ? 'list-disc pl-4 space-y-1' : 'list-none pl-0'">
         <li
           v-for="warning in visibleWarnings"
-          :key="warning.type"
+          :key="`${warning.type}-${warning.service ?? warning.chain ?? ''}`"
         >
           <template v-if="warning.type === 'apiKey' && warning.service">
-            <AccountFormApiKeyAlertContent :service="warning.service" />
+            <AccountFormApiKeyAlertContent
+              :service="warning.service"
+              :chains="warning.service === 'blockscout' ? blockscoutKeyChainNames : undefined"
+            />
           </template>
           <template v-else-if="warning.type === 'solana'">
             {{ t('blockchain_balances.solana_warning') }}

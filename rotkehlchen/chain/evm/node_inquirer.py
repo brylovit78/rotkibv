@@ -6,7 +6,7 @@ from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from itertools import zip_longest
-from typing import TYPE_CHECKING, Any, Final, Literal, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Final, Literal, NamedTuple, TypeVar, overload
 
 import requests
 from eth_utils.abi import get_abi_output_types
@@ -38,7 +38,14 @@ from rotkehlchen.chain.evm.contracts import (
 )
 from rotkehlchen.chain.evm.l2_with_l1_fees.types import L2_CHAINIDS_WITH_L1_FEES
 from rotkehlchen.chain.evm.proxies_inquirer import EvmProxiesInquirer
-from rotkehlchen.chain.evm.types import EvmIndexer, RemoteDataQueryStatus, WeightedNode
+from rotkehlchen.chain.evm.types import (
+    DEFAULT_EVM_INDEXER_ORDER,
+    DEFAULT_INDEXERS_ORDER,
+    ETHERSCAN_PAID_TIER_ONLY_CHAINS,
+    EvmIndexer,
+    RemoteDataQueryStatus,
+    WeightedNode,
+)
 from rotkehlchen.chain.mixins.rpc_nodes import EVMRPCMixin, _is_rate_limit_error
 from rotkehlchen.chain.structures import TimestampOrBlockRange
 from rotkehlchen.concurrency import checkpoint
@@ -46,8 +53,10 @@ from rotkehlchen.constants import ONE
 from rotkehlchen.db.settings import CachedSettings
 from rotkehlchen.errors.misc import (
     BlockchainQueryError,
+    BlockscoutIncompleteResponse,
     ChainNotSupported,
     EventNotInABI,
+    IndexerRangeNotCovered,
     InputError,
     NoAvailableIndexers,
     NotERC20Conformant,
@@ -104,6 +113,16 @@ DEGRADED_INDEXERS: Final[ContextVar[frozenset[EvmIndexer]]] = ContextVar(
     'evm_degraded_indexers',
     default=frozenset(),
 )
+
+
+class QueryEnd(NamedTuple):
+    """Where a transaction sync stops, resolved once so every address and query kind in
+    it resolves its range to the same final block instead of each asking the indexers
+    again and possibly getting a different answer."""
+    timestamp: Timestamp  # the end every range of the sync is queried up to
+    block: int
+    failed: frozenset[EvmIndexer]  # indexers that could not resolve the block
+
 
 T = TypeVar('T')
 
@@ -282,7 +301,10 @@ class EvmNodeInquirer(EVMRPCMixin, LockableQueryMixIn):
         self._known_accounts_cache: LRUCacheWithRemove[ChecksumEvmAddress, bool] = LRUCacheWithRemove(maxsize=50)  # noqa: E501
         # tracks the request length that failed to proactively use smaller chunks per node type
         self._multicall_failed_length: dict[Literal['nodes', 'indexers'], int] = {}
-        self._no_indexer_notified: bool = False
+        self._notified_indexer_reasons: set[str | None] = set()
+        # Set once etherscan refuses this chain for the configured key, which happens on the
+        # chains its free tier does not cover. Used to tell the user a paid key is needed.
+        self._etherscan_refused_chain: bool = False
         LockableQueryMixIn.__init__(self)
         EVMRPCMixin.__init__(self)
         # Log the available nodes so we have extra information when debugging connection errors.
@@ -504,6 +526,8 @@ class EvmNodeInquirer(EVMRPCMixin, LockableQueryMixIn):
         transaction_not_found_seen = False
         for node_idx, weighted_node in enumerate(call_order):
             node_info = weighted_node.node_info
+            if node_info in self._removed_nodes:
+                continue
             if (rpc_node := self.rpc_mapping.get(node_info, None)) is None:
                 if node_info.name in self.failed_to_connect_nodes:
                     continue
@@ -511,7 +535,9 @@ class EvmNodeInquirer(EVMRPCMixin, LockableQueryMixIn):
                 if node_info.name != EVM_INDEXERS_NODE_NAME:
                     success, _ = self.attempt_connect(node=node_info)
                     if success is False:
-                        self.failed_to_connect_nodes.add(node_info.name)
+                        with self._nodes_lock:
+                            if node_info not in self._removed_nodes:
+                                self.failed_to_connect_nodes.add(node_info.name)
                         continue
 
                     if (rpc_node := self.rpc_mapping.get(node_info, None)) is None:
@@ -551,8 +577,10 @@ class EvmNodeInquirer(EVMRPCMixin, LockableQueryMixIn):
                     f'{method.__name__}: {e!s}. Skipping this node in future queries.',
                 )
                 self.mark_node_failure(node_info, str(e))
-                self.failed_to_connect_nodes.add(node_info.name)
-                self.rpc_mapping.pop(node_info, None)
+                with self._nodes_lock:
+                    if node_info not in self._removed_nodes:
+                        self.failed_to_connect_nodes.add(node_info.name)
+                        self.rpc_mapping.pop(node_info, None)
                 continue
             except (
                     RemoteError,
@@ -1531,10 +1559,18 @@ class EvmNodeInquirer(EVMRPCMixin, LockableQueryMixIn):
             self,
             from_ts: Timestamp,
             to_ts: Timestamp,
+            query_end: QueryEnd | None = None,
     ) -> tuple[int, int, frozenset[EvmIndexer]]:
-        """Like timestamp_range_to_block_range, also reporting who could not resolve it."""
+        """Like timestamp_range_to_block_range, also reporting who could not resolve it.
+
+        A range ending at the end of the sync query_end belongs to takes its block from it.
+        """
         cache = self.timestamp_to_block_cache[self.chain_id]
-        cached_from, cached_to = cache.get(from_ts), cache.get(to_ts)
+        if query_end is not None and query_end.timestamp != to_ts:
+            query_end = None  # the sync's end only applies to the range that ends on it
+
+        cached_from = cache.get(from_ts)
+        cached_to = query_end.block if query_end is not None else cache.get(to_ts)
         # The block range is cached, so only the first of the three queries an address makes
         # over a range actually resolves it. Remember who failed alongside it, or the
         # internal transaction and token transfer queries would go straight back to the
@@ -1571,12 +1607,33 @@ class EvmNodeInquirer(EVMRPCMixin, LockableQueryMixIn):
                 f'{from_block} - {to_block}. An indexer is behind on the chain.',
             )
 
+        # Who could not resolve the end cannot serve a range ending there. This only skips
+        # them for the ranges of this one sync that end on its end block. Earlier chunks and
+        # later syncs, which end at a different timestamp, ask them again.
+        if query_end is not None:
+            failed |= query_end.failed
+
         return from_block, to_block, failed
+
+    def resolve_query_end(self, end_ts: Timestamp) -> QueryEnd:
+        """Resolve the block a transaction sync ending at end_ts stops at.
+
+        Resolved as a one element range so the block and the indexers that could not
+        resolve it are cached, and syncs ending at the same time do not ask again.
+
+        May raise:
+        - RemoteError if no indexer can resolve the block
+        - NoAvailableIndexers if there are no indexers available
+        """
+        block, _, failed = self._resolve_timestamp_range(from_ts=end_ts, to_ts=end_ts)
+        log.debug('%s transaction queries up to %s end at block %s', self.chain_name, end_ts, block)  # noqa: E501
+        return QueryEnd(timestamp=end_ts, block=block, failed=failed)
 
     @contextmanager
     def block_range_skipping_stale_indexers(
             self,
             period: TimestampOrBlockRange,
+            query_end: QueryEnd | None = None,
     ) -> Iterator[TimestampOrBlockRange]:
         """Convert period to blocks, and inside the body skip indexers that could not.
 
@@ -1594,6 +1651,7 @@ class EvmNodeInquirer(EVMRPCMixin, LockableQueryMixIn):
         from_block, to_block, failed = self._resolve_timestamp_range(
             from_ts=Timestamp(period.from_value),
             to_ts=Timestamp(period.to_value),
+            query_end=query_end,
         )
         if len(failed) != 0:
             log.debug(
@@ -1677,7 +1735,7 @@ class EvmNodeInquirer(EVMRPCMixin, LockableQueryMixIn):
                     block_number=block_number,
                 ),
             )
-        except RemoteError as e:
+        except (RemoteError, NoAvailableIndexers) as e:
             log.error(f'Failed to get L1 fees for {account=} {tx_hash=} {block_number=} due to {e!s}')  # noqa: E501
             return None
 
@@ -1977,9 +2035,18 @@ class EvmNodeInquirer(EVMRPCMixin, LockableQueryMixIn):
 
     def _get_indexers_in_order(self) -> list[tuple[EvmIndexer, EtherscanLikeApi]]:
         """Return available indexers respecting user-defined order and optional subset."""
+        configured_order = CachedSettings().get_evm_indexers_order_for_chain(chain_id=self.chain_id)  # noqa: E501
+        if (
+            self.chain_id in ETHERSCAN_PAID_TIER_ONLY_CHAINS and
+            configured_order == tuple(DEFAULT_INDEXERS_ORDER.get(self.chain_id, DEFAULT_EVM_INDEXER_ORDER)) and  # noqa: E501
+            EvmIndexer.ETHERSCAN in configured_order and
+            self.etherscan.has_paid_api_key
+        ):  # the default order only avoids etherscan because free keys are refused there
+            configured_order = (EvmIndexer.ETHERSCAN, *(x for x in configured_order if x != EvmIndexer.ETHERSCAN))  # noqa: E501
+
         ordered: list[tuple[EvmIndexer, EtherscanLikeApi]] = [
             (indexer_name, indexer)
-            for indexer_name in CachedSettings().get_evm_indexers_order_for_chain(chain_id=self.chain_id)  # noqa: E501
+            for indexer_name in configured_order
             if (indexer := self.available_indexers.get(indexer_name)) is not None
         ]
         if len(degraded := DEGRADED_INDEXERS.get()) == 0:
@@ -1996,6 +2063,7 @@ class EvmNodeInquirer(EVMRPCMixin, LockableQueryMixIn):
     def _try_indexers(self, func: Callable[[EtherscanLikeApi], T]) -> T:
         """Tries to call the given function on the indexers in order until one succeeds.
         May raise:
+        - IndexerRangeNotCovered if every indexer that serves the chain cannot serve the range
         - RemoteError if all indexers fail
         - NoAvailableIndexers if there are no indexers available
         - RequestTooLargeError to allow callers to retry with smaller chunks
@@ -2018,16 +2086,12 @@ class EvmNodeInquirer(EVMRPCMixin, LockableQueryMixIn):
         just shown they cannot serve.
         """
         if len(ordered_indexers := self._get_indexers_in_order()) == 0:
-            if not self._no_indexer_notified:
-                self._no_indexer_notified = True
-                self.database.msg_aggregator.add_message(
-                    message_type=WSMessageType.NO_AVAILABLE_INDEXERS,
-                    data={'chain': self.blockchain.value},
-                )
+            self._maybe_notify_no_indexers()
             raise NoAvailableIndexers(f'No indexers are available for {self.chain_name}')
 
         errors: list[tuple[str, Exception]] = []
         failed: set[EvmIndexer] = set()
+        blockscout_incomplete_response = False
         for indexer_name, indexer in ordered_indexers:
             if indexer_name not in self.available_indexers:
                 continue  # was removed while looping
@@ -2035,6 +2099,8 @@ class EvmNodeInquirer(EVMRPCMixin, LockableQueryMixIn):
             try:
                 result = func(indexer)
             except ChainNotSupported as e:
+                if indexer_name == EvmIndexer.ETHERSCAN:
+                    self._etherscan_refused_chain = True
                 if self.available_indexers.pop(indexer_name, None) is not None:
                     log.warning(  # removed the indexer
                         f'Indexer {indexer.name} doesnt support {self.chain_name} with the given '
@@ -2046,14 +2112,57 @@ class EvmNodeInquirer(EVMRPCMixin, LockableQueryMixIn):
                 raise  # Let RequestTooLargeError bubble up for retry logic in callers
             except (RemoteError, DeserializationError) as e:
                 log.warning(f'Failed to query {indexer.name} due to {e!s}. Trying next indexer.')
+                if isinstance(e, BlockscoutIncompleteResponse):
+                    blockscout_incomplete_response = True
                 errors.append((indexer.name, e))
                 failed.add(indexer_name)
             else:
                 return result, indexer_name, frozenset(failed)
 
-        raise RemoteError(
-            f'Failed to query any indexer. '
-            f"Errors: {', '.join(f'{name}: {e!s}' for name, e in errors)}",
+        range_not_covered = any(isinstance(e, IndexerRangeNotCovered) for _, e in errors)
+        if len(self._get_indexers_in_order()) == 0 or (
+                self._etherscan_refused_chain and not range_not_covered
+        ):
+            self._maybe_notify_no_indexers(blockscout_incomplete_response=blockscout_incomplete_response)
+
+        message = (
+            'Failed to query any indexer. '
+            f"Errors: {', '.join(f'{name}: {e!s}' for name, e in errors)}"
+        )
+        # An indexer that refuses the chain could not have served the range either, so the
+        # range is out of reach of the configured indexers rather than failed. Retrying it
+        # cannot help, only an indexer that covers it, such as a paid etherscan key.
+        if range_not_covered and all(
+                isinstance(e, (IndexerRangeNotCovered, ChainNotSupported)) for _, e in errors
+        ):
+            raise IndexerRangeNotCovered(message)
+
+        raise RemoteError(message)
+
+    def _maybe_notify_no_indexers(self, blockscout_incomplete_response: bool = False) -> None:
+        """Tell the user once per reason that no indexer can serve this chain.
+
+        If etherscan refused the chain for the configured key, explain which API key can restore
+        transaction queries, unless Blockscout returned incomplete data for this query.
+        """
+        data: dict[str, str] = {'chain': self.blockchain.value}
+        if blockscout_incomplete_response:
+            data['reason'] = 'blockscout_incomplete_response'
+        elif self._etherscan_refused_chain:
+            data['reason'] = (  # offer a blockscout key only if it is used and still missing
+                'blockscout_or_paid_etherscan_key_required'
+                if EvmIndexer.BLOCKSCOUT in self.available_indexers and
+                EvmIndexer.BLOCKSCOUT in CachedSettings().get_evm_indexers_order_for_chain(chain_id=self.chain_id) and  # noqa: E501
+                self.blockscout.needs_api_key_for_chain(chain_id=self.chain_id)
+                else 'etherscan_paid_key_required'
+            )
+        if (reason := data.get('reason')) in self._notified_indexer_reasons:
+            return
+
+        self._notified_indexer_reasons.add(reason)
+        self.database.msg_aggregator.add_message(
+            message_type=WSMessageType.NO_AVAILABLE_INDEXERS,
+            data=data,
         )
 
     def _try_indexers_iterable(

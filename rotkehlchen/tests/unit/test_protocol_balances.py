@@ -26,7 +26,11 @@ from rotkehlchen.chain.base.modules.extrafi.balances import ExtrafiBalances as E
 from rotkehlchen.chain.base.modules.morpho_blue.balances import MorphoBlueBalances
 from rotkehlchen.chain.base.modules.runmoney.balances import RunmoneyBalances
 from rotkehlchen.chain.base.modules.runmoney.constants import CPT_RUNMONEY
-from rotkehlchen.chain.ethereum.interfaces.balances import ProtocolWithBalance, ProtocolWithGauges
+from rotkehlchen.chain.ethereum.interfaces.balances import (
+    BalancesSheetType,
+    ProtocolWithBalance,
+    ProtocolWithGauges,
+)
 from rotkehlchen.chain.ethereum.modules.aave.balances import AaveBalances
 from rotkehlchen.chain.ethereum.modules.across.balances import AcrossBalances
 from rotkehlchen.chain.ethereum.modules.blur.balances import BlurBalances
@@ -74,6 +78,7 @@ from rotkehlchen.chain.evm.decoding.morpho_blue.constants import CPT_MORPHO_BLUE
 from rotkehlchen.chain.evm.decoding.pendle.constants import CPT_PENDLE
 from rotkehlchen.chain.evm.decoding.thegraph.constants import CPT_THEGRAPH
 from rotkehlchen.chain.evm.decoding.velodrome.constants import CPT_AERODROME, CPT_VELODROME
+from rotkehlchen.chain.evm.decoding.velodrome.utils import get_slipstream_position_price
 from rotkehlchen.chain.evm.decoding.woo_fi.balances import WoofiBalances
 from rotkehlchen.chain.evm.decoding.woo_fi.constants import CPT_WOO_FI
 from rotkehlchen.chain.evm.types import string_to_evm_address
@@ -114,6 +119,7 @@ from rotkehlchen.db.history_events import DBHistoryEvents
 from rotkehlchen.fval import FVal
 from rotkehlchen.globaldb.cache import (
     globaldb_get_unique_cache_last_queried_ts_by_key,
+    globaldb_set_general_cache_values,
 )
 from rotkehlchen.globaldb.handler import GlobalDBHandler
 from rotkehlchen.history.events.structures.evm_event import EvmEvent
@@ -134,7 +140,11 @@ from rotkehlchen.tests.utils.ethereum import (
     get_decoded_events_of_transaction,
     wait_until_all_nodes_connected,
 )
-from rotkehlchen.tests.utils.factories import make_evm_address, make_evm_tx_hash
+from rotkehlchen.tests.utils.factories import (
+    make_ethereum_event,
+    make_evm_address,
+    make_evm_tx_hash,
+)
 from rotkehlchen.types import (
     CacheType,
     ChainID,
@@ -157,11 +167,14 @@ if TYPE_CHECKING:
     from rotkehlchen.chain.base.node_inquirer import BaseInquirer
     from rotkehlchen.chain.ethereum.decoding.decoder import EthereumTransactionDecoder
     from rotkehlchen.chain.ethereum.node_inquirer import EthereumInquirer
+    from rotkehlchen.chain.evm.decoding.decoder import EVMTransactionDecoder
+    from rotkehlchen.chain.evm.node_inquirer import EvmNodeInquirer
     from rotkehlchen.chain.evm.tokens import TokenBalancesType
     from rotkehlchen.chain.gnosis.node_inquirer import GnosisInquirer
     from rotkehlchen.chain.hyperliquid.node_inquirer import HyperliquidInquirer
     from rotkehlchen.chain.optimism.decoding.decoder import OptimismTransactionDecoder
     from rotkehlchen.chain.optimism.node_inquirer import OptimismInquirer
+    from rotkehlchen.db.dbhandler import DBHandler
     from rotkehlchen.inquirer import Inquirer
 
 
@@ -1535,6 +1548,58 @@ def test_aerodrome_locked_balances(
     )
 
 
+@pytest.mark.vcr(filter_query_parameters=['apikey'])
+@pytest.mark.parametrize('should_mock_current_price_queries', [False])
+@pytest.mark.parametrize('load_global_caches', [[CPT_AERODROME]])
+@pytest.mark.parametrize('base_accounts', [['0x14821442B7581632Ee23FF31aBa8e461A7a81022']])
+def test_aerodrome_slipstream_staked_balances(
+        base_inquirer: BaseInquirer,
+        base_accounts: list[ChecksumEvmAddress],
+        load_global_caches: list[str],
+        inquirer_defi: Inquirer,  # pylint: disable=unused-argument
+) -> None:
+    """Positions staked in concentrated liquidity gauges are found via the gauge's staked
+    values and valued from their underlying assets."""
+    with GlobalDBHandler().conn.write_ctx() as write_cursor:
+        globaldb_set_general_cache_values(
+            write_cursor=write_cursor,
+            key_parts=(CacheType.AERODROME_GAUGE_ADDRESS,),
+            values=(string_to_evm_address('0x491300eC768Cf28B13A8d3BbFd87713dD728b0AD'),),
+        )
+    _, tx_decoder = get_decoded_events_of_transaction(
+        evm_inquirer=base_inquirer,
+        tx_hash=deserialize_evm_tx_hash('0x983751a5102c5fcb228e855fbc21c7058240611b3cb89c6077ff8596072b242a'),
+        load_global_caches=load_global_caches,
+    )
+    protocol_balances = AerodromeBalances(
+        evm_inquirer=base_inquirer,
+        tx_decoder=tx_decoder,
+    ).query_balances(addresses=base_accounts)
+    position_balance = protocol_balances[base_accounts[0]].assets[Asset(
+        'eip155:8453/erc721:0x827922686190790b37229fd06084350E74485b72/72523094',
+    )][CPT_AERODROME]
+    assert position_balance.amount == ONE
+    assert position_balance.value > ZERO  # valued from the USDC and AERO it holds
+
+
+@pytest.mark.vcr(filter_query_parameters=['apikey'])
+def test_slipstream_position_price(base_inquirer: BaseInquirer) -> None:
+    """A Slipstream position is priced from the liquidity it holds in its pool"""
+    price = get_slipstream_position_price(
+        token=get_or_create_evm_token(
+            userdb=base_inquirer.database,
+            evm_address=string_to_evm_address('0x827922686190790b37229fd06084350E74485b72'),
+            chain_id=ChainID.BASE,
+            token_kind=TokenKind.ERC721,
+            collectible_id='72523094',
+            protocol=CPT_AERODROME,
+        ),
+        evm_inquirer=base_inquirer,
+        price_func=lambda asset: Price(ONE),  # so the price is the sum of the underlying amounts
+    )
+    assert price > ZERO
+
+
 def test_all_balance_classes_used():
     """
     Test that all protocol balance classes are used properly in the
@@ -1872,3 +1937,163 @@ def test_kinetiq_earn_pending_withdrawal_balances(
     )
     khype = Asset('eip155:999/erc20:0xfD739d4e423301CE9385c1fb8850539D657C296D')
     assert protocol_balances[hyperliquid_accounts[0]].assets[khype][CPT_KINETIQ] == expected_balance  # noqa: E501
+
+
+class _GateProbeBalances(ProtocolWithBalance):
+    """Minimal concrete protocol used to exercise the counterparty gate on its own."""
+
+    def query_balances(self, addresses: list[ChecksumEvmAddress]) -> BalancesSheetType:
+        raise NotImplementedError  # the gate lives in addresses_with_activity
+
+
+def _make_gate_probe(database: DBHandler, counterparty: str) -> _GateProbeBalances:
+    return _GateProbeBalances(
+        evm_inquirer=Mock(database=database, chain_id=ChainID.ETHEREUM),
+        tx_decoder=Mock(),
+        counterparty=counterparty,  # type: ignore[arg-type]  # any string works at runtime
+        deposit_event_types={(HistoryEventType.DEPOSIT, HistoryEventSubType.DEPOSIT_ASSET)},
+    )
+
+
+def test_activity_query_is_gated_by_the_chain_counterparties(database: DBHandler) -> None:
+    """Test the seam that lets a balance refresh cost one events query per chain.
+
+    Every protocol opens its balance query with addresses_with_activity, so what is asserted
+    here is that a counterparty absent from the chain's set skips the DB entirely, that a
+    present one is unaffected, and that not supplying a set at all (the default for anything
+    constructing these classes on its own) leaves every query running.
+    """
+    user_address = make_evm_address()
+    with database.user_write() as write_cursor:
+        DBHistoryEvents(database).add_history_events(
+            write_cursor=write_cursor,
+            history=[make_ethereum_event(
+                index=1,
+                location_label=user_address,
+                counterparty=CPT_OCTANT,
+                event_type=HistoryEventType.DEPOSIT,
+                event_subtype=HistoryEventSubType.DEPOSIT_ASSET,
+            )],
+        )
+
+    def activity_of(counterparty: str, gate: set[str] | None) -> tuple[dict, int]:
+        probe = _make_gate_probe(database=database, counterparty=counterparty)
+        probe.chain_counterparties = gate
+        with patch.object(
+            DBHistoryEvents,
+            'get_history_events_internal',
+            side_effect=DBHistoryEvents.get_history_events_internal,
+            autospec=True,
+        ) as query_mock:
+            result = probe.addresses_with_deposits(location_labels=[user_address])
+        return result, query_mock.call_count
+
+    gate = {CPT_OCTANT}
+    # present in the gate: queried, and the events come back
+    result, calls = activity_of(CPT_OCTANT, gate)
+    assert list(result) == [user_address]
+    assert calls == 1
+
+    # absent from the gate: no query at all
+    result, calls = activity_of(CPT_BLUR, gate)
+    assert result == {}
+    assert calls == 0
+
+    # no gate supplied: the query runs even though it comes back empty
+    result, calls = activity_of(CPT_BLUR, None)
+    assert result == {}
+    assert calls == 1
+
+
+def test_query_protocols_with_balance_hands_down_the_chain_counterparties(
+        blockchain: ChainsAggregator,
+) -> None:
+    """Test that the manager reads the chain's counterparties once and passes them on.
+
+    Without this the gate in addresses_with_activity is never armed in production, and every
+    protocol keeps paying for its own query - which the per-protocol tests would not notice,
+    since they construct the balance classes directly.
+    """
+    with blockchain.database.user_write() as write_cursor:
+        DBHistoryEvents(blockchain.database).add_history_events(
+            write_cursor=write_cursor,
+            history=[make_ethereum_event(
+                index=1,
+                location_label=make_evm_address(),
+                counterparty=CPT_OCTANT,
+                event_type=HistoryEventType.DEPOSIT,
+                event_subtype=HistoryEventSubType.DEPOSIT_ASSET,
+            )],
+        )
+
+    received: list[set[str] | None] = []
+
+    class _RecordingBalances(ProtocolWithBalance):
+        def __init__(
+                self,
+                evm_inquirer: EvmNodeInquirer,
+                tx_decoder: EVMTransactionDecoder,
+        ) -> None:
+            super().__init__(
+                evm_inquirer=evm_inquirer,
+                tx_decoder=tx_decoder,
+                counterparty=CPT_OCTANT,
+                deposit_event_types=set(),
+            )
+
+        def query_balances(self, addresses: list[ChecksumEvmAddress]) -> BalancesSheetType:
+            received.append(self.chain_counterparties)
+            return {}
+
+    with patch.dict(
+        'rotkehlchen.chain.evm.manager.CHAIN_TO_BALANCE_PROTOCOLS',
+        {ChainID.ETHEREUM: (_RecordingBalances,)},
+    ):
+        blockchain.get_evm_manager(chain_id=ChainID.ETHEREUM).query_protocols_with_balance(
+            balances=defaultdict(BalanceSheet),
+            addresses=[],
+        )
+
+    assert received == [{CPT_OCTANT}]
+
+
+def test_protocol_balances_skip_the_events_query_for_absent_counterparties(
+        blockchain: ChainsAggregator,
+) -> None:
+    """Test that a refresh only queries the events table for protocols the user has.
+
+    This is the whole point of the gate, and it is asserted over the real ethereum protocol
+    list rather than a stub so that a protocol added later without routing its event lookup
+    through the gate shows up here. The second half is the control: with one protocol's events
+    present that protocol must still query, or the gate would be switching everything off.
+    """
+    manager = blockchain.get_evm_manager(chain_id=ChainID.ETHEREUM)
+
+    def refresh_query_count() -> int:
+        with patch.object(
+            DBHistoryEvents,
+            'get_history_events_internal',
+            side_effect=DBHistoryEvents.get_history_events_internal,
+            autospec=True,
+        ) as spy:
+            manager.query_protocols_with_balance(
+                balances=defaultdict(BalanceSheet),
+                addresses=[],
+            )
+        return spy.call_count
+
+    assert refresh_query_count() == 0
+
+    with blockchain.database.user_write() as write_cursor:
+        DBHistoryEvents(blockchain.database).add_history_events(
+            write_cursor=write_cursor,
+            history=[make_ethereum_event(
+                index=1,
+                location_label=make_evm_address(),
+                counterparty=CPT_OCTANT,
+                event_type=HistoryEventType.DEPOSIT,
+                event_subtype=HistoryEventSubType.DEPOSIT_ASSET,
+            )],
+        )
+
+    assert refresh_query_count() == 1
