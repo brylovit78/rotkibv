@@ -249,6 +249,27 @@ describe('useHistoryEventsActions', () => {
       expect(mockFetchAssociatedLocations).toHaveBeenCalled();
     });
 
+    it('should redecode the tron transactions of the page', async () => {
+      const options = createOptions();
+      set(options.groups, {
+        data: [createMock<Extract<HistoryEventEntry, { entryType: typeof HistoryEventEntryType.TRON_EVENT }>>({
+          entryType: HistoryEventEntryType.TRON_EVENT,
+          location: 'tron',
+          txRef: 'ab'.repeat(32),
+        })],
+        found: 1,
+        limit: 10,
+        total: 1,
+      });
+      const { redecode } = useHistoryEventsActions(options);
+
+      await redecode.page();
+
+      expect(mockRedecodeTargeted).toHaveBeenCalledWith(expect.objectContaining({
+        transactions: [{ location: 'tron', txRef: 'ab'.repeat(32) }],
+      }));
+    });
+
     it('should refresh location labels after redecode by chain list', async () => {
       const options = createOptions();
       const { redecode } = useHistoryEventsActions(options);

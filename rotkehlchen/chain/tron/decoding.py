@@ -35,6 +35,9 @@ logger = logging.getLogger(__name__)
 log = RotkehlchenLogsAdapter(logger)
 
 TRON_DECODING_CHUNK_SIZE: Final = 500
+# Sequence index of an internal transfer: this base, above any TRC20 event index, plus the first
+# 6 bytes of its internal hash, which keeps the internal hash order and stays below 2**53
+TRON_INTERNAL_SEQUENCE_BASE: Final = 1 << 48
 type Token = tuple[CryptoAsset, int]  # the asset and its decimals
 
 
@@ -138,11 +141,13 @@ class TronTransactionDecoder:
     ) -> tuple[int, list[TronEvent]] | None:
         """The hash and events of one stored transaction in the order of section 7: the fee,
         the native transfer or call value, the TRC20 transfers by event index and the internal
-        transfers by internal hash. The fee is always index 0 and a movement its position in
-        that order, so tracking another account moves no event. Unconfirmed and reverted
-        transactions have no events, and only a successful one moves value. Returns the row id
-        and the events, or None if the transaction is gone or needs a token whose metadata is
-        not available."""
+        transfers by internal hash. An event's index comes only from its own identity: 0 for
+        the fee, 1 for the native transfer, 2 plus the event index for a TRC20 transfer and
+        TRON_INTERNAL_SEQUENCE_BASE plus a prefix of the internal hash for an internal one. So
+        neither another tracked account nor rows a later sync adds move an event. Unconfirmed
+        and reverted transactions have no events, and only a successful one moves value.
+        Returns the row id and the events, or None if the transaction is gone or needs a token
+        whose metadata is not available."""
         if (row := cursor.execute(
             'SELECT identifier, timestamp, confirmed, reverted, contract_ret, owner_address, '
             'to_address, contract_type, native_amount, fee FROM tron_transactions '
@@ -153,25 +158,25 @@ class TronTransactionDecoder:
 
         tx_id, timestamp, confirmed, reverted, result, owner, to, contract_type, native, fee = row
         trc20 = cursor.execute(
-            'SELECT contract_address, from_address, to_address, amount FROM '
+            'SELECT event_index, contract_address, from_address, to_address, amount FROM '
             'tron_trc20_transfers WHERE tx_id=? ORDER BY event_index',
             (tx_id,),
         ).fetchall()
-        if any(x[0] not in tokens for x in trc20):
+        if any(x[1] not in tokens for x in trc20):
             return None
 
         if not confirmed or reverted:
             return tx_id, []
 
-        transfers: list[tuple[Asset, int, int, TronAddress | None, TronAddress | None]] = []  # asset, decimals, raw amount, from, to  # noqa: E501
+        transfers: list[tuple[int, Asset, int, int, TronAddress | None, TronAddress | None]] = []  # index, asset, decimals, raw amount, from, to  # noqa: E501
         if result == 'SUCCESS':
             if contract_type in {1, 31} and native is not None:
-                transfers.append((self.trx, TRX_DECIMALS, int(native), owner, to))
-            transfers.extend((*tokens[contract], int(raw), from_address, to_address) for contract, from_address, to_address, raw in trc20)  # noqa: E501
+                transfers.append((1, self.trx, TRX_DECIMALS, int(native), owner, to))
+            transfers.extend((2 + event_index, *tokens[contract], int(raw), from_address, to_address) for event_index, contract, from_address, to_address, raw in trc20)  # noqa: E501
         if result in {'SUCCESS', None}:  # None: the parent is known only from the internal feed
-            transfers.extend((self.trx, TRX_DECIMALS, int(raw), from_address, to_address) for from_address, to_address, raw in cursor.execute(  # noqa: E501
-                'SELECT from_address, to_address, amount FROM tron_internal_transfers '
-                'WHERE tx_id=? AND success=1 ORDER BY internal_hash',
+            transfers.extend((TRON_INTERNAL_SEQUENCE_BASE + int.from_bytes(internal_hash[:6]), self.trx, TRX_DECIMALS, int(raw), from_address, to_address) for internal_hash, from_address, to_address, raw in cursor.execute(  # noqa: E501
+                'SELECT internal_hash, from_address, to_address, amount FROM '
+                'tron_internal_transfers WHERE tx_id=? AND success=1 ORDER BY internal_hash',
                 (tx_id,),
             ))
 
@@ -191,7 +196,7 @@ class TronTransactionDecoder:
                 counterparty=CPT_GAS,
             ))
 
-        for index, (asset, decimals, raw, from_address, to_address) in enumerate(transfers, 1):
+        for index, asset, decimals, raw, from_address, to_address in transfers:
             if (amount := token_normalized_value_decimals(raw, decimals)) == ZERO or (direction := decode_transfer_direction(  # noqa: E501
                 from_address=from_address,
                 to_address=to_address,

@@ -11,9 +11,11 @@ import { useAssetInfoApi } from '@/modules/assets/api/use-asset-info-api';
 import { useAssetPricesApi } from '@/modules/assets/api/use-asset-prices-api';
 import { setupDayjs } from '@/modules/core/common/data/date';
 import { useLocations } from '@/modules/core/common/use-locations';
+import { useSupportedChainsStore } from '@/modules/core/common/use-supported-chains-store';
 import { useHistoryEventCounterpartyMappings } from '@/modules/history/events/mapping/use-history-event-counterparty-mappings';
 import { useHistoryEvents } from '@/modules/history/events/use-history-events';
 import TronEventForm from '@/modules/history/management/forms/TronEventForm.vue';
+import AssetSelect from '@/modules/shell/components/inputs/AssetSelect.vue';
 
 vi.mock('@/modules/history/events/use-history-events', () => ({
   useHistoryEvents: vi.fn(),
@@ -110,6 +112,14 @@ describe('forms/TronEventForm.vue', () => {
       txRef: event.txRef,
       userNotes: 'my note',
     }));
+  });
+
+  it('should not limit the asset search to the tron chain, where it finds no tron asset yet', async () => {
+    useSupportedChainsStore().supportedChains = [{ id: 'tron', image: 'tron.svg', name: 'TRON', nativeToken: 'TRX', type: 'tron' }];
+    wrapper = createWrapper({ nextSequenceId: '0', type: 'add' });
+    await vi.advanceTimersToNextTimerAsync();
+
+    expect(wrapper.findComponent(AssetSelect).props('source')).toEqual({ chain: undefined, showIgnored: true });
   });
 
   it('should not save a new event whose hash is not a tron transaction hash', async () => {

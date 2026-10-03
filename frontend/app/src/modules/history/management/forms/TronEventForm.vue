@@ -113,11 +113,12 @@ defineExpose({
 
     <RuiDivider class="mb-6 mt-2" />
 
+    <!-- No location link: an asset search by chain finds no TRX or TRC20 asset yet -->
     <HistoryEventAssetPriceForm
       v-model:asset="state.asset"
       v-model:amount="state.amount"
       v-model:price-intent="state.priceIntent"
-      :location="location"
+      :location="undefined"
       :error-messages="{
         amount: form.errors('amount'),
         asset: form.errors('asset'),

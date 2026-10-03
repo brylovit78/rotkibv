@@ -728,8 +728,11 @@ kept, and the removed account's query ranges are deleted.
   3. TRC20 transfers by `event_index`;
   4. internal transfers by `internal_hash`.
 
-  The fee keeps index 0 and each movement its position in this order, whether or not it
-  becomes an event, so tracking another account moves no event.
+  An event's index comes only from its own identity: 0 for the fee, 1 for the native transfer,
+  2 plus the event index for a TRC20 transfer, and 2^48 plus the first 6 bytes of the internal
+  hash for an internal transfer, which is above any event index, keeps the internal hash order
+  and stays below 2^53 for the frontend. Neither another tracked account nor rows a later sync
+  adds move an event.
 - Direction uses `decode_transfer_direction` (`rotkehlchen/chain/decoding/utils.py:20`):
   - tracked to tracked is one `TRANSFER`;
   - TRX an account sends to itself is a `TRANSACTION_TO_SELF`, as for ETH;
@@ -938,7 +941,9 @@ Plan:
   the account's transactions in that range that no account had stored before.
 - Not reached by TRON: add by reference (no single-hash contract in section 3), the yearly
   statistics, and the transaction reference in accounting exports, which bitcoin also lacks.
-- Frontend: the `tron event` entry type and form, the history filters, the row actions
+- Frontend: the `tron event` entry type and form, whose asset picker is not limited to the
+  location (an asset search by the tron chain finds no TRX or TRC20 asset yet), the history
+  filters, the development page redecode, the row actions
   (redecode and transaction deletion; the only event of a transaction is ignored rather than
   deleted, as the backend keeps it), the redecode and repull chain lists. TRON stays outside
   `TransactionChainTypeNeedDecoding`, as the backend decodes it after each sync.

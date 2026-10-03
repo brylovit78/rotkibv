@@ -189,8 +189,8 @@ def test_identical_transfers_between_tracked_accounts(manager: TronManager) -> N
         _sync(manager, {'token_trc20/transfers': rows}, rows[0]['block_ts'] // 1000, [rows[0]['from_address'], rows[0]['to_address']])  # noqa: E501
 
     assert [(x.sequence_index, x.event_type, x.location_label, x.address, x.amount) for x in _events(manager.database)] == [  # noqa: E501
-        (index, HistoryEventType.TRANSFER, x['from'], x['to'], FVal(x['amount']))
-        for index, x in enumerate(tronscan_case(case)['expected']['movements'], 1)  # after the fee
+        (2 + x['event_index'], HistoryEventType.TRANSFER, x['from'], x['to'], FVal(x['amount']))
+        for x in tronscan_case(case)['expected']['movements']
     ]
 
 
@@ -297,6 +297,27 @@ def test_removed_account_events_go_and_shared_ones_are_decoded_again(
     assert sorted((x.sequence_index, x.group_identifier, x.event_type, x.notes) for x in _events(manager.database)) == (kept or [  # noqa: E501
         (transfer.sequence_index, transfer.group_identifier, HistoryEventType.RECEIVE, f'Receive 1 TRX from {ALICE} to {BOB}'),  # noqa: E501
     ])
+
+
+def test_movements_keep_their_indexes_when_later_syncs_add_rows(manager: TronManager) -> None:
+    """A movement keeps its sequence index when the syncs of more accounts add the owner's
+    fields, earlier logs and other internal transfers to its transaction, as the index comes
+    from the movement's own identity"""
+    usdt, tx_hash = deserialize_tron_address('TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'), b'\x0b' * 32
+    parent = TronTransaction(tx_hash=tx_hash, block_number=1, timestamp=TimestampMS(1700000000000), confirmed=True, reverted=False, contract_ret='SUCCESS')  # noqa: E501
+    track_tron_accounts(manager.database, [BOB])
+    with manager.database.user_write() as write_cursor:  # the recipient's feeds list it first
+        add_tron_history(write_cursor=write_cursor, address=BOB, transactions=[parent], trc20_transfers=[TronTRC20Transfer(tx_hash, 3, usdt, ALICE, BOB, 10**6)], internal_transfers=[TronInternalTransfer(tx_hash, b'\x0c' * 32, TOKEN, BOB, 2 * 10**6, True)])  # noqa: E501
+    manager.decoder.decode_transactions()
+    before = {(x.sequence_index, x.asset.identifier, x.amount) for x in _events(manager.database)}
+
+    track_tron_accounts(manager.database, [ALICE])
+    with manager.database.user_write() as write_cursor:  # then the owner's feeds add theirs
+        add_tron_history(write_cursor=write_cursor, address=ALICE, transactions=[parent._replace(owner_address=ALICE, to_address=usdt, contract_type=31, native_amount=0, fee=100000)], trc20_transfers=[TronTRC20Transfer(tx_hash, 1, usdt, CAROL, ALICE, 3 * 10**6)], internal_transfers=[TronInternalTransfer(tx_hash, b'\x01' * 32, TOKEN, ALICE, 4 * 10**6, True)])  # noqa: E501
+    assert manager.decoder.decode_transactions() == 1
+
+    assert len(before) == 2
+    assert before <= {(x.sequence_index, x.asset.identifier, x.amount) for x in _events(manager.database)}  # noqa: E501
 
 
 def test_reset_keeps_a_transaction_with_a_moved_customized_event(manager: TronManager) -> None:

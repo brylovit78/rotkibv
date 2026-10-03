@@ -17,6 +17,7 @@ import {
   isEvmEvent,
   isEvmSwapEvent,
   isSolanaEvent,
+  isTronEvent,
   toLocationAndTxRef,
 } from '@/modules/history/event-utils';
 import { useHistoryEventMappings } from '@/modules/history/events/mapping/use-history-event-mappings';
@@ -180,7 +181,7 @@ export function useHistoryEventsActions(options: UseHistoryEventsActionsOptions)
    */
   async function redecodePageTransactions(): Promise<void> {
     const events = get(groups).data.flat();
-    const txEvents = events.filter(event => isEvmEvent(event) || isEvmSwapEvent(event) || isSolanaEvent(event));
+    const txEvents = events.filter(event => isEvmEvent(event) || isEvmSwapEvent(event) || isSolanaEvent(event) || isTronEvent(event));
     const ethBlockEvents = events.filter(isEthBlockEvent);
 
     if (txEvents.length > 0 || ethBlockEvents.length > 0) {
