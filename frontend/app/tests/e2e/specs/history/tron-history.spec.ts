@@ -151,8 +151,10 @@ test.describe.serial('tron history', () => {
   });
 
   test('keeps the changes after logging in again', async () => {
-    // A logout through the menu races the refresh that follows the deletion, so the backend is
-    // logged out through the API, which closes the database, and the app is loaded again.
+    // A logout through the menu races the refresh that follows the deletion. So the app is
+    // unloaded first, the backend is logged out through the API, which closes the database, and
+    // the app is loaded as a new document: from the app itself, visit() only changes the hash.
+    await ctx.sharedPage.goto('about:blank');
     await apiLogout(ctx.sharedRequest);
     await ctx.app.visit();
     await ctx.app.login(ctx.username);
