@@ -181,14 +181,17 @@ Backend і Colibri зовні окремо не публікуються. Volume
 ним немає proxy з власною автентифікацією, один раз додати ключ у `.env`:
 
 ```bash
-echo "ROTKI_SESSION_KEY=$(openssl rand -hex 32)" >> .env
-docker compose up -d --wait
+chmod 600 .env &&
+  rotki_session_key=$(openssl rand -hex 32) &&
+  printf 'ROTKI_SESSION_KEY=%s\n' "$rotki_session_key" >> .env &&
+  docker compose up -d --wait
 ```
 
-Після цього запити без сесійної cookie отримують 401, а cookie видається після
-входу з паролем профілю. Без cookie доступні лише екран входу, створення нового
-профілю та список назв профілів. Ключ зберігати сталим і не публікувати.
-Докладніше: `packaging/docker/README.md`.
+Після цього захищені запити API без сесійної cookie отримують 401, а cookie
+видається після входу з паролем профілю. Без неї лишаються доступними frontend,
+службові адреси (`ping`, `info`, health, перелік можливостей `/_control`),
+список профілів зі станом входу, вхід і створення нового профілю. Ключ
+зберігати сталим і не публікувати. Докладніше: `packaging/docker/README.md`.
 
 Перед оновленням: зупинити контейнер, зробити snapshot/backup **усіх** data,
 config і logs volumes, записати попередній image digest. Потім змінити image,
