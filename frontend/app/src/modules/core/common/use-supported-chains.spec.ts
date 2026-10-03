@@ -51,5 +51,11 @@ describe('useSupportedChains', () => {
       expect(isEvm('tron')).toBe(false);
       expect(isSolanaChains('tron')).toBe(false);
     });
+
+    it('should list TRON once, among the chains whose transactions are decoded', () => {
+      const { allTxChainsInfo, isDecodableChains } = useSupportedChains();
+      expect(isDecodableChains('tron')).toBe(true);
+      expect(get(allTxChainsInfo).filter(chain => chain.id === 'tron')).toHaveLength(1);
+    });
   });
 });

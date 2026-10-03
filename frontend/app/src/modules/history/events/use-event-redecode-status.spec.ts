@@ -86,6 +86,19 @@ describe('useEventRedecodeStatus', () => {
     expect(queriedId()).toBe(targetedDecodeActivityId('eth', ['0xdef']));
   });
 
+  it('should ask about the targeted decode of a tron event', () => {
+    const tronEvent = createMock<HistoryEventEntry>({
+      entryType: HistoryEventEntryType.TRON_EVENT,
+      location: 'tron',
+      txRef: 'ab'.repeat(32),
+    });
+
+    const status = useEventRedecodeStatus(() => tronEvent, () => []);
+    get(status);
+
+    expect(queriedId()).toBe(targetedDecodeActivityId('tron', ['ab'.repeat(32)]));
+  });
+
   it('should stay inactive for an event that cannot be redecoded', () => {
     const header = createMock<HistoryEventEntry>({
       entryType: HistoryEventEntryType.HISTORY_EVENT,

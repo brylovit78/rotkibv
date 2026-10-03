@@ -10,6 +10,7 @@ import {
   isAssetMovementEvent,
   isEventMissingAccountingRule,
   isEvmEvent,
+  isTronEvent,
 } from '@/modules/history/event-utils';
 import {
   hideDeleteAction,
@@ -87,7 +88,8 @@ function editEvent(item: HistoryEvent) {
 }
 
 function deleteEvent(item: HistoryEventEntry) {
-  const isSingleEvmEvent = isEvmEvent(item) && completeGroupEvents.length === 1;
+  // The backend refuses to delete the last event of an EVM or TRON transaction
+  const isSingleEvmEvent = (isEvmEvent(item) || isTronEvent(item)) && completeGroupEvents.length === 1;
   const payload: HistoryEventDeletePayload = isSingleEvmEvent
     ? {
         event: item,

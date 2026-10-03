@@ -195,9 +195,9 @@ from rotkehlchen.tasks.events import (
 )
 from rotkehlchen.types import (
     AVAILABLE_MODULES_MAP,
-    CHAINS_WITH_TRANSACTION_DECODERS_TYPE,
     CHAINS_WITH_TRANSACTIONS_TYPE,
     CHAINS_WITH_TX_DECODING_TYPE,
+    CHAINS_WITH_TX_REFETCH_TYPE,
     EVM_CHAIN_IDS_WITH_TRANSACTIONS_TYPE,
     EVM_EVMLIKE_CHAINS_WITH_TRANSACTIONS_TYPE,
     SOLANA_TOKEN_KINDS_TYPE,
@@ -236,6 +236,8 @@ from rotkehlchen.types import (
     SubstrateAddress,
     SupportedBlockchain,
     Timestamp,
+    TronAddress,
+    TronTxHash,
     UserNote,
 )
 from rotkehlchen.utils.misc import ts_ms_to_sec, ts_now
@@ -2571,7 +2573,7 @@ class RestAPI:
     def decode_given_transactions(
             self,
             chain: CHAINS_WITH_TX_DECODING_TYPE,
-            tx_refs: list[EVMTxHash | Signature],
+            tx_refs: list[EVMTxHash | Signature | TronTxHash],
             delete_custom: bool,
             custom_indexers_order: list[EvmIndexer] | None = None,
     ) -> dict[str, Any]:
@@ -4117,8 +4119,8 @@ class RestAPI:
             self,
             from_timestamp: Timestamp,
             to_timestamp: Timestamp,
-            chain: CHAINS_WITH_TRANSACTION_DECODERS_TYPE,
-            address: ChecksumEvmAddress | SolanaAddress | None = None,
+            chain: CHAINS_WITH_TX_REFETCH_TYPE,
+            address: ChecksumEvmAddress | SolanaAddress | TronAddress | None = None,
     ) -> dict[str, Any]:
         return self.transactions_service.force_refetch_transactions(
             from_timestamp=from_timestamp,

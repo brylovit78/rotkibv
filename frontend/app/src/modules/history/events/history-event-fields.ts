@@ -15,6 +15,7 @@ import {
   isEvmEventType,
   isOnlineHistoryEventType,
   isSolanaEventType,
+  isTronEventType,
   isWithdrawalEventType,
 } from '@/modules/history/event-utils';
 import { HistoryEventFilterKeys } from '@/modules/history/events/use-events-filter';
@@ -85,7 +86,7 @@ function resolveIncludedKinds(entryTypes: HistoryEventEntryType[] | undefined): 
 
   return {
     evmOrOnline: entryTypes.some(type => isEvmEventType(type) || isOnlineHistoryEventType(type)),
-    transactions: entryTypes.some(type => isEvmEventType(type) || isEthDepositEventType(type) || isSolanaEventType(type) || isBitcoinEventType(type)),
+    transactions: entryTypes.some(type => isEvmEventType(type) || isEthDepositEventType(type) || isSolanaEventType(type) || isBitcoinEventType(type) || isTronEventType(type)),
     validatorIndex: entryTypes.some(type => isWithdrawalEventType(type) || isEthBlockEventType(type) || isEthDepositEventType(type)),
   };
 }

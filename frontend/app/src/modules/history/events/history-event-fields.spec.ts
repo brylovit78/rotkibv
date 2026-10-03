@@ -169,6 +169,7 @@ describe('toHistoryEventFields', () => {
     const included = keysOf({ entryTypes: [HistoryEventEntryType.EVM_EVENT] });
     expect(included).toContain('txRefs');
     expect(included).toContain('addresses');
+    expect(keysOf({ entryTypes: [HistoryEventEntryType.TRON_EVENT] })).toContain('txRefs');
 
     const excluded = keysOf({ entryTypes: [HistoryEventEntryType.ASSET_MOVEMENT_EVENT] });
     expect(excluded).not.toContain('txRefs');

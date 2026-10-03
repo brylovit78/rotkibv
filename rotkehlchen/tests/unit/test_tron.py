@@ -88,6 +88,8 @@ def test_tron_location_reserved_value() -> None:
     with pytest.raises(DeserializationError):  # an unused value below TRON, not a ValueError
         Location.deserialize_from_db(chr(62 + 64))
 
+    # #11: after any upstream member, which auto() numbers from the member before it
+    assert (list(HistoryBaseEntryType)[-1], HistoryBaseEntryType.TRON_EVENT.value) == (HistoryBaseEntryType.TRON_EVENT, 100)  # noqa: E501
     for enum_class in (Location, HistoryBaseEntryType, AssetType, TokenKind):
         verify(UNIQUE)(enum_class)  # an upstream value collision would alias silently
 

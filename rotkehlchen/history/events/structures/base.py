@@ -150,6 +150,7 @@ class HistoryBaseEntryType(DBIntEnumMixIn):
     SOLANA_EVENT = auto()
     SOLANA_SWAP_EVENT = auto()
     BITCOIN_EVENT = auto()
+    TRON_EVENT = 100  # rotkibv: far above upstream's values, must stay the last member (6.3)
 
 
 T = TypeVar('T', bound='HistoryBaseEntry')

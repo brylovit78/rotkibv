@@ -105,11 +105,13 @@ class TronTransactions:
             addresses: Sequence[TronAddress],
             from_ts: Timestamp,
             to_ts: Timestamp,
+            refetch: bool = False,
     ) -> None:
         """Sync every history feed of the given accounts up to to_ts.
 
         Completed windows are stored with their query range in one write, so a failure or
         cancellation keeps them and the next sync continues after the last completed second.
+        A refetch reads the whole range again, also where it was synced, and changes no range.
 
         May raise RemoteError if TronScan fails, the key is missing or a row is malformed or
         does not belong to the queried account and window.
@@ -130,6 +132,7 @@ class TronTransactions:
                             range_name=f'{SupportedBlockchain.TRON.to_range_prefix(spec.range_type)}_{address}',
                             from_ts=from_ts,
                             end_ts=end_ts,
+                            refetch=refetch,
                         )
                 finally:  # always finish, so the frontend never shows a stuck query
                     self._send_status(address, (from_ts, end_ts), TransactionStatusStep.QUERYING_TRANSACTIONS_FINISHED)  # noqa: E501
@@ -158,8 +161,10 @@ class TronTransactions:
             range_name: str,
             from_ts: Timestamp,
             end_ts: Timestamp,
+            refetch: bool,
     ) -> None:
-        """Traverse the missing part of a feed's range oldest window first.
+        """Traverse the missing part of a feed's range oldest window first, or for a refetch
+        all of it.
 
         A window that can not be listed completely is split into its older and newer half,
         both inclusive whole seconds. Such a single second can not be split, as no other filter
@@ -170,7 +175,10 @@ class TronTransactions:
         dbranges = DBQueryRanges(self.database)
         with self.database.conn.read_ctx() as cursor:
             saved = self.database.get_used_query_range(cursor, range_name)
-            missing = dbranges.get_location_query_ranges(cursor, range_name, from_ts, end_ts)
+            if refetch:
+                missing = [(from_ts, end_ts)] if from_ts <= end_ts else []
+            else:
+                missing = dbranges.get_location_query_ranges(cursor, range_name, from_ts, end_ts)
 
         expected = saved  # the recorded range as this sync last saw it
         for start_ts, stop_ts in missing:
@@ -180,7 +188,7 @@ class TronTransactions:
             after_saved = saved is not None and start_ts == saved[1] + 1
             joins_at = stop_ts if saved is not None and stop_ts < saved[0] else start_ts
             windows = [(Timestamp(start_ts - 1) if after_saved else start_ts, stop_ts)]
-            covering = True
+            covering = not refetch  # a refetch records no coverage
             while len(windows) != 0:
                 low, high = windows.pop()
                 rows, complete = self._read_window(feed, address, low, high)
@@ -366,13 +374,13 @@ class TronTransactions:
                     continue
                 if type(event_index := event['event_index']) is not int:
                     raise DeserializationError(f'Invalid event index in {event}')
-                transfers.append(TronTRC20Transfer(
+                transfers.append(TronTRC20Transfer(  # by position, as tokens name the fields apart
                     tx_hash=tx_hash,
                     event_index=event_index,
                     contract_address=contract,
-                    from_address=deserialize_tron_address(event['result']['from']),
-                    to_address=deserialize_tron_address(event['result']['to']),
-                    amount=deserialize_raw_amount(event['result']['value']),
+                    from_address=deserialize_tron_address(event['result']['0']),
+                    to_address=deserialize_tron_address(event['result']['1']),
+                    amount=deserialize_raw_amount(event['result']['2']),
                 ))
         except (DeserializationError, KeyError, TypeError, ValueError, AttributeError) as e:
             raise RemoteError(f'Unexpected TronScan event logs: {e!s}') from e

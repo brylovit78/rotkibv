@@ -54,6 +54,7 @@ from rotkehlchen.chain.substrate.utils import (
     get_substrate_address_from_public_key,
     is_valid_substrate_address,
 )
+from rotkehlchen.chain.tron.utils import deserialize_tron_address
 from rotkehlchen.chain.tron.validation import canonical_tron_address
 from rotkehlchen.constants.assets import A_BCH, A_BTC, A_ETH, A_ETH2
 from rotkehlchen.constants.misc import ONE, VALID_LOGLEVELS, ZERO
@@ -127,6 +128,7 @@ from rotkehlchen.history.events.structures.swap import (
     SwapEventExtraData,
     create_swap_events_multi_fee,
 )
+from rotkehlchen.history.events.structures.tron_event import TronEvent
 from rotkehlchen.history.events.structures.types import HistoryEventSubType, HistoryEventType
 from rotkehlchen.history.events.utils import (
     create_group_identifier_from_swap,
@@ -146,6 +148,7 @@ from rotkehlchen.types import (
     CHAINS_WITH_TRANSACTION_DECODERS,
     CHAINS_WITH_TRANSACTIONS,
     CHAINS_WITH_TX_DECODING,
+    CHAINS_WITH_TX_REFETCH,
     DEFAULT_ADDRESS_NAME_PRIORITY,
     EVM_CHAIN_IDS_WITH_TRANSACTIONS,
     EVM_CHAINS_WITH_TRANSACTIONS,
@@ -225,6 +228,8 @@ from .fields import (
     TimestampMSField,
     TimestampUntilNowField,
     TimezoneField,
+    TronAddressField,
+    TronTxHashField,
     UnionAssetField,
     XpubField,
 )
@@ -489,7 +494,11 @@ class TransactionDecodingSchema(AsyncQueryArgumentSchema):
     @validates_schema
     def validate_tx_refs(self, data: dict[str, Any], **kwargs: Any) -> None:
         """Validate and transform all tx_refs based on chain"""
-        tx_ref_field = EVMTransactionHashField if data['chain'].is_evm_or_evmlike() else SolanaSignatureField  # noqa: E501
+        tx_ref_field = (
+            EVMTransactionHashField if (chain := data['chain']).is_evm_or_evmlike() else
+            TronTxHashField if chain == SupportedBlockchain.TRON else
+            SolanaSignatureField
+        )
         data['tx_refs'] = [
             tx_ref_field.deserialize_string_value(tx_ref)
             for tx_ref in data['tx_refs']
@@ -785,9 +794,10 @@ class HistoryEventFilterSchema(
                 x for x in addresses
                 if is_valid_btc_address(x) or is_valid_bitcoin_cash_address(x)
             }
-            if len(solana_addresses) + len(evm_addresses) + len(btc_addresses) != (address_count := len(addresses)):  # noqa: E501
+            tron_addresses = {x for x in addresses if canonical_tron_address(x) == x}
+            if len(solana_addresses) + len(evm_addresses) + len(btc_addresses) + len(tron_addresses) != (address_count := len(addresses)):  # noqa: E501
                 raise ValidationError(
-                    message='some addresses are not valid EVM, Solana, BTC, or BCH addresses',
+                    message='some addresses are not valid EVM, Solana, BTC, BCH, or TRON addresses',  # noqa: E501
                     field_name='addresses',
                 )
 
@@ -1114,6 +1124,22 @@ class CreateHistoryEventSchema(Schema):
             data['notes'] = data.pop('user_notes')
             return {'events': [BitcoinEvent(**data)]}
 
+    class CreateTronEventSchema(BaseEventSchema):  # rotkibv: always at the TRON location
+        tx_ref = TronTxHashField(required=True)
+        group_identifier = EmptyAsNoneStringField(required=False, load_default=None)
+        counterparty = EmptyAsNoneStringField(load_default=None)
+        address = TronAddressField(load_default=None)
+        extra_data = fields.Dict(load_default=None)
+
+        @post_load
+        def make_history_base_entry(
+                self,
+                data: dict[str, Any],
+                **_kwargs: Any,
+        ) -> dict[str, Any]:
+            data['notes'] = data.pop('user_notes')
+            return {'events': [TronEvent(**data)]}
+
     class CreateEthBlockEventEventSchema(BaseSchema):
         is_mev_reward = fields.Boolean(required=True)
         group_identifier = EmptyAsNoneStringField(required=False, load_default=None)
@@ -1390,6 +1416,7 @@ class CreateHistoryEventSchema(Schema):
         HistoryBaseEntryType.EVM_EVENT: CreateEvmEventSchema,
         HistoryBaseEntryType.SOLANA_EVENT: CreateSolanaEventSchema,
         HistoryBaseEntryType.BITCOIN_EVENT: CreateBitcoinEventSchema,
+        HistoryBaseEntryType.TRON_EVENT: CreateTronEventSchema,
         HistoryBaseEntryType.ASSET_MOVEMENT_EVENT: CreateAssetMovementEventSchema,
         HistoryBaseEntryType.SWAP_EVENT: CreateSwapEventSchema,
         HistoryBaseEntryType.EVM_SWAP_EVENT: CreateEvmSwapEventSchema,
@@ -5161,7 +5188,7 @@ class RefetchTransactionsSchema(AsyncQueryArgumentSchema, TimestampRangeSchema):
     chain = BlockchainField(
         required=False,
         load_default=None,
-        allow_only=CHAINS_WITH_TRANSACTION_DECODERS,
+        allow_only=CHAINS_WITH_TX_REFETCH,
     )
 
     def __init__(self, db: DBHandler) -> None:
@@ -5181,7 +5208,7 @@ class RefetchTransactionsSchema(AsyncQueryArgumentSchema, TimestampRangeSchema):
             )
 
         if (address := data['address']) is not None:
-            for deserialize_fn in (deserialize_evm_address, deserialize_solana_address):
+            for deserialize_fn in (deserialize_evm_address, deserialize_solana_address, deserialize_tron_address):  # noqa: E501
                 try:
                     data['address'] = deserialize_fn(address)
                     break
@@ -5189,7 +5216,7 @@ class RefetchTransactionsSchema(AsyncQueryArgumentSchema, TimestampRangeSchema):
                     continue
             else:
                 raise ValidationError(
-                    message=f'Given value {address} is not a valid EVM or Solana address',
+                    message=f'Given value {address} is not a valid EVM, Solana or TRON address',
                     field_name='address',
                 )
 

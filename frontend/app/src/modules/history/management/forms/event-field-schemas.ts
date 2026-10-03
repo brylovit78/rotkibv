@@ -1,4 +1,4 @@
-import { isValidBtcTxHash, isValidEthAddress, isValidEvmTxHash, isValidSolanaAddress, isValidSolanaSignature } from '@rotki/common';
+import { isValidBtcTxHash, isValidEthAddress, isValidEvmTxHash, isValidSolanaAddress, isValidSolanaSignature, isValidTronAddress } from '@rotki/common';
 import { z } from 'zod';
 import { msg } from '@/message-key';
 
@@ -99,6 +99,14 @@ export function optionalSolanaAddress(): z.ZodType<string> {
   );
 }
 
+/** An optional TRON address, same shape as {@link optionalEthAddress}. */
+export function optionalTronAddress(): z.ZodType<string> {
+  return z.string().refine(
+    value => !value || isValidTronAddress(value),
+    msg.$t('transactions.events.form.address.validation.valid'),
+  );
+}
+
 export function requiredEvmTxHash(): z.ZodType<string> {
   return z
     .string()
@@ -116,6 +124,17 @@ export function requiredSolanaSignature(): z.ZodType<string> {
     .refine(
       value => !value || isValidSolanaSignature(value),
       msg.$t('transactions.events.form.signature.validation.valid'),
+    );
+}
+
+/** A TRON transaction hash: 32 bytes as hex, which is also the shape of a bitcoin transaction id. */
+export function requiredTronTxHash(): z.ZodType<string> {
+  return z
+    .string()
+    .min(1, msg.$t('transactions.events.form.tx_hash.validation.non_empty'))
+    .refine(
+      value => !value || isValidBtcTxHash(value),
+      msg.$t('transactions.events.form.tx_hash.validation.valid'),
     );
 }
 

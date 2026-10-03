@@ -48,8 +48,7 @@ vi.mock('@/modules/core/common/use-supported-chains', () => ({
   useSupportedChains: vi.fn(() => ({
     getChain: vi.fn((chain: string) => chain),
     getChainName: vi.fn((chain: string) => chain),
-    isEvmLikeChains: vi.fn(() => false),
-    isSolanaChains: vi.fn(() => false),
+    isEvm: vi.fn((chain: string) => chain === 'eth'),
   })),
 }));
 
@@ -87,6 +86,21 @@ describe('useTargetedRedecode', () => {
       // were never decoded.
       expect(blockDecodeActivityId([1, 2])).not.toBe(blockDecodeActivityId([99]));
       expect(blockDecodeActivityId([2, 1])).toBe(blockDecodeActivityId([1, 2]));
+    });
+
+    it('should send the custom indexers order with the transactions of evm chains only', async () => {
+      mocks.runTaskResult.mockImplementation(async (task: () => Promise<boolean>) => ok(await task()));
+      mocks.submitTask.mockImplementation(runSpecWith(mocks.runTaskResult));
+      mocks.pullAndRecodeTransactionRequest.mockResolvedValue(true);
+
+      const { redecodeTargeted } = useTargetedRedecode();
+      await redecodeTargeted({
+        customIndexersOrder: ['etherscan'],
+        transactions: [{ location: 'eth', txRef: '0x1' }, { location: 'tron', txRef: 'ab'.repeat(32) }],
+      });
+
+      expect(mocks.pullAndRecodeTransactionRequest).toHaveBeenCalledWith(expect.objectContaining({ chain: 'eth', customIndexersOrder: ['etherscan'] }));
+      expect(mocks.pullAndRecodeTransactionRequest).toHaveBeenCalledWith(expect.objectContaining({ chain: 'tron', customIndexersOrder: undefined }));
     });
 
     it('should do nothing when the request names neither transactions nor blocks', async () => {

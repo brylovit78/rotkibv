@@ -1,7 +1,9 @@
 """Storage of TRON history, see docs/designs/tron-integration.md sections 3.8 and 6.4"""
 from typing import TYPE_CHECKING, Final, NamedTuple
 
-from rotkehlchen.types import SupportedBlockchain, TimestampMS, TronAddress
+from rotkehlchen.db.constants import HISTORY_MAPPING_KEY_STATE, HistoryMappingState
+from rotkehlchen.types import Location, SupportedBlockchain, TimestampMS, TronAddress
+from rotkehlchen.utils.misc import get_chunks
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -127,26 +129,60 @@ def add_tron_history(
     )
 
 
-def delete_tron_history(write_cursor: DBCursor, address: TronAddress | None = None) -> None:
-    """Delete the TRON history of one account or, with no address, of all accounts.
+def customized_tron_transactions(cursor: DBCursor, tx_hashes: list[bytes]) -> set[bytes]:
+    """The ones of these transactions with a customized event, whatever its group. Redecoding
+    and cleanup keep such a transaction whole, unless customized events are deleted."""
+    return {bytes(x[0]) for chunk in get_chunks(tx_hashes, 500) for x in cursor.execute(
+        'SELECT DISTINCT C.tx_ref FROM chain_events_info C '
+        'JOIN history_events H ON H.identifier=C.identifier '
+        'JOIN history_events_mappings M ON M.parent_identifier=H.identifier '
+        f'WHERE H.location=? AND M.name=? AND M.value=? AND C.tx_ref IN ({",".join("?" * len(chunk))})',  # noqa: E501
+        (Location.TRON.serialize_for_db(), HISTORY_MAPPING_KEY_STATE, HistoryMappingState.CUSTOMIZED.serialize_for_db(), *chunk),  # noqa: E501
+    )}
 
-    A transaction that another tracked account also maps to is kept. The query ranges of the
-    affected feeds are deleted, so a later sync reads the history again.
+
+def delete_tron_history(
+        write_cursor: DBCursor,
+        address: TronAddress | None = None,
+) -> tuple[list[bytes], list[bytes]]:
+    """Delete the TRON history of one account or, with no address, of all accounts. Return
+    the hashes of the deleted transactions and of the kept ones, whose events the caller
+    deletes.
+
+    A transaction that another tracked account also maps to is kept and left pending decoding,
+    since its events depend on the tracked accounts. So is one with an event of the account,
+    also when only another account's feed listed it. The query ranges of the affected feeds
+    are deleted, so a later sync reads the history again.
     """
+    bindings: tuple[TronAddress, ...] = ()
     if address is None:
-        write_cursor.execute('DELETE FROM tron_transactions')
-        name_pattern = f'{SupportedBlockchain.TRON.value}%'
+        where, name_pattern = '', f'{SupportedBlockchain.TRON.value}%'
     else:
+        where = (
+            'WHERE identifier IN (SELECT tx_id FROM tron_tx_address_mappings WHERE address=?) '
+            'AND identifier NOT IN (SELECT tx_id FROM tron_tx_address_mappings WHERE address!=?)'
+        )
+        bindings, name_pattern = (address, address), f'{SupportedBlockchain.TRON.value}%\\_{address}'  # noqa: E501
+
+    hashes = [x[0] for x in write_cursor.execute(f'SELECT tx_hash FROM tron_transactions {where}', bindings)]  # noqa: E501
+    write_cursor.execute(f'DELETE FROM tron_transactions {where}', bindings)
+    kept: list[bytes] = []
+    if address is not None:  # the ones left that the account's feeds or events take part in
+        affected = (
+            'identifier IN (SELECT tx_id FROM tron_tx_address_mappings WHERE address=?) OR '
+            'tx_hash IN (SELECT C.tx_ref FROM chain_events_info C JOIN history_events H ON '
+            'H.identifier=C.identifier WHERE H.location=? AND ? IN (H.location_label, C.address))'
+        )
+        affected_bindings = (address, Location.TRON.serialize_for_db(), address)
+        kept = [x[0] for x in write_cursor.execute(f'SELECT tx_hash FROM tron_transactions WHERE {affected}', affected_bindings)]  # noqa: E501
         write_cursor.execute(
-            'DELETE FROM tron_transactions WHERE identifier IN (SELECT tx_id FROM '
-            'tron_tx_address_mappings WHERE address=?) AND identifier NOT IN (SELECT tx_id '
-            'FROM tron_tx_address_mappings WHERE address!=?)',
-            (address, address),
+            f'DELETE FROM tron_tx_mappings WHERE tx_id IN (SELECT identifier FROM tron_transactions WHERE {affected})',  # noqa: E501
+            affected_bindings,
         )
         write_cursor.execute('DELETE FROM tron_tx_address_mappings WHERE address=?', (address,))
-        name_pattern = f'{SupportedBlockchain.TRON.value}%\\_{address}'
 
     write_cursor.execute(
         "DELETE FROM used_query_ranges WHERE name LIKE ? ESCAPE '\\'",
         (name_pattern,),
     )
+    return hashes, kept

@@ -33,6 +33,7 @@ const HEADER_KEYS: Record<HistoryEventEntryType, MessageKey> = {
   [HistoryEventEntryType.SOLANA_EVENT]: msg.$t('transactions.events.headers.solana_event'),
   [HistoryEventEntryType.SOLANA_SWAP_EVENT]: msg.$t('transactions.events.headers.solana_swap_event'),
   [HistoryEventEntryType.SWAP_EVENT]: msg.$t('transactions.events.headers.swap_event'),
+  [HistoryEventEntryType.TRON_EVENT]: msg.$t('transactions.events.headers.tron_event'),
 };
 
 const { t } = useI18n({ useScope: 'global' });

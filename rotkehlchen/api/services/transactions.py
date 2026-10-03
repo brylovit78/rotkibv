@@ -17,6 +17,7 @@ from rotkehlchen.chain.zksync_lite.constants import ZKL_IDENTIFIER
 from rotkehlchen.concurrency import exception_of, spawn, wait
 from rotkehlchen.db.bitcointx import DBBitcoinTx
 from rotkehlchen.db.cache import DBCacheDynamic
+from rotkehlchen.db.constants import TX_DECODED
 from rotkehlchen.db.eth2 import DBEth2
 from rotkehlchen.db.evmtx import DBEvmTx
 from rotkehlchen.db.filtering import (
@@ -49,11 +50,11 @@ from rotkehlchen.premium.premium import (
 )
 from rotkehlchen.types import (
     CHAINS_WITH_NODES,
-    CHAINS_WITH_TRANSACTION_DECODERS,
-    CHAINS_WITH_TRANSACTION_DECODERS_TYPE,
     CHAINS_WITH_TRANSACTIONS,
     CHAINS_WITH_TRANSACTIONS_TYPE,
     CHAINS_WITH_TX_DECODING_TYPE,
+    CHAINS_WITH_TX_REFETCH,
+    CHAINS_WITH_TX_REFETCH_TYPE,
     EVM_CHAIN_IDS_WITH_TRANSACTIONS,
     EVM_CHAIN_IDS_WITH_TRANSACTIONS_TYPE,
     EVM_CHAINS_WITH_TRANSACTIONS,
@@ -85,6 +86,8 @@ if TYPE_CHECKING:
         EvmInternalTransaction,
         EVMTxHash,
         SolanaAddress,
+        TronAddress,
+        TronTxHash,
     )
 
 logger = logging.getLogger(__name__)
@@ -570,7 +573,7 @@ class TransactionsService:
     def decode_given_transactions(
             self,
             chain: CHAINS_WITH_TX_DECODING_TYPE,
-            tx_refs: list[EVMTxHash | Signature],
+            tx_refs: list[EVMTxHash | Signature | TronTxHash],
             delete_custom: bool,
             custom_indexers_order: list[EvmIndexer] | None = None,
     ) -> dict[str, Any]:
@@ -594,6 +597,11 @@ class TransactionsService:
                 evmlike_tx_refs = cast('list[EVMTxHash]', tx_refs)
                 for evmlike_tx_ref in evmlike_tx_refs:
                     self._decode_given_evmlike_tx(evmlike_tx_ref, delete_custom)
+            elif chain == SupportedBlockchain.TRON:  # rotkibv: again from the stored raw rows
+                self.rotkehlchen.chains_aggregator.tron.decoder.decode_transactions(
+                    tx_hashes=cast('list[TronTxHash]', tx_refs),
+                    delete_custom=delete_custom,
+                )
             else:
                 solana_tx_refs = cast('list[Signature]', tx_refs)
                 for solana_tx_ref in solana_tx_refs:
@@ -638,6 +646,12 @@ class TransactionsService:
                 force_redecode=force_redecode,
                 send_ws_notifications=True,
             )
+        elif chain == SupportedBlockchain.TRON:  # rotkibv
+            if force_redecode:
+                with self.rotkehlchen.data.db.user_write() as write_cursor:
+                    dbevents.reset_events_for_redecode(write_cursor=write_cursor, location=Location.TRON)  # noqa: E501
+
+            decoded_count = self.rotkehlchen.chains_aggregator.tron.decoder.decode_transactions()
         else:
             if force_redecode:
                 with self.rotkehlchen.data.db.user_write() as write_cursor:
@@ -809,6 +823,16 @@ class TransactionsService:
                     'SELECT COUNT(*) FROM zksynclite_transactions',
                 ).fetchone()[0]
 
+            if (undecoded_count := cursor.execute(  # rotkibv
+                'SELECT COUNT(*) FROM tron_transactions WHERE identifier NOT IN '
+                '(SELECT tx_id FROM tron_tx_mappings WHERE value=?)',
+                (TX_DECODED,),
+            ).fetchone()[0]) != 0:
+                tx_info[chain_name := SupportedBlockchain.TRON.name.lower()]['undecoded'] = undecoded_count  # noqa: E501
+                tx_info[chain_name]['total'] = cursor.execute(
+                    'SELECT COUNT(*) FROM tron_transactions',
+                ).fetchone()[0]
+
         if (undecoded_count := DBSolanaTx(self.rotkehlchen.data.db).count_hashes_not_decoded(
             filter_query=SolanaTransactionsNotDecodedFilterQuery.make(),
         )) != 0:
@@ -888,8 +912,8 @@ class TransactionsService:
             self,
             from_timestamp: Timestamp,
             to_timestamp: Timestamp,
-            chain: CHAINS_WITH_TRANSACTION_DECODERS_TYPE | None = None,
-            address: ChecksumEvmAddress | SolanaAddress | None = None,
+            chain: CHAINS_WITH_TX_REFETCH_TYPE | None = None,
+            address: ChecksumEvmAddress | SolanaAddress | TronAddress | None = None,
     ) -> dict[str, Any]:
         log.debug(
             'Force refetching transactions',
@@ -899,7 +923,7 @@ class TransactionsService:
             address=address or 'all addresses',
         )
 
-        chains_to_query: list[CHAINS_WITH_TRANSACTION_DECODERS_TYPE] = []
+        chains_to_query: list[CHAINS_WITH_TX_REFETCH_TYPE] = []
         if chain is not None:
             chains_to_query.append(chain)
         else:
@@ -913,13 +937,21 @@ class TransactionsService:
                 chains_to_query.extend([
                     blockchain
                     for row in cursor.execute(query_str, bindings)
-                    if (blockchain := SupportedBlockchain.deserialize(row[0])) in CHAINS_WITH_TRANSACTION_DECODERS  # noqa: E501
+                    if (blockchain := SupportedBlockchain.deserialize(row[0])) in CHAINS_WITH_TX_REFETCH  # noqa: E501
                 ])
 
         new_transactions: set[tuple[str, str]] = set()
         new_history_events_count = 0
         for query_chain in chains_to_query:
-            if query_chain == SupportedBlockchain.SOLANA:
+            if query_chain == SupportedBlockchain.TRON:  # rotkibv
+                new_transactions |= self._query_txs_for_range(
+                    from_timestamp=from_timestamp,
+                    to_timestamp=to_timestamp,
+                    address=address,
+                    blockchain=SupportedBlockchain.TRON,
+                    query_for_range_fn=self.rotkehlchen.chains_aggregator.tron.refetch_transactions,
+                )
+            elif query_chain == SupportedBlockchain.SOLANA:
                 new_transactions |= self._query_txs_for_range(
                     from_timestamp=from_timestamp,
                     to_timestamp=to_timestamp,
@@ -978,7 +1010,7 @@ class TransactionsService:
             self,
             from_timestamp: Timestamp,
             to_timestamp: Timestamp,
-            address: ChecksumEvmAddress | SolanaAddress | None,
+            address: ChecksumEvmAddress | SolanaAddress | TronAddress | None,
     ) -> int:
         if not (addresses_to_query := self._get_addresses_to_query(
             blockchain=SupportedBlockchain.HYPERLIQUID,
@@ -1011,14 +1043,14 @@ class TransactionsService:
 
     def _get_addresses_to_query(
             self,
-            blockchain: CHAINS_WITH_TRANSACTION_DECODERS_TYPE,
-            address: ChecksumEvmAddress | SolanaAddress | None,
-    ) -> tuple[ChecksumEvmAddress | SolanaAddress, ...]:
+            blockchain: CHAINS_WITH_TX_REFETCH_TYPE,
+            address: ChecksumEvmAddress | SolanaAddress | TronAddress | None,
+    ) -> tuple[ChecksumEvmAddress | SolanaAddress | TronAddress, ...]:
         if address:
             return (address,)
 
         with self.rotkehlchen.data.db.conn.read_ctx() as cursor:
-            return cast('tuple[ChecksumEvmAddress | SolanaAddress, ...]', tuple(
+            return cast('tuple[ChecksumEvmAddress | SolanaAddress | TronAddress, ...]', tuple(
                 self.rotkehlchen.data.db.get_single_blockchain_addresses(
                     cursor=cursor,
                     blockchain=blockchain,
@@ -1029,11 +1061,12 @@ class TransactionsService:
             self,
             from_timestamp: Timestamp,
             to_timestamp: Timestamp,
-            address: ChecksumEvmAddress | SolanaAddress | None,
-            blockchain: CHAINS_WITH_TRANSACTION_DECODERS_TYPE,
+            address: ChecksumEvmAddress | SolanaAddress | TronAddress | None,
+            blockchain: CHAINS_WITH_TX_REFETCH_TYPE,
             query_for_range_fn: (
                 Callable[[ChecksumEvmAddress, Timestamp, Timestamp], list[EVMTxHash]] |
-                Callable[[SolanaAddress, Timestamp, Timestamp], list[Signature]]
+                Callable[[SolanaAddress, Timestamp, Timestamp], list[Signature]] |
+                Callable[[TronAddress, Timestamp, Timestamp], list[TronTxHash]]
             ),
     ) -> set[tuple[str, str]]:
         if not (addresses_to_query := self._get_addresses_to_query(

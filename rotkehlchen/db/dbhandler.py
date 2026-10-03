@@ -85,7 +85,7 @@ from rotkehlchen.db.settings import (
     serialize_db_setting,
 )
 from rotkehlchen.db.solanatx import DBSolanaTx
-from rotkehlchen.db.trontx import delete_tron_history
+from rotkehlchen.db.trontx import customized_tron_transactions, delete_tron_history
 from rotkehlchen.db.upgrade_manager import DBUpgradeManager
 from rotkehlchen.db.utils import (
     DBAssetBalance,
@@ -162,6 +162,7 @@ from rotkehlchen.types import (
     SolanaAddress,
     SupportedBlockchain,
     Timestamp,
+    TronAddress,
     UserNote,
 )
 from rotkehlchen.utils.hashing import file_md5
@@ -2035,8 +2036,21 @@ class DBHandler:
             for address in accounts:
                 solana_tx_db.delete_data_for_address(write_cursor, address)  # type: ignore
         elif blockchain == SupportedBlockchain.TRON:
-            for address in accounts:
-                delete_tron_history(write_cursor, address)  # type: ignore[arg-type]  # TRON accounts
+            dbevents = DBHistoryEvents(self)
+            for address in accounts:  # the kept transactions are decoded again
+                deleted, kept = delete_tron_history(write_cursor, address)  # type: ignore[arg-type]  # TRON accounts
+                dbevents.delete_events_by_tx_ref(
+                    write_cursor=write_cursor,
+                    tx_refs=deleted,  # type: ignore[arg-type]  # TRON refs are bytes
+                    location=Location.TRON,
+                )
+                customized = customized_tron_transactions(write_cursor, kept)
+                dbevents.delete_events_by_tx_ref(
+                    write_cursor=write_cursor,
+                    tx_refs=[x for x in kept if x not in customized],  # type: ignore[misc]  # TRON refs are bytes
+                    location=Location.TRON,
+                    customized_handling='delete',
+                )
 
         write_cursor.executemany(
             'DELETE FROM blockchain_accounts WHERE '
@@ -2323,6 +2337,14 @@ class DBHandler:
             cursor: DBCursor,
             blockchain: Literal[SupportedBlockchain.SOLANA],
     ) -> list[SolanaAddress]:
+        ...
+
+    @overload
+    def get_single_blockchain_addresses(
+            self,
+            cursor: DBCursor,
+            blockchain: Literal[SupportedBlockchain.TRON],
+    ) -> list[TronAddress]:
         ...
 
     def get_single_blockchain_addresses(

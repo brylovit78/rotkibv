@@ -32,6 +32,7 @@ from rotkehlchen.chain.evm.types import EvmIndexer
 from rotkehlchen.chain.hyperliquid.validation import is_valid_hyperliquid_token_address
 from rotkehlchen.chain.solana.rpc import Signature
 from rotkehlchen.chain.solana.validation import is_valid_solana_address
+from rotkehlchen.chain.tron.utils import deserialize_tron_address
 from rotkehlchen.constants import ZERO
 from rotkehlchen.constants.misc import NFT_DIRECTIVE
 from rotkehlchen.errors.asset import UnknownAsset, WrongAssetType
@@ -39,6 +40,7 @@ from rotkehlchen.errors.misc import XPUBError
 from rotkehlchen.errors.serialization import DeserializationError
 from rotkehlchen.fval import FVal
 from rotkehlchen.history.deserialization import deserialize_price
+from rotkehlchen.history.events.structures.tron_event import deserialize_tron_tx_hash
 from rotkehlchen.history.types import HistoricalPriceOracle
 from rotkehlchen.inquirer import CurrentPriceOracle
 from rotkehlchen.logging import RotkehlchenLogsAdapter
@@ -66,6 +68,8 @@ from rotkehlchen.types import (
     Timestamp,
     TimestampMS,
     Timezone,
+    TronAddress,
+    TronTxHash,
     deserialize_evm_tx_hash,
 )
 from rotkehlchen.utils.misc import ts_now
@@ -821,7 +825,22 @@ class HyperliquidTokenAddressField(fields.Field):
         return HyperliquidTokenAddress(value.lower())
 
 
-class BaseTransactionHashField[T_TxHash: EVMTxHash | Signature | BTCTxId](fields.Field, ABC):
+class TronAddressField(fields.Field):
+
+    def _deserialize(
+            self,
+            value: str,
+            attr: str | None,  # pylint: disable=unused-argument
+            data: Mapping[str, Any] | None,
+            **_kwargs: Any,
+    ) -> TronAddress:
+        try:
+            return deserialize_tron_address(value)
+        except DeserializationError as e:
+            raise ValidationError(str(e)) from e
+
+
+class BaseTransactionHashField[T_TxHash: EVMTxHash | Signature | BTCTxId | TronTxHash](fields.Field, ABC):  # noqa: E501
 
     @staticmethod
     @abstractmethod
@@ -893,6 +912,17 @@ class BitcoinTxIdField(BaseTransactionHashField[BTCTxId]):
             return deserialize_btc_tx_id(value)
         except DeserializationError as e:
             raise ValidationError(f'Invalid bitcoin transaction id {value}. {e!s}') from e
+
+
+class TronTxHashField(BaseTransactionHashField[TronTxHash]):
+
+    @staticmethod
+    def deserialize_string_value(value: str) -> TronTxHash:
+        """May raise ValidationError if the value is not a TRON transaction hash"""
+        try:
+            return deserialize_tron_tx_hash(value)
+        except DeserializationError as e:
+            raise ValidationError(str(e)) from e
 
 
 class AssetTypeField(fields.Field):

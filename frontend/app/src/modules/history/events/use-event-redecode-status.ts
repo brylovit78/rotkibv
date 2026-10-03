@@ -8,6 +8,7 @@ import {
   isEvmSwapEvent,
   isSolanaEvent,
   isSolanaSwapEvent,
+  isTronEvent,
   toLocationAndTxRef,
 } from '@/modules/history/event-utils';
 import { blockDecodeActivityId, targetedDecodeActivityId } from '@/modules/history/events/tx/decode-activity';
@@ -46,7 +47,7 @@ export function useEventRedecodeStatus(
   /** The event a re-decode would actually act on — the group header, or the first decodable child. */
   function resolveDecodable(group: HistoryEventEntry, children: HistoryEventEntry[]): DecodableEventType | undefined {
     for (const item of [group, ...children]) {
-      if (isEvmEvent(item) || isEvmSwapEvent(item) || isSolanaEvent(item) || isSolanaSwapEvent(item))
+      if (isEvmEvent(item) || isEvmSwapEvent(item) || isSolanaEvent(item) || isSolanaSwapEvent(item) || isTronEvent(item))
         return item;
     }
 

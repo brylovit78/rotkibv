@@ -5,9 +5,10 @@ import type {
   HistoryEvent,
   SolanaEvent,
   SolanaSwapEvent,
+  TronEvent,
 } from '@/modules/history/events/schemas';
 import { HistoryEventEntryType } from '@rotki/common';
-import { isEvmEvent, isEvmSwapEvent, isSolanaEvent, isSolanaSwapEvent } from '@/modules/history/event-utils';
+import { isEvmEvent, isEvmSwapEvent, isSolanaEvent, isSolanaSwapEvent, isTronEvent } from '@/modules/history/event-utils';
 
 export function isGroupEditableHistoryEvent(event: HistoryEvent): event is GroupEditableHistoryEvents {
   return event.entryType === HistoryEventEntryType.ASSET_MOVEMENT_EVENT
@@ -42,10 +43,10 @@ export function isSwapTypeEvent(type: HistoryEventEntryType): boolean {
   return Array.prototype.includes.call(SWAP_EVENTS, type);
 }
 
-export type DecodableEventType = EvmHistoryEvent | EvmSwapEvent | SolanaEvent | SolanaSwapEvent;
+export type DecodableEventType = EvmHistoryEvent | EvmSwapEvent | SolanaEvent | SolanaSwapEvent | TronEvent;
 
 export function isEventDecodable(event: HistoryEvent): DecodableEventType | undefined {
-  if (isEvmEvent(event) || isEvmSwapEvent(event) || isSolanaEvent(event) || isSolanaSwapEvent(event)) {
+  if (isEvmEvent(event) || isEvmSwapEvent(event) || isSolanaEvent(event) || isSolanaSwapEvent(event) || isTronEvent(event)) {
     return event;
   }
   return undefined;
