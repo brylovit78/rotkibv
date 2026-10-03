@@ -2,8 +2,7 @@ import type { Purgeable } from '@/modules/session/purge';
 import { err, isErr, map as mapResult, ok, type Result } from 'plainfp/result';
 import { msg } from '@/message-key';
 import { getErrorMessage } from '@/modules/core/common/logging/error-handling';
-import { useNotifications } from '@/modules/core/notifications/use-notifications';
-import { isActionable, isCancellation, type TaskError, TaskFailed } from '@/modules/core/tasks/task-result';
+import { errorOf, isCancellation, type TaskError, TaskFailed } from '@/modules/core/tasks/task-result';
 import { useProtocolCacheStatusStore } from '@/modules/history/use-protocol-cache-status-store';
 import { useSessionApi } from '@/modules/session/api/use-session-api';
 import { activityLabelFor } from '@/modules/task-center/activity-labels';
@@ -18,7 +17,6 @@ interface UseSessionPurge {
 export function useSessionPurge(): UseSessionPurge {
   const { refreshGeneralCacheTask } = useSessionApi();
   const { submitTask } = useNativeTask();
-  const { notifyError } = useNotifications();
   const { markAllProtocolCacheCancelled, resetProtocolCacheUpdatesStatus } = useProtocolCacheStatusStore();
   const { t } = useI18n({ useScope: 'global' });
 
@@ -27,10 +25,14 @@ export function useSessionPurge(): UseSessionPurge {
    * endpoints differ per source — while the orchestrator owns that it happened, under an id that
    * names the source (`purge:transactions:eth`). Whatever derives from that data declares a
    * `staleAfter` edge against this kind rather than anyone reaching in to reset its status.
+   *
+   * @remarks
+   * Rejects when the purge did not happen, since the purge page reports success for anything that
+   * resolves.
    */
   const purgeData = async (purgeable: Purgeable, value: string, deleteData: () => Promise<void>): Promise<void> => {
     const parts = value ? [purgeable, value] : [purgeable];
-    await submitTask({
+    const outcome = await submitTask({
       id: makeActivityId(ActivityKind.PURGE, ...parts),
       kind: ActivityKind.PURGE,
       run: async (): Promise<Result<void, TaskError>> => {
@@ -45,8 +47,18 @@ export function useSessionPurge(): UseSessionPurge {
       subtitle: value ? activityLabelFor(msg.$t('task_center.activity.purge.target'), { target: value }) : undefined,
       title: t('task_center.group.purge'),
     });
+
+    if (isErr(outcome))
+      throw errorOf(outcome.error);
   };
 
+  /**
+   * Refresh one protocol's cached data as an activity.
+   *
+   * @remarks
+   * Rejects when the refresh did not happen, cancelled or failed, since the refresh page reports
+   * success for anything that resolves and shows the rejection inline.
+   */
   const refreshGeneralCache = async (source: string): Promise<void> => {
     resetProtocolCacheUpdatesStatus();
     const outcome = await submitTask({
@@ -64,19 +76,10 @@ export function useSessionPurge(): UseSessionPurge {
     });
 
     if (isErr(outcome)) {
-      if (isCancellation(outcome.error)) {
+      if (isCancellation(outcome.error))
         markAllProtocolCacheCancelled();
-        return;
-      }
-      if (isActionable(outcome.error)) {
-        notifyError(
-          t('actions.session.refresh_general_cache.task.title', { name: source }),
-          t('actions.session.refresh_general_cache.error.message', {
-            message: outcome.error.message,
-            name: source,
-          }),
-        );
-      }
+
+      throw errorOf(outcome.error);
     }
   };
 

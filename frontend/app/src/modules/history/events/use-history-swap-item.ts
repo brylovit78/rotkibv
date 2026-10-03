@@ -1,11 +1,12 @@
 import type { Blockchain } from '@rotki/common';
 import type { ComputedRef, Ref } from 'vue';
 import type { HistoryEventEntry } from '@/modules/history/events/schemas';
+import type { HistoryEventBridgeUnlinkPayload } from '@/modules/history/events/types';
 import type { UseHistoryEventsSelectionModeReturn } from '@/modules/history/events/use-selection-mode';
 import { NO_COLLECTION_RESOLVE, useAssetInfoRetrieval } from '@/modules/assets/use-asset-info-retrieval';
 import { useAssetsStore } from '@/modules/assets/use-assets-store';
 import { useSupportedChains } from '@/modules/core/common/use-supported-chains';
-import { isEventMissingAccountingRule } from '@/modules/history/event-utils';
+import { getMatchedBridgeUnlink, isEventMissingAccountingRule } from '@/modules/history/event-utils';
 
 export interface UseHistorySwapItemProps {
   events: Ref<HistoryEventEntry[]> | ComputedRef<HistoryEventEntry[]>;
@@ -26,6 +27,8 @@ export interface UseHistorySwapItemReturn {
   toggleSelected: () => void;
   // Swap-specific
   isBridge: ComputedRef<boolean>;
+  /** How a matched bridge transfer is unlinked; undefined for swaps, which cannot be unlinked. */
+  bridgeUnlink: ComputedRef<HistoryEventBridgeUnlinkPayload | undefined>;
   spendEvents: ComputedRef<HistoryEventEntry[]>;
   receiveEvents: ComputedRef<HistoryEventEntry[]>;
   spendEvent: ComputedRef<HistoryEventEntry | undefined>;
@@ -83,6 +86,8 @@ export function useHistorySwapItem(
 
   // A joined matched-bridge subgroup: both legs carry the bridge subtype
   const isBridge = computed<boolean>(() => get(events).some(e => e.eventSubtype === 'bridge'));
+
+  const bridgeUnlink = computed<HistoryEventBridgeUnlinkPayload | undefined>(() => getMatchedBridgeUnlink(get(events)));
 
   // Separate spend and receive events. For matched bridge groups the source
   // chain deposit is the spend side and the destination chain withdrawal the
@@ -174,6 +179,7 @@ export function useHistorySwapItem(
   });
 
   return {
+    bridgeUnlink,
     chain,
     compactNotes,
     counterparty,

@@ -37,6 +37,8 @@ class WSMessageType(StrEnum):
     NEGATIVE_BALANCE_DETECTED = auto()
     NO_AVAILABLE_INDEXERS = auto()
     INTERNAL_TX_FIXED = auto()
+    # Sent when a price oracle is set aside for the penalty duration
+    ORACLE_PENALIZED = auto()
 
 
 class ProgressUpdateSubType(StrEnum):
@@ -56,6 +58,7 @@ class TransactionStatusStep(StrEnum):
     QUERYING_INTERNAL_TRANSACTIONS = auto()
     QUERYING_EVM_TOKENS_TRANSACTIONS = auto()
     QUERYING_TRANSACTIONS_FINISHED = auto()
+    QUERYING_TRANSACTIONS_FAILED = auto()
     DECODING_TRANSACTIONS_STARTED = auto()
     DECODING_TRANSACTIONS_FINISHED = auto()
 

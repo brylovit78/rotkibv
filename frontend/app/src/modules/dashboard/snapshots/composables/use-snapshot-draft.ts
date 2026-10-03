@@ -23,7 +23,7 @@ import {
   type SnapshotSumMismatch,
 } from '@/modules/dashboard/snapshots/utils/snapshot-math';
 import { applyBalanceBulkDelete, applyReconcileLocations } from '@/modules/dashboard/snapshots/utils/snapshot-mutations';
-import { assetsTotal, getTotalValue, nftsTotal } from '@/modules/dashboard/snapshots/utils/snapshot-totals';
+import { assetsTotal, getTotalValue, locationsTotal, nftsTotal } from '@/modules/dashboard/snapshots/utils/snapshot-totals';
 
 /** Maximum depth of the undo history (full draft states). */
 const UNDO_LIMIT = 50;
@@ -69,8 +69,9 @@ interface UseSnapshotDraftReturn {
  *
  * Net worth ALWAYS tracks the balances (assets − liabilities, minus NFTs when
  * excluded) — the balances are the source of truth, so there is no manual total.
- * The stored total is corrected to the balances on load and re-tracked after
- * every balance mutation; only the NFT-exclusion flag is inferred on load.
+ * A stale stored total is corrected to the balances on load (an unsaved change)
+ * and re-tracked after every balance mutation; only the NFT-exclusion flag is
+ * inferred on load.
  *
  * Undo uses a bounded full-state stack (snapshot + the NFT flag) rather than
  * op-inversion — simpler and impossible to desync for the v1 editor.
@@ -105,13 +106,31 @@ export function useSnapshotDraft(initial: MaybeRefOrGetter<Snapshot | undefined>
       return;
     }
     inferExcludeNfts(snapshot);
-    // Net worth always tracks the balances, so correct the stored total on load
-    // (the backend value can be stale). Baseline and draft both hold the
-    // corrected snapshot, so a freshly-opened snapshot is never spuriously dirty.
-    const corrected = retrackTotal(cloneSnapshot(snapshot));
-    set(original, cloneSnapshot(corrected));
-    set(draft, cloneSnapshot(corrected));
+    set(original, cloneSnapshot(snapshot));
+    set(draft, seedDraft(snapshot));
     set(undoStack, []);
+  }
+
+  /**
+   * The draft a loaded snapshot opens as. Net worth always tracks the balances,
+   * so a stale stored total is corrected here and shows as an unsaved change
+   * against the untouched `original`, which is what lets the user save it.
+   * Drift within the reconciliation epsilon is kept as stored, so rounding
+   * noise never reads as a change.
+   *
+   * A total is only stale when the locations agree with the balances. When they
+   * do not, the total is one side of a mismatch the banner resolves, and
+   * correcting it on load would make an untouched snapshot read as edited and
+   * let a plain save write the unresolved balances sum.
+   */
+  function seedDraft(snapshot: Snapshot): Snapshot {
+    const copy = cloneSnapshot(snapshot);
+    const tracked = trackedTotal(copy);
+    if (approxEqualUsd(getTotalValue(copy.locationDataSnapshot), tracked))
+      return copy;
+    if (!approxEqualUsd(locationsTotal(copy.locationDataSnapshot), tracked))
+      return copy;
+    return retrackTotal(copy);
   }
 
   watch(() => toValue(initial), reset, { immediate: true });
@@ -278,10 +297,10 @@ export function useSnapshotDraft(initial: MaybeRefOrGetter<Snapshot | undefined>
 
   function discard(): void {
     const baseline = get(original);
-    set(draft, baseline ? cloneSnapshot(baseline) : undefined);
-    set(undoStack, []);
     if (baseline)
       inferExcludeNfts(baseline);
+    set(draft, baseline ? seedDraft(baseline) : undefined);
+    set(undoStack, []);
   }
 
   async function commit(saveFn: (snapshot: Snapshot) => Promise<boolean>): Promise<boolean> {

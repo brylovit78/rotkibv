@@ -170,7 +170,7 @@ from rotkehlchen.utils.misc import get_chunks, ts_ms_to_sec, ts_now
 from rotkehlchen.utils.serialization import rlk_jsondumps
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Iterator, Mapping, Sequence
+    from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 
     from rotkehlchen.chain.substrate.types import SubstrateAddress
     from rotkehlchen.db.filtering import UserNotesFilterQuery
@@ -181,6 +181,18 @@ logger = logging.getLogger(__name__)
 log = RotkehlchenLogsAdapter(logger)
 
 ROTKIBV_MIN_USER_DB_VERSION: Final = 53  # the upstream schema fork additions target
+EXCHANGE_INSTANCE_CACHE_KEY_PREFIX: Final = '{location}_{location_name}_'
+# Regexes for the tail of every DBCacheDynamic key scoped to a single exchange instance.
+# Each placeholder is a single underscore-free segment so that the name of one exchange can't
+# swallow the keys of another exchange whose name starts with it (`main` vs `main_backup`).
+EXCHANGE_INSTANCE_CACHE_KEY_TAILS: Final = tuple(
+    re.compile('[^_]+'.join(
+        re.escape(part)
+        for part in re.split(r'\{\w+\}', template.removeprefix(EXCHANGE_INSTANCE_CACHE_KEY_PREFIX))
+    ))
+    for template in (member.value[0] for member in DBCacheDynamic)
+    if template.startswith(EXCHANGE_INSTANCE_CACHE_KEY_PREFIX)
+)
 
 DBINFO_FILENAME = 'dbinfo.json'
 TRANSIENT_DB_NAME = 'rotkehlchen_transient.db'
@@ -281,7 +293,11 @@ class DBHandler:
         self.pending_txs_tracker = PendingTransactionsTracker()
         self.password = password
         self._connect()
-        self._check_unfinished_upgrades(resume_from_backup=resume_from_backup)
+        try:
+            self._check_unfinished_upgrades(resume_from_backup=resume_from_backup)
+        except Exception:
+            self.disconnect()
+            raise
         self._run_actions_after_first_connection()
         with self.user_write() as cursor:
             if initial_settings is not None:
@@ -315,9 +331,6 @@ class DBHandler:
                 payload=None,
             )
 
-        # If resume_from_backup is True, the user gave approval.
-        # Replace the db with a backup and reconnect
-        self.disconnect()
         backup_postfix = f'rotkehlchen_db_v{ongoing_upgrade_from_version}.backup'
         found_backups = list(filter(
             lambda x: x[-len(backup_postfix):] == backup_postfix,
@@ -331,6 +344,19 @@ class DBHandler:
             )
 
         backup_to_use = max(found_backups)  # Use latest backup
+        # Leave WAL mode before replacing the file so old WAL pages cannot override the backup.
+        self.conn.disable_read_pool()
+        try:
+            with self.conn.cursor() as cursor:
+                journal_mode = cursor.execute('PRAGMA journal_mode=DELETE').fetchone()
+        except sqlcipher.OperationalError as e:  # pylint: disable=no-member
+            raise DBUpgradeError(
+                f'Could not restore database backup: failed to disable WAL mode: {e!s}',
+            ) from e
+        if journal_mode != ('delete',):
+            raise DBUpgradeError('Could not restore database backup: WAL mode is still enabled.')
+
+        self.disconnect()
         shutil.copyfile(
             self.user_data_dir / backup_to_use,
             self.user_data_dir / USERDB_NAME,
@@ -832,6 +858,7 @@ class DBHandler:
                 DBCacheStatic.LAST_BALANCE_SAVE,
                 DBCacheStatic.LAST_DATA_UPLOAD_TS,
                 DBCacheStatic.LAST_DATA_UPDATES_TS,
+                DBCacheStatic.LAST_DATA_UPDATES_FAILED_TS,
                 DBCacheStatic.LAST_OWNED_ASSETS_UPDATE,
                 DBCacheStatic.LAST_EVM_ACCOUNTS_DETECT_TS,
                 DBCacheStatic.LAST_SPAM_ASSETS_DETECT_KEY,
@@ -1132,7 +1159,7 @@ class DBHandler:
             self,
             write_cursor: DBCursor,
             name: Literal[DBCacheDynamic.LAST_QUERY_ID],
-            value: int,
+            value: str,
             **kwargs: Unpack[LabeledLocationIdArgsType],
     ) -> None:
         ...
@@ -1333,8 +1360,8 @@ class DBHandler:
 
             write_cursor.execute(
                 'DELETE FROM blockchain_balances_cache WHERE blockchain=? AND address=? '
-                'AND label=? AND category=?',
-                (chain, address, DEFAULT_BALANCE_LABEL, asset_category),
+                'AND label=? AND category=? AND asset!=?',
+                (chain, address, DEFAULT_BALANCE_LABEL, asset_category, blockchain.get_native_token_id()),  # noqa: E501
             )
             write_cursor.executemany(
                 'DELETE FROM blockchain_balances_cache WHERE blockchain=? AND address=? '
@@ -1755,15 +1782,38 @@ class DBHandler:
         return Timestamp(int(result[0])), Timestamp(int(result[1]))
 
     @staticmethod
-    def _is_binance_pair_cache_key(key: str, prefix: str) -> bool:
-        """Return whether key is a Binance pair ID or pair query timestamp cache.
+    def _is_exchange_instance_cache_key(key: str, prefix: str) -> bool:
+        """Return whether key is a key_value_cache entry scoped to one exchange instance,
+        such as a Coinbase per-account cursor, a Bitstamp offset or Binance per-pair progress.
 
-        Binance symbols are concatenated alphanumeric asset symbols. Checking the suffix keeps
-        exchange names such as ``main`` and ``main_backup`` unambiguous despite the legacy
-        underscore-delimited cache format.
+        The key's tail after ``{location}_{name}_`` has to match one of the DBCacheDynamic
+        templates with every placeholder (a Coinbase account UUID, a Binance pair) free of
+        underscores. That keeps exchange names such as ``main`` and ``main_backup``
+        unambiguous despite the legacy underscore-delimited cache format.
         """
-        suffix = key.removeprefix(prefix).removesuffix('_last_query_ts')
-        return suffix.isalnum()
+        tail = key.removeprefix(prefix)
+        return any(pattern.fullmatch(tail) for pattern in EXCHANGE_INSTANCE_CACHE_KEY_TAILS)
+
+    def _get_exchange_instance_cache_keys(
+            self,
+            cursor: DBCursor,
+            location: Location,
+            exchange_name: str,
+    ) -> list[str]:
+        """Return the key_value_cache keys holding the query progress of one exchange
+        instance. They are named {location}_{name}_... so a LIKE on the name alone would
+        also return the keys of any exchange whose name starts with this one."""
+        escaped_name = exchange_name.replace(
+            '\\',
+            '\\\\',
+        ).replace('%', '\\%').replace('_', '\\_')
+        prefix = f'{location!s}_{exchange_name}_'
+        return [
+            key for key, in cursor.execute(
+                'SELECT name FROM key_value_cache WHERE name LIKE ? ESCAPE ?;',
+                (f'{location!s}\\_{escaped_name}\\_%', '\\'),
+            ) if self._is_exchange_instance_cache_key(key=key, prefix=prefix)
+        ]
 
     def delete_used_query_range_for_exchange(
             self,
@@ -1775,34 +1825,22 @@ class DBHandler:
         """Delete the query ranges for the given exchange name"""
         if data_type == ExchangePurgeType.ALL:
             ranges_to_delete = [f'{location!s}\\_%']
-            escaped_name: str | None = None
             if exchange_name is not None:
                 escaped_name = exchange_name.replace(
                     '\\',
                     '\\\\',
                 ).replace('%', '\\%').replace('_', '\\_')
                 ranges_to_delete = [f'{location!s}\\_%\\_{escaped_name}']
-            write_cursor.execute(
-                'DELETE FROM key_value_cache WHERE name LIKE ? ESCAPE ?;',
-                (ranges_to_delete[0], '\\'),
-            )
-            if (
-                    exchange_name is not None and
-                    escaped_name is not None and
-                    location in (Location.BINANCE, Location.BINANCEUS)
-            ):
-                cache_prefix = f'{location!s}_{exchange_name}_'
-                cache_keys = write_cursor.execute(
-                    'SELECT name FROM key_value_cache WHERE name LIKE ? ESCAPE ?;',
-                    (f'{location!s}\\_{escaped_name}\\_%', '\\'),
-                ).fetchall()
+                # The pattern above only catches keys ending in the exchange name. The
+                # per-instance caches (Coinbase account cursors, Bitstamp offset, Binance
+                # pair progress) are named {location}_{name}_... so match them separately.
                 write_cursor.executemany(
                     'DELETE FROM key_value_cache WHERE name=?;',
-                    [
-                        (key,)
-                        for key, in cache_keys
-                        if self._is_binance_pair_cache_key(key=key, prefix=cache_prefix)
-                    ],
+                    [(key,) for key in self._get_exchange_instance_cache_keys(
+                        cursor=write_cursor,
+                        location=location,
+                        exchange_name=exchange_name,
+                    )],
                 )
         elif data_type == ExchangePurgeType.TRADES:
             ranges_to_delete = [
@@ -2086,7 +2124,7 @@ class DBHandler:
             "value = evm_accounts_details.value)"
         )
         bindings = (address, blockchain.to_chain_id().serialize_for_db(), EVM_ACCOUNTS_DETAILS_LAST_QUERIED_TS, EVM_ACCOUNTS_DETAILS_TOKENS)  # noqa: E501
-        cursor.execute(querystr, bindings)  # original place https://github.com/rotki/rotki/issues/5432 was seen # noqa: E501
+        cursor.execute(querystr, bindings)
 
         returned_list = []
         for (key, value) in cursor:
@@ -2206,6 +2244,43 @@ class DBHandler:
             '(account, chain_id, key, value) VALUES (?, ?, ?, ?)',
             insert_rows,
         )
+
+    def add_tokens_for_address(
+            self,
+            write_cursor: DBCursor,
+            address: ChecksumEvmAddress,
+            blockchain: SupportedBlockchain,
+            tokens: Iterable[Asset],
+    ) -> None:
+        """Adds tokens to the detected tokens of an address keeping the already saved ones.
+        Unlike save_tokens_for_address it doesn't touch the last queried timestamp since
+        this is not a full token detection."""
+        chain_id = blockchain.to_chain_id().serialize_for_db()
+        write_cursor.executemany(
+            'INSERT OR IGNORE INTO evm_accounts_details '
+            '(account, chain_id, key, value) VALUES (?, ?, ?, ?)',
+            [(address, chain_id, EVM_ACCOUNTS_DETAILS_TOKENS, x.identifier) for x in tokens],
+        )
+
+    def get_cached_token_ids(
+            self,
+            cursor: DBCursor,
+            address: ChecksumEvmAddress,
+            chain_id: ChainID,
+            token_ids: Collection[str],
+    ) -> set[str]:
+        """Returns which of the given token identifiers are in the detected tokens of the
+        address. Queries by the full primary key in bounded chunks so it doesn't scan the
+        detected tokens of other accounts or load every cached token of the chain."""
+        cached: set[str] = set()
+        for chunk in get_chunks(list(token_ids), n=500):
+            cached.update(row[0] for row in cursor.execute(
+                'SELECT value FROM evm_accounts_details WHERE account=? AND chain_id=? AND '
+                f'key=? AND value IN ({",".join(["?"] * len(chunk))})',
+                (address, chain_id.serialize_for_db(), EVM_ACCOUNTS_DETAILS_TOKENS, *chunk),
+            ))
+
+        return cached
 
     def _deserialize_account_blockchain_from_db(
             self,
@@ -2589,6 +2664,17 @@ class DBHandler:
                 '(name, location, api_key, api_secret, passphrase) VALUES (?, ?, ?, ?, ?)',
                 (name, location.serialize_for_db(), api_key, api_secret.decode() if api_secret is not None else None, passphrase),  # noqa: E501
             )
+            # Older versions did not clear the per-instance query progress (Coinbase account
+            # cursors, Bitstamp offset, Binance pair progress and lending range) when an
+            # exchange was removed or renamed, so stale progress under this name would make
+            # the new connection skip everything before it. Nothing can legitimately exist
+            # under the name of an exchange that is only now being added, so drop it. Has
+            # to happen before the binance history start range is written below.
+            self.delete_used_query_range_for_exchange(
+                write_cursor=cursor,
+                location=location,
+                exchange_name=name,
+            )
 
             if location == Location.KRAKEN:
                 if kraken_account_type is not None:
@@ -2773,7 +2859,7 @@ class DBHandler:
                 raise InputError(f'Could not update DB user_credentials_mappings due to {e!s}') from e  # noqa: E501
 
         if new_name is not None:
-            exchange_re = re.compile(r'(.*?)_(margins|history_events).*')
+            exchange_re = re.compile(r'(.*?)_(margins|history_events|lending_history).*')
             used_ranges = write_cursor.execute(
                 'SELECT * from used_query_ranges WHERE name LIKE ?',
                 (f'{location!s}_%_{name}',),
@@ -2790,6 +2876,23 @@ class DBHandler:
                 [
                     (f'{location!s}_{entry_type}_{new_name}', f'{location!s}_{entry_type}_{name}')
                     for entry_type in entry_types
+                ],
+            )
+            # move the per-instance query progress (Coinbase account cursors, Bitstamp
+            # offset, Binance pair progress) to the new name so history isn't re-queried.
+            # OR REPLACE since older versions left the keys of removed or renamed exchanges
+            # behind and no live exchange can hold the new name (user_credentials PK), so
+            # anything already under it is stale and must not block the rename.
+            cache_prefix = f'{location!s}_{name}_'
+            write_cursor.executemany(
+                'UPDATE OR REPLACE key_value_cache SET name=? WHERE name=?',
+                [
+                    (f'{location!s}_{new_name}_{key.removeprefix(cache_prefix)}', key)
+                    for key in self._get_exchange_instance_cache_keys(
+                        cursor=write_cursor,
+                        location=location,
+                        exchange_name=name,
+                    )
                 ],
             )
 

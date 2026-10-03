@@ -669,13 +669,15 @@ class RestAPI:
 
     # - Public functions not exposed via the rest api
     def stop(self) -> None:
+        # Stop API workers before the backend's final per-session analytics flush.
+        self._cancel_api_tasks(reason='Cancelled due to shutdown')
         self.rotkehlchen.shutdown()
         log.debug('Waiting for the main loop to finish')
         self.main_loop_task.join()
-        log.debug('Waited for the main loop. Cancelling api tasks')
-        self._cancel_api_tasks(reason='Cancelled due to shutdown')
+        log.debug('Waited for the main loop')
         log.debug('Cleaning up global DB')
         GlobalDBHandler().cleanup()
+        self.rotkehlchen.wait_for_indexer_stats_close()
         log.debug('Shutdown completed')
         logging.shutdown()
         self.stop_event.set()
@@ -970,6 +972,7 @@ class RestAPI:
                     ignore_cache=True,
                     addresses=addresses,
                 )
+                msg = balances.failed_chains_message()
             result = self._serialize_blockchain_balances(
                 balances=balances,
                 blockchain=blockchain,
@@ -998,6 +1001,7 @@ class RestAPI:
                 ignore_cache=True,
                 addresses=addresses,
             )
+            msg = balances.failed_chains_message()
             result = self._serialize_blockchain_balances(
                 balances=balances,
                 blockchain=blockchain,

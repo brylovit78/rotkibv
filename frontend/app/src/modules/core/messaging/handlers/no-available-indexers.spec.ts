@@ -79,6 +79,62 @@ describe('createNoAvailableIndexersHandler', () => {
     expect(push).toHaveBeenCalledWith({ name: '/settings/chains/', hash: '#indexer' });
   });
 
+  it('should explain the paid etherscan key and offer to enter it when that is the reason', async () => {
+    const handler = createNoAvailableIndexersHandler(mockT, router);
+    const result = await handler.handle({ chain: 'base', reason: 'etherscan_paid_key_required' });
+    assert(result);
+    expect(result.title).toContain('paid_key_required.title');
+    expect(result.message).toContain('paid_key_required.message');
+    const actions = Array.isArray(result.action) ? result.action : [result.action];
+    const enterKeyAction = actions.find(a => a?.label.includes('enter_etherscan_key'));
+    assert(enterKeyAction);
+    await enterKeyAction.action();
+    expect(push).toHaveBeenCalledWith({ name: '/api-keys/external/', query: { service: 'etherscan' } });
+  });
+
+  it('should offer a free blockscout key before paid etherscan when both can restore queries', async () => {
+    const handler = createNoAvailableIndexersHandler(mockT, router);
+    const result = await handler.handle({
+      chain: 'optimism',
+      reason: 'blockscout_or_paid_etherscan_key_required',
+    });
+    assert(result);
+    expect(result.title).toContain('blockscout_or_paid_etherscan_key_required.title');
+    expect(result.message).toContain('blockscout_or_paid_etherscan_key_required.message');
+    const actions = Array.isArray(result.action) ? result.action : [result.action];
+    const enterKeyAction = actions.find(a => a?.label.includes('enter_blockscout_key'));
+    assert(enterKeyAction);
+    await enterKeyAction.action();
+    expect(push).toHaveBeenCalledWith({ name: '/api-keys/external/', query: { service: 'blockscout' } });
+  });
+
+  it('should not offer to enter a key when no reason is given', async () => {
+    const handler = createNoAvailableIndexersHandler(mockT, router);
+    const result = await handler.handle({ chain: 'base' });
+    assert(result);
+    expect(result.title).not.toContain('paid_key_required');
+    const actions = Array.isArray(result.action) ? result.action : [result.action];
+    expect(actions.find(a => a?.label.includes('enter_'))).toBeUndefined();
+  });
+
+  it('should explain incomplete Blockscout data without suggesting a missing API key', async () => {
+    const handler = createNoAvailableIndexersHandler(mockT, router);
+    const result = await handler.handle({ chain: 'optimism', reason: 'blockscout_incomplete_response' });
+    assert(result);
+    expect(result.title).toContain('blockscout_incomplete_response.title');
+    expect(result.message).toContain('blockscout_incomplete_response.message');
+    const actions = Array.isArray(result.action) ? result.action : [result.action];
+    expect(actions.find(a => a?.label.includes('enter_'))).toBeUndefined();
+    expect(actions.find(a => a?.label.endsWith('.action'))).toBeDefined();
+    expect(actions.find(a => a?.label.includes('do_not_show_again'))).toBeUndefined();
+
+    const keyFailure = await handler.handle({ chain: 'optimism', reason: 'etherscan_paid_key_required' });
+    assert(keyFailure);
+    expect(keyFailure.title).toContain('paid_key_required.title');
+    expect(result.group).toBe(`${NotificationGroup.NO_AVAILABLE_INDEXERS}:optimism:incomplete`);
+    expect(keyFailure.group).toBe(`${NotificationGroup.NO_AVAILABLE_INDEXERS}:optimism`);
+  });
+
   it('should return null when the chain is in the suppression list', async () => {
     const handler = createNoAvailableIndexersHandler(mockT, router);
     const store = useSettingsRepo();

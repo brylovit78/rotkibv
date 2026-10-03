@@ -40,7 +40,13 @@ from rotkehlchen.db.trontx import delete_tron_history
 from rotkehlchen.db.utils import table_exists
 from rotkehlchen.errors.api import PremiumApiError
 from rotkehlchen.errors.asset import WrongAssetType
-from rotkehlchen.errors.misc import AlreadyExists, DataIntegrityError, InputError, RemoteError
+from rotkehlchen.errors.misc import (
+    AlreadyExists,
+    DataIntegrityError,
+    IncompleteTransactionsQuery,
+    InputError,
+    RemoteError,
+)
 from rotkehlchen.errors.serialization import DeserializationError
 from rotkehlchen.logging import RotkehlchenLogsAdapter
 from rotkehlchen.premium.premium import (
@@ -245,14 +251,14 @@ class TransactionsService:
             manager = self.rotkehlchen.chains_aggregator.get_chain_manager(
                 blockchain=node.node_info.blockchain,
             )
-            manager.node_inquirer.invalidate_nodes_cache()  # type: ignore[attr-defined]
+            manager.node_inquirer.refresh_nodes(added={node.node_info}, removed=set())  # type: ignore[attr-defined]
 
         return {'result': True, 'message': '', 'status_code': HTTPStatus.OK}
 
     def update_and_connect_rpc_node(self, node: WeightedNode) -> dict[str, Any]:
         with self.rotkehlchen.data.db.conn.read_ctx() as cursor:
-            if (old_endpoint_row := cursor.execute(
-                'SELECT endpoint FROM rpc_nodes WHERE identifier=?',
+            if (old_node_row := cursor.execute(
+                'SELECT name, endpoint, owned FROM rpc_nodes WHERE identifier=?',
                 (node.identifier,),
             ).fetchone()) is None:
                 return {
@@ -260,7 +266,12 @@ class TransactionsService:
                     'message': f"Node with identifier {node.identifier} doesn't exist",
                     'status_code': HTTPStatus.CONFLICT,
                 }
-            old_endpoint = old_endpoint_row[0]
+            old_node = NodeName(
+                name=old_node_row[0],
+                endpoint=old_node_row[1],
+                owned=bool(old_node_row[2]),
+                blockchain=node.node_info.blockchain,
+            )
 
         try:
             self.rotkehlchen.data.db.update_rpc_node(node)
@@ -278,16 +289,12 @@ class TransactionsService:
                 blockchain=node.node_info.blockchain,
             ),
         )
-        for entry in list(manager.node_inquirer.rpc_mapping):
-            if entry.endpoint == old_endpoint:
-                manager.node_inquirer.rpc_mapping.pop(entry, None)
-                break
-        else:
-            log.debug(
-                f'Failed to find node with endpoint {old_endpoint} in web3 mappings. Skipping',
-            )
-
-        manager.node_inquirer.invalidate_nodes_cache()
+        manager.node_inquirer.refresh_nodes(
+            added={
+                entry.node_info for entry in nodes_to_connect if entry.node_info == node.node_info
+            },
+            removed={old_node, node.node_info},
+        )
         manager.node_inquirer.connect_to_multiple_nodes(nodes_to_connect)
         return {'result': True, 'message': '', 'status_code': HTTPStatus.OK}
 
@@ -321,8 +328,7 @@ class TransactionsService:
         )
         manager = self.rotkehlchen.chains_aggregator.get_chain_manager(blockchain)  # type: ignore
         if deleted_node_info is not None:
-            manager.node_inquirer.clear_runtime_state(deleted_node_info)
-        manager.node_inquirer.invalidate_nodes_cache()
+            manager.node_inquirer.refresh_nodes(added=set(), removed={deleted_node_info})
         manager.node_inquirer.connect_to_multiple_nodes(nodes_to_connect)
         return {'result': True, 'message': '', 'status_code': HTTPStatus.OK}
 
@@ -560,6 +566,10 @@ class TransactionsService:
                 result = False
                 message = f'Transaction querying for {blockchain} is not implemented.'
                 status_code = HTTPStatus.BAD_REQUEST
+            elif isinstance(chain_exception, IncompleteTransactionsQuery):
+                # a status of its own, so the frontend can tell it from an unreachable backend
+                result, message = False, str(chain_exception)
+                status_code = HTTPStatus.SERVICE_UNAVAILABLE
             elif isinstance(chain_exception, RemoteError):
                 result, message, status_code = False, str(chain_exception), HTTPStatus.BAD_GATEWAY
             elif isinstance(chain_exception, sqlcipher.OperationalError):  # pylint: disable=no-member

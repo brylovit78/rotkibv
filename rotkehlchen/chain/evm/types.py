@@ -176,9 +176,16 @@ DEFAULT_EVM_INDEXER_ORDER: Final = (
 # https://info.etherscan.com/whats-changing-in-the-free-api-tier-coverage-and-why/
 BLOCKSCOUT_PRIORITY_ORDER: Final = (
     EvmIndexer.BLOCKSCOUT,
-    EvmIndexer.ROUTESCAN,
     EvmIndexer.ETHERSCAN,
 )
+# Chains that etherscan serves only to paid api keys. Their default order puts other indexers
+# first so that free keys are not wasted on refused queries, but a paid key makes etherscan the
+# most reliable source and it is then tried first.
+ETHERSCAN_PAID_TIER_ONLY_CHAINS: Final = frozenset({
+    ChainID.BASE,
+    ChainID.OPTIMISM,
+    ChainID.GNOSIS,
+})
 DEFAULT_INDEXERS_ORDER: Final = SerializableChainIndexerOrder(
     order={
         ChainID.BASE: BLOCKSCOUT_PRIORITY_ORDER,

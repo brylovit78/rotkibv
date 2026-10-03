@@ -14,7 +14,7 @@ from rotkehlchen.externalapis.interface import (
     ExternalServiceWithApiKey,
     ExternalServiceWithRecommendedApiKey,
 )
-from rotkehlchen.externalapis.utils import maybe_read_integer
+from rotkehlchen.externalapis.utils import read_integer
 from rotkehlchen.history.events.structures.eth2 import EthWithdrawalEvent
 from rotkehlchen.logging import RotkehlchenLogsAdapter
 from rotkehlchen.serialization.deserialize import deserialize_fval, deserialize_timestamp
@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 
     from rotkehlchen.chain.evm.l2_with_l1_fees.types import L2ChainIdsWithL1FeesType
     from rotkehlchen.db.dbhandler import DBHandler
+    from rotkehlchen.indexer_stats import IndexerStats
     from rotkehlchen.user_messages import MessagesAggregator
 
 logger = logging.getLogger(__name__)
@@ -76,6 +77,7 @@ class Etherscan(ExternalServiceWithRecommendedApiKey, EtherscanLikeApi):
             self,
             database: DBHandler,
             msg_aggregator: MessagesAggregator,
+            indexer_stats: IndexerStats | None = None,
     ) -> None:
         ExternalServiceWithRecommendedApiKey.__init__(
             self,
@@ -94,8 +96,16 @@ class Etherscan(ExternalServiceWithRecommendedApiKey, EtherscanLikeApi):
                 capacity=FREE_ETHERSCAN_RATE_LIMIT_BURST,
                 minimum_rps=FREE_ETHERSCAN_RATE_LIMIT_RPS,
             ),
+            indexer_stats=indexer_stats,
         )
+        self.api_key_tier: EtherscanTier | None = None
         self.detect_api_key_tier()
+
+    @property
+    def has_paid_api_key(self) -> bool:
+        """Whether the configured key was detected to be on a paid tier. Free and Lite keys
+        are indistinguishable, so both count as not paid."""
+        return self.api_key_tier is not None and self.api_key_tier.name != 'free_or_lite'
 
     def _cache_api_key_tier(self, tier: EtherscanTier) -> None:
         with self.db.user_write() as write_cursor:
@@ -158,6 +168,7 @@ class Etherscan(ExternalServiceWithRecommendedApiKey, EtherscanLikeApi):
         """
         # Tier detection runs during user initialization, before Etherscan is actually needed.
         # Bypass the recommended-key warning so new users are notified only on real usage.
+        self.api_key_tier = None
         if (api_key := ExternalServiceWithApiKey._get_api_key(self)) is None:
             self._rate_limiter.reset(
                 rps=FREE_ETHERSCAN_RATE_LIMIT_RPS,
@@ -171,14 +182,14 @@ class Etherscan(ExternalServiceWithRecommendedApiKey, EtherscanLikeApi):
                 return
             self._cache_api_key_tier(tier=tier)
 
+        self.api_key_tier = tier
         self._rate_limiter.reset(rps=tier.rps, capacity=tier.burst, minimum_rps=tier.rps)
         log.debug(
             'Detected Etherscan API key tier %s. Set rate limit to %s rps', tier.name, tier.rps,
         )
 
     def on_api_key_changed(self) -> None:
-        self.api_key = None
-        self.last_ts = Timestamp(0)
+        self.reset_api_key_state()
         self._delete_cached_api_key_tier()
         super().on_api_key_changed()
         self.detect_api_key_tier()
@@ -222,20 +233,23 @@ class Etherscan(ExternalServiceWithRecommendedApiKey, EtherscanLikeApi):
             return {'page': '1', 'offset': str(self.pagination_limit)}
         return None
 
-    def _handle_missing_result(self, chain_id: ChainID, json_ret: dict[str, Any]) -> None:
-        """Turn etherscan's oversized-range response into a request to query less.
+    def _handle_missing_result(self, chain_id: ChainID, json_ret: dict[str, Any]) -> bool:
+        """Handle Etherscan's null-result timeout and temporary overload responses.
 
         Etherscan answers a range whose result set it cannot assemble in time with a null
         result and a message asking for a smaller dataset. That is not a malformed response,
         it is an instruction to split the range, so raise the error callers already retry on.
 
-        May raise RequestTooLargeError if the range needs to be split.
+        Returns True for a temporary server failure so the caller retries with backoff.
+        May raise RequestTooLargeError if the queried range needs to be split.
         """
-        if str(json_ret.get('message', '')).startswith('Query Timeout'):
+        if (message := str(json_ret.get('message', ''))).startswith('Query Timeout'):
             raise RequestTooLargeError(
                 f'{self.name} could not serve the requested {chain_id.to_name()} range: '
-                f'{json_ret["message"]}',
+                f'{message}',
             )
+
+        return message.startswith('Unexpected error, timeout or server too busy')
 
     def _additional_json_response_handling(
             self,
@@ -478,10 +492,10 @@ class Etherscan(ExternalServiceWithRecommendedApiKey, EtherscanLikeApi):
                 if raw_tx.get('hash') != str(tx_hash):
                     continue  # skip unrelated txs for this account in the same block
 
-                return maybe_read_integer(data=raw_tx, key='L1FeesPaid', api=self.name)
-        except (DeserializationError, RemoteError) as e:
-            # If the query fails or L1FeesPaid is missing or invalid, log an error and return None.
-            msg = str(e)
+                return read_integer(data=raw_tx, key='L1FeesPaid', api=self.name)
+        except (KeyError, DeserializationError, RemoteError) as e:
+            # A missing L1FeesPaid is an unknown fee, not a zero fee, so it must raise as well.
+            msg = f'missing key {e!s}' if isinstance(e, KeyError) else str(e)
         else:
             msg = 'requested tx was not returned'
 
