@@ -2,10 +2,9 @@ import type { FixtureBlockchainAccount } from '../../pages/types';
 import { expect, type Locator } from '@playwright/test';
 import { Blockchain } from '@rotki/common';
 import { cleanupContext, createLoggedInContext, type SharedTestContext, test } from '../../fixtures/test-fixtures';
-import { waitForNoRunningTasks } from '../../helpers/api';
 import { TIMEOUT_MEDIUM } from '../../helpers/constants';
 import { apiDecodeTransactions } from '../../helpers/history-events-api';
-import { seedTronTransaction } from '../../helpers/seed-db';
+import { seedHistoricPrices, seedTronTransaction } from '../../helpers/seed-db';
 import { BlockchainAccountsPage } from '../../pages/blockchain-accounts-page';
 import { EVENT_ROW } from '../../pages/history-event-rows';
 import { HistoryEventsPage } from '../../pages/history-events-page';
@@ -24,8 +23,9 @@ const account: FixtureBlockchainAccount = {
   tags: [],
 };
 
-const SEND_TX = 'a1'.repeat(32);
-const RECEIVE_TX = 'b2'.repeat(32);
+const TRON_USDT = 'tron/trc20:41a614f803b6fd780986a42c78ec9c7f77e6ded13c';
+const SEND_TX = { hash: 'a1'.repeat(32), timestamp: 1700000000 };
+const RECEIVE_TX = { hash: 'b2'.repeat(32), timestamp: 1700000060 };
 
 test.describe.serial('tron history', () => {
   let ctx: SharedTestContext;
@@ -41,6 +41,13 @@ test.describe.serial('tron history', () => {
     return row('Send').filter({ hasNotText: 'for gas' });
   }
 
+  /** One event with the amount and the asset of the seeded rows. */
+  async function expectEvent(events: Locator, amount: string, asset: string): Promise<void> {
+    await expect(events).toHaveCount(1, { timeout: TIMEOUT_MEDIUM });
+    await page.rows.expectAmount(events, amount);
+    await expect(events.locator('[data-testid=event-asset]')).toContainText(asset);
+  }
+
   /** The group header of a transaction, found by its hash. */
   function group(hash: string): Locator {
     return ctx.sharedPage.locator('[data-testid=history-event-group]').filter({ hasText: hash.slice(0, 4) });
@@ -50,18 +57,22 @@ test.describe.serial('tron history', () => {
     ctx = await createLoggedInContext(browser, request, {
       disableModules: true,
       seed: (username) => {
+        // without stored prices the rows and the edit form ask the price oracles of the network
+        for (const { timestamp } of [SEND_TX, RECEIVE_TX])
+          seedHistoricPrices([{ fromAsset: 'TRX', price: '0.1' }, { fromAsset: TRON_USDT, price: '1' }], timestamp);
+
         seedTronTransaction(username, {
           account: account.address,
-          hash: SEND_TX,
+          hash: SEND_TX.hash,
           id: 1,
-          native: { amount: '1500000', fee: '268000', from: account.address, to: 'TSG5MMxrio1h8wT7D4XGz4XuxJGXwPhZBj' },
-          timestamp: 1700000000000,
+          native: { amount: '1500000', fee: '270000', from: account.address, to: 'TSG5MMxrio1h8wT7D4XGz4XuxJGXwPhZBj' },
+          timestamp: SEND_TX.timestamp * 1000,
         });
         seedTronTransaction(username, {
           account: account.address,
-          hash: RECEIVE_TX,
+          hash: RECEIVE_TX.hash,
           id: 2,
-          timestamp: 1700000060000,
+          timestamp: RECEIVE_TX.timestamp * 1000,
           usdt: { amount: '25000000', from: 'TTpKHSFUdoi9j2zacMcRx522rztL61ojFS', to: account.address },
         });
       },
@@ -78,41 +89,53 @@ test.describe.serial('tron history', () => {
     await accounts.visit('tron');
     await accounts.openAddDialog();
     await accounts.addAccount(account);
-    await accounts.isEntryVisible(0, account);
+
+    const accountRow = ctx.sharedPage.locator('[data-testid=account-table] tbody tr[data-id="row"]').filter({ hasText: account.label });
+    await expect(accountRow).toHaveCount(1, { timeout: TIMEOUT_MEDIUM });
+    await accountRow.locator('[data-testid=labeled-address-display]').hover();
+    await expect(ctx.sharedPage.locator('div[role=tooltip] [data-id=content]')).toContainText(account.address);
   });
 
   test('shows the decoded fee and transfers of the account', async ({ request }) => {
     // The page's own refresh stops at the missing key before decoding, so decode explicitly.
-    await apiDecodeTransactions(request, 'tron');
+    expect(await apiDecodeTransactions(request, 'tron')).toBe(2);
     await page.visit();
     await page.applyTableFilter('location', 'tron');
 
-    for (const events of [row('for gas'), sendRow(), row('Receive')])
-      await expect(events).toHaveCount(1, { timeout: TIMEOUT_MEDIUM });
+    await expectEvent(row('for gas'), '0.27', 'TRX');
+    await expectEvent(sendRow(), '1.5', 'TRX');
+    await expectEvent(row('Receive'), '25', 'USDT');
   });
 
-  test('keeps an edited event when its transaction is redecoded', async () => {
+  async function editSendNotes(notes: string): Promise<void> {
     await page.rows.edit(sendRow());
-    await ctx.sharedPage.locator('[data-testid=notes] textarea:not([aria-hidden="true"])').fill('Paid the supplier');
+    await ctx.sharedPage.locator('[data-testid=notes] textarea:not([aria-hidden="true"])').fill(notes);
     await page.saveForm();
-    await expect(row('Paid the supplier')).toHaveCount(1, { timeout: TIMEOUT_MEDIUM });
+    await expect(row(notes)).toHaveCount(1, { timeout: TIMEOUT_MEDIUM });
+  }
 
-    await group(SEND_TX).locator('[data-testid=history-event-group-menu]').click();
+  test('regenerates a customized transaction when it is redecoded from its menu', async () => {
+    await editSendNotes('Paid the supplier');
+
+    // The dialog warns that a redecode removes the custom events, and Proceed confirms that.
+    await group(SEND_TX.hash).locator('[data-testid=history-event-group-menu]').click();
     await ctx.sharedPage.getByRole('button', { name: 'Redecode events' }).click();
     await ctx.sharedPage.getByRole('button', { name: 'Proceed' }).click();
-    await waitForNoRunningTasks(ctx.sharedPage);
 
-    // a customized transaction is kept whole: no second fee, the edit stays
-    await expect(row('Paid the supplier')).toHaveCount(1, { timeout: TIMEOUT_MEDIUM });
+    // the decoded notes are back, and the transaction still has one fee and one transfer
+    await expect(row('Paid the supplier')).toHaveCount(0, { timeout: TIMEOUT_MEDIUM });
+    await expect(sendRow()).toHaveCount(1);
     await expect(row('for gas')).toHaveCount(1);
+
+    await editSendNotes('Paid the supplier'); // kept for the login test below
   });
 
   test('excludes a transaction from accounting and deletes another', async () => {
-    await group(SEND_TX).locator('[data-testid=history-event-group-menu]').click();
+    await group(SEND_TX.hash).locator('[data-testid=history-event-group-menu]').click();
     await ctx.sharedPage.getByRole('button', { name: 'Exclude from Accounting' }).click();
-    await expect(group(SEND_TX).locator('[data-testid=ignored-in-accounting]')).toHaveCount(1, { timeout: TIMEOUT_MEDIUM });
+    await expect(group(SEND_TX.hash).locator('[data-testid=ignored-in-accounting]')).toHaveCount(1, { timeout: TIMEOUT_MEDIUM });
 
-    await group(RECEIVE_TX).locator('[data-testid=history-event-group-menu]').click();
+    await group(RECEIVE_TX.hash).locator('[data-testid=history-event-group-menu]').click();
     await ctx.sharedPage.getByRole('button', { name: 'Delete transaction & events' }).click();
     await ctx.sharedPage.locator('[data-testid=confirm-dialog] [data-testid=button-confirm]').click();
     await expect(row('Receive')).toHaveCount(0, { timeout: TIMEOUT_MEDIUM });
@@ -124,7 +147,7 @@ test.describe.serial('tron history', () => {
     await page.applyTableFilter('location', 'tron');
 
     await expect(row('Paid the supplier')).toHaveCount(1, { timeout: TIMEOUT_MEDIUM });
-    await expect(group(SEND_TX).locator('[data-testid=ignored-in-accounting]')).toHaveCount(1);
+    await expect(group(SEND_TX.hash).locator('[data-testid=ignored-in-accounting]')).toHaveCount(1);
     await expect(row('Receive')).toHaveCount(0);
   });
 });

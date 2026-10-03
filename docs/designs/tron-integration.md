@@ -1001,7 +1001,7 @@ content type per exchange. Compare results with `expected`.
 | Identical TRC20 transfers in one transaction not observed live | Identity uses event logs; only feed multiplicity is unknown | nothing |
 | `revert: true` never observed | Treated as non-final | nothing |
 | Memo fee and 0-decimal TRC20 not observed live | Covered by synthetic cases | nothing |
-| Saturated one-second history window not observed | Shared data issue; incomplete range; no claim that direction resolves it | completion across that window in #10 |
+| Saturated one-second history window not observed | Warning notification that names the second (section 8, #10); incomplete range; no claim that direction resolves it | completion across that window in #10 |
 | Holdings offset ceiling beyond the 583-row capture unverified | Refuse unresolved partial snapshot; retain previous cache | successful snapshot for a saturated account in #9 |
 | Legacy `TRON_TOKEN` contract verification list not produced | Only legacy backfill waits; TRX, USDT and new tokens do not | the backfill part of #7 |
 | Successor implementation | #7–#11 merged; #5 validates the release | nothing |

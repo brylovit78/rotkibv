@@ -1,6 +1,5 @@
 import type { APIRequestContext } from '@playwright/test';
 import { backendUrl } from '../../../playwright.config';
-import { waitForAsyncQuery } from './api';
 
 /**
  * Payload for adding an EVM event. Timestamps are milliseconds and addresses must be
@@ -112,11 +111,23 @@ export async function apiAddOnlineEvent(
 /**
  * Decodes the pending transactions of `chain` via `POST /api/1/blockchains/transactions/decode`
  * and returns how many were decoded.
+ *
+ * A task result can be read only once, so this polls the task itself: the shared
+ * `waitForAsyncQuery` reads it twice and gets nothing the second time.
  */
-export async function apiDecodeTransactions(request: APIRequestContext, chain: string): Promise<unknown> {
+export async function apiDecodeTransactions(request: APIRequestContext, chain: string): Promise<number> {
   const response = await request.post(`${backendUrl}/api/1/blockchains/transactions/decode`, {
     data: { async_query: true, chain },
   });
   const { result } = await response.json();
-  return waitForAsyncQuery(request, result.task_id);
+
+  for (let attempt = 0; attempt < 120; attempt++) {
+    const task = await request.get(`${backendUrl}/api/1/tasks/${result.task_id}`, { failOnStatusCode: false });
+    const body = await task.json();
+    if (body.result?.status === 'completed')
+      return body.result.outcome.result.decoded_tx_number;
+
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+  throw new Error(`decoding ${chain} transactions did not complete`);
 }
