@@ -320,6 +320,33 @@ describe('use-event-analysis', () => {
       expect(result.partialSwapGroups).toEqual([]);
     });
 
+    // rotkibv #5: selection mode deletes a whole TRON transaction by its hash, as the row action does
+    it('should identify a complete TRON transaction when all its events are selected', () => {
+      const tronEvent: HistoryEventEntry = {
+        address: null,
+        amount: bigNumberify('1.5'),
+        asset: 'TRX',
+        counterparty: null,
+        entryType: HistoryEventEntryType.TRON_EVENT,
+        eventAccountingRuleStatus: HistoryEventAccountingRuleStatus.PROCESSED,
+        eventSubtype: 'none',
+        eventType: 'spend',
+        groupIdentifier: `tron_${'ab'.repeat(32)}`,
+        identifier: 1,
+        location: 'tron',
+        locationLabel: 'TQhqRHgEonKEYqudomS8243o3bejg8dt1d',
+        sequenceIndex: 0,
+        states: [],
+        timestamp: 1000000,
+        txRef: 'ab'.repeat(32),
+      };
+
+      const result = analyzeSelectedEvents([1], [tronEvent], { [tronEvent.groupIdentifier]: [tronEvent] });
+
+      expect(result.completeTransactions.get('ab'.repeat(32))).toEqual({ chain: 'tron', events: [1], groupIdentifier: tronEvent.groupIdentifier });
+      expect(result.partialEventIds).toEqual([]);
+    });
+
     it('should handle empty groupedEventsByTxRef for EVM events', () => {
       const selectedIds = [1];
       const originalGroups: HistoryEventRow[] = [mockEvmEvent1];

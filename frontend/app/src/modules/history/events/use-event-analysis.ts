@@ -37,7 +37,7 @@ export function analyzeSelectedEvents(
     else if (isSwapTypeEvent(group.entryType)) {
       processSingleSwapEvent(group, originalGroups, selectedSet, partialSwapGroups, processedIds);
     }
-    else if (group.entryType === HistoryEventEntryType.EVM_EVENT) {
+    else if (group.entryType === HistoryEventEntryType.EVM_EVENT || group.entryType === HistoryEventEntryType.TRON_EVENT) {
       processEvmTransaction(group, groupedEventsByTxRef, selectedSet, completeTransactions, partialSwapGroups, processedIds);
     }
   });
