@@ -94,16 +94,23 @@ def chain_ids(status, chains):
 
 
 def stored(state, tron_events):
-    """The image returns the test data as it was stored; `tron_events` is None without TRON"""
-    return state['tag'] == TAG and state['kraken_events'] == [EVENT] and (
-        tron_events is None or
-        (state.get('tron_accounts'), state.get('tron_events')) == ([TRON_ACCOUNT], tron_events)
+    """The image returns the test data as it was stored, and its DB version; `tron_events` is
+    None without TRON"""
+    return (
+        state['tag'] == TAG and state['kraken_events'] == [EVENT] and
+        isinstance(state['db_version'], int) and (
+            tron_events is None or
+            (state.get('tron_accounts'), state.get('tron_events')) == ([TRON_ACCOUNT], tron_events)
+        )
     )
 
 
 def kept(before, after):
-    """Every value the old image reported is unchanged; an upgrade may raise the DB version"""
-    return all(after.get(key) == value for key, value in before.items() if key != 'db_version')
+    """Every value the old image reported is unchanged; an upgrade may only raise the DB version"""
+    version = after.get('db_version')
+    return isinstance(version, int) and version >= before['db_version'] and all(
+        after.get(key) == value for key, value in before.items() if key != 'db_version'
+    )
 
 
 def fork_assets(mappings):

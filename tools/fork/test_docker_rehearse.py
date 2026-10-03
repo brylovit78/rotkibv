@@ -92,9 +92,14 @@ class DockerRehearseTests(unittest.TestCase):
         self.assertFalse(stored(STATE, TRON_EVENTS[:1]))
         self.assertFalse(stored(STATE | TRON, TRON_EVENTS))
         self.assertFalse(stored(STATE | dict(TRON, tron_accounts=[]), TRON_EVENTS[:1]))
+        self.assertFalse(stored(dict(STATE, db_version=None), None))
 
     def test_upgrade_keeps_old_values_and_may_raise_the_db_version(self):
+        self.assertTrue(kept(STATE, STATE))
         self.assertTrue(kept(STATE, STATE | TRON | {'db_version': 54}))
+        # the settings request failed, or a version that only a broken upgrade can report
+        self.assertFalse(kept(STATE, dict(STATE, db_version=None)))
+        self.assertFalse(kept(STATE, dict(STATE, db_version=52)))
         self.assertFalse(kept(STATE, dict(STATE, tag=dict(TAG, description='lost'))))
         self.assertFalse(kept(STATE, dict(STATE, kraken_events=[])))
         self.assertFalse(kept(STATE | TRON, STATE))
