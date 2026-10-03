@@ -197,11 +197,14 @@ chmod 600 .env &&
 нового профілю. Ключ зберігати сталим і не публікувати. Докладніше:
 `packaging/docker/README.md`.
 
-За HTTPS proxy додати до `.env` рядок `ROTKI_SESSION_COOKIE_SECURE=1`, тоді
-cookie має позначку `Secure`. Якщо той самий контейнер відкривають і напряму по
-HTTP, задати `forwarded`: позначку отримують лише запити з
-`X-Forwarded-Proto: https`. Без HTTPS значення `1` не задавати: браузер не
-поверне таку cookie по HTTP.
+За HTTPS proxy додати до `.env` рядок `ROTKI_SESSION_COOKIE_SECURE=1` і ще раз
+виконати `docker compose up -d --wait`: cookie наступних входів матиме позначку
+`Secure`. Без HTTPS значення `1` не задавати, бо вхід по HTTP тоді не працює.
+Якщо той самий контейнер відкривають і напряму по HTTP, задати `forwarded`:
+позначку отримують лише входи, для яких proxy передав
+`X-Forwarded-Proto: https`. HTTP тоді відкривати за іншою адресою, ніж HTTPS
+(наприклад, за IP): браузер не замінить `Secure` cookie того самого хоста на
+звичайну, і вхід по HTTP не вдасться.
 
 Перед оновленням: зупинити контейнер, зробити snapshot/backup **усіх** data,
 config і logs volumes, записати попередній image digest. Потім змінити image,
