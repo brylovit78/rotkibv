@@ -2,8 +2,9 @@ import type { FixtureBlockchainAccount } from '../../pages/types';
 import { expect, type Locator } from '@playwright/test';
 import { Blockchain } from '@rotki/common';
 import { cleanupContext, createLoggedInContext, type SharedTestContext, test } from '../../fixtures/test-fixtures';
+import { apiLogout } from '../../helpers/api';
 import { TIMEOUT_MEDIUM } from '../../helpers/constants';
-import { apiDecodeTransactions } from '../../helpers/history-events-api';
+import { apiDecodeTransactions, apiHistoryEvents } from '../../helpers/history-events-api';
 import { seedHistoricPrices, seedTronTransaction } from '../../helpers/seed-db';
 import { BlockchainAccountsPage } from '../../pages/blockchain-accounts-page';
 import { EVENT_ROW } from '../../pages/history-event-rows';
@@ -99,6 +100,14 @@ test.describe.serial('tron history', () => {
   test('shows the decoded fee and transfers of the account', async ({ request }) => {
     // The page's own refresh stops at the missing key before decoding, so decode explicitly.
     expect(await apiDecodeTransactions(request, 'tron')).toBe(2);
+    // exact amounts and asset identifiers; the rows below only show them formatted
+    const events = await apiHistoryEvents(request, 'tron');
+    expect(events).toHaveLength(3);
+    expect(events).toEqual(expect.arrayContaining([
+      ['spend', 'fee', 'TRX', '0.27'],
+      ['spend', 'none', 'TRX', '1.5'],
+      ['receive', 'none', TRON_USDT, '25'],
+    ]));
     await page.visit();
     await page.applyTableFilter('location', 'tron');
 
@@ -142,7 +151,11 @@ test.describe.serial('tron history', () => {
   });
 
   test('keeps the changes after logging in again', async () => {
-    await ctx.app.relogin(ctx.username);
+    // A logout through the menu races the refresh that follows the deletion, so the backend is
+    // logged out through the API, which closes the database, and the app is loaded again.
+    await apiLogout(ctx.sharedRequest);
+    await ctx.app.visit();
+    await ctx.app.login(ctx.username);
     await page.visit();
     await page.applyTableFilter('location', 'tron');
 

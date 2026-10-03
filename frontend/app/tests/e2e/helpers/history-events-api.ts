@@ -131,3 +131,10 @@ export async function apiDecodeTransactions(request: APIRequestContext, chain: s
   }
   throw new Error(`decoding ${chain} transactions did not complete`);
 }
+
+/** The events of `location` as the backend stores them: type, subtype, asset identifier and amount. */
+export async function apiHistoryEvents(request: APIRequestContext, location: string): Promise<string[][]> {
+  const response = await request.post(`${backendUrl}/api/1/history/events`, { data: { location } });
+  const { result } = await response.json();
+  return result.entries.map(({ entry }: { entry: Record<string, string> }) => [entry.event_type, entry.event_subtype, entry.asset, entry.amount]);
+}
