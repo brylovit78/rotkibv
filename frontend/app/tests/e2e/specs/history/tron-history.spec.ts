@@ -159,8 +159,9 @@ test.describe.serial('tron history', () => {
     await ctx.app.visit();
     await ctx.app.login(ctx.username);
     await page.visit();
-    await page.applyTableFilter('location', 'tron');
 
+    // No location filter here: the page restores the earlier one on its own time, and the profile
+    // holds only TRON events. The first row also proves the list has loaded.
     await expect(row('Paid the supplier')).toHaveCount(1, { timeout: TIMEOUT_MEDIUM });
     await expect(group(SEND_TX.hash).locator('[data-testid=ignored-in-accounting]')).toHaveCount(1);
     await expect(row('Receive')).toHaveCount(0);
