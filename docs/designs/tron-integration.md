@@ -1006,4 +1006,5 @@ content type per exchange. Compare results with `expected`.
 | Legacy `TRON_TOKEN` contract verification list not produced | Only legacy backfill waits; TRX, USDT and new tokens do not | the backfill part of #7 |
 | Successor implementation | #7–#11 merged; #5 validates the release | nothing |
 | Internal hash prefix collision (R17, #11) | Two internal transfers of one transaction sharing the first 6 hash bytes: the later one moves past every index, and a later sync that adds another internal transfer can renumber it | nothing; no amount is lost |
+| Selection mode deletes TRON events one by one (T11, #11) | It refuses the last event of a transaction, after deleting the others. TRON groups are not promoted to a transaction deletion: the selection only sees the events the active filter loaded, so a promoted deletion could remove unselected events (R9, #5). The group menu deletes the whole transaction | nothing |
 | `0x`-prefixed TRON hash in the history filter (T13, #11) | Parsed as EVM, so without a TRON entry type it finds no TRON event; the unprefixed hash works | nothing; changing the shared EVM filter routing is not worth it |
