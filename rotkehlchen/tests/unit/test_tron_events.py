@@ -210,18 +210,19 @@ def test_events_wait_for_confirmation(manager: TronManager) -> None:
 
 def test_failed_call_moves_nothing_but_pays_its_fee(manager: TronManager) -> None:
     """A failed call sends none of its TRX, tokens or internal TRX, and its paid fee is a
-    failed fee"""
+    failed fee. It waits for no token metadata, as it moves no token."""
     track_tron_accounts(manager.database, [ALICE])
     with manager.database.user_write() as write_cursor:
         add_tron_history(
             write_cursor=write_cursor,
             address=ALICE,
             transactions=[TronTransaction(tx_hash=(tx_hash := b'\x02' * 32), block_number=1, timestamp=TimestampMS(1700000000000), confirmed=True, reverted=False, contract_ret='REVERT', owner_address=ALICE, to_address=BOB, contract_type=31, native_amount=5 * 10**6, fee=300000)],  # noqa: E501
-            trc20_transfers=[TronTRC20Transfer(tx_hash=tx_hash, event_index=0, contract_address=deserialize_tron_address('TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'), from_address=ALICE, to_address=BOB, amount=10**6)],  # noqa: E501
+            trc20_transfers=[TronTRC20Transfer(tx_hash=tx_hash, event_index=0, contract_address=TOKEN, from_address=ALICE, to_address=BOB, amount=10**6)],  # noqa: E501
             internal_transfers=[TronInternalTransfer(tx_hash=tx_hash, internal_hash=b'\x06' * 32, from_address=TOKEN, to_address=ALICE, amount=10**6, success=True)],  # noqa: E501
         )
 
-    assert manager.decoder.decode_transactions() == 1
+    with patch.object(manager.tronscan, 'query_token_metadata', side_effect=RemoteError('down')):
+        assert manager.decoder.decode_transactions() == 1
     assert [(x.event_type, x.event_subtype, x.amount) for x in _events(manager.database)] == [
         (HistoryEventType.FAIL, HistoryEventSubType.FEE, FVal('0.3')),
     ]
@@ -318,6 +319,39 @@ def test_movements_keep_their_indexes_when_later_syncs_add_rows(manager: TronMan
 
     assert len(before) == 2
     assert before <= {(x.sequence_index, x.asset.identifier, x.amount) for x in _events(manager.database)}  # noqa: E501
+
+
+def test_internal_transfers_sharing_an_index_both_move(manager: TronManager) -> None:
+    """Two internal transfers whose hashes share the bytes their index takes are both decoded,
+    one moved past every index, rather than one dropped at insertion"""
+    track_tron_accounts(manager.database, [ALICE])
+    with manager.database.user_write() as write_cursor:
+        add_tron_history(
+            write_cursor=write_cursor,
+            address=ALICE,
+            transactions=[TronTransaction(tx_hash=(tx_hash := b'\x0d' * 32), block_number=1, timestamp=TimestampMS(1700000000000), confirmed=True, reverted=False)],  # noqa: E501
+            internal_transfers=[TronInternalTransfer(tx_hash, bytes(range(1, 7)) + b'\x00' * 25 + bytes([x]), TOKEN, ALICE, x * 10**6, True) for x in (1, 2)],  # noqa: E501
+        )
+
+    assert manager.decoder.decode_transactions() == 1
+    assert sorted(x.amount for x in _events(manager.database)) == [FVal(1), FVal(2)]
+
+
+def test_reverted_transaction_loses_its_events_also_with_an_unknown_token(manager: TronManager) -> None:  # noqa: E501
+    """A decoded transaction that a later observation reverts loses its events, also when it
+    has a TRC20 transfer of a token without metadata, as a reverted transaction moves nothing"""
+    track_tron_accounts(manager.database, [ALICE])
+    parent = TronTransaction(tx_hash=(tx_hash := b'\x0e' * 32), block_number=1, timestamp=TimestampMS(1700000000000), confirmed=True, reverted=False, contract_ret='SUCCESS', owner_address=ALICE, to_address=BOB, contract_type=1, native_amount=10**6, fee=100000)  # noqa: E501
+    with manager.database.user_write() as write_cursor:
+        add_tron_history(write_cursor=write_cursor, address=ALICE, transactions=[parent])
+    assert manager.decoder.decode_transactions() == 1
+    assert len(_events(manager.database)) == 2
+
+    with manager.database.user_write() as write_cursor:
+        add_tron_history(write_cursor=write_cursor, address=ALICE, transactions=[parent._replace(reverted=True)], trc20_transfers=[TronTRC20Transfer(tx_hash, 0, TOKEN, ALICE, BOB, 10**6)])  # noqa: E501
+    with patch.object(manager.tronscan, 'query_token_metadata', side_effect=RemoteError('down')):
+        assert manager.decoder.decode_transactions() == 1
+    assert _events(manager.database) == []
 
 
 def test_reset_keeps_a_transaction_with_a_moved_customized_event(manager: TronManager) -> None:

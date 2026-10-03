@@ -114,12 +114,14 @@ class TronTransactionDecoder:
         return decoded
 
     def _tokens(self, tx_hashes: list[bytes]) -> dict[TronAddress, Token]:
-        """The tokens of the TRC20 transfers of these transactions. A contract whose metadata
-        is not available is left out, so its transactions stay pending decoding."""
+        """The tokens of the TRC20 transfers of these transactions that may move tokens. A
+        contract whose metadata is not available is left out, so its transactions stay pending
+        decoding."""
         with self.database.conn.read_ctx() as cursor:
             contracts = {x[0] for chunk in get_chunks(tx_hashes, 500) for x in cursor.execute(
                 'SELECT DISTINCT contract_address FROM tron_trc20_transfers WHERE tx_id IN '
-                f'(SELECT identifier FROM tron_transactions WHERE tx_hash IN ({",".join("?" * len(chunk))}))',  # noqa: E501
+                '(SELECT identifier FROM tron_transactions WHERE confirmed=1 AND reverted=0 AND '
+                f"contract_ret='SUCCESS' AND tx_hash IN ({','.join('?' * len(chunk))}))",
                 chunk,
             )}
 
@@ -157,16 +159,16 @@ class TronTransactionDecoder:
             return None
 
         tx_id, timestamp, confirmed, reverted, result, owner, to, contract_type, native, fee = row
-        trc20 = cursor.execute(
+        if not confirmed or reverted:
+            return tx_id, []
+
+        trc20 = cursor.execute(  # only a successful transaction moves tokens
             'SELECT event_index, contract_address, from_address, to_address, amount FROM '
             'tron_trc20_transfers WHERE tx_id=? ORDER BY event_index',
             (tx_id,),
-        ).fetchall()
+        ).fetchall() if result == 'SUCCESS' else []
         if any(x[1] not in tokens for x in trc20):
             return None
-
-        if not confirmed or reverted:
-            return tx_id, []
 
         transfers: list[tuple[int, Asset, int, int, TronAddress | None, TronAddress | None]] = []  # index, asset, decimals, raw amount, from, to  # noqa: E501
         if result == 'SUCCESS':
@@ -179,6 +181,13 @@ class TronTransactionDecoder:
                 'tron_internal_transfers WHERE tx_id=? AND success=1 ORDER BY internal_hash',
                 (tx_id,),
             ))
+
+        seen, extra = set(), max((x[0] for x in transfers), default=0)
+        for position, transfer in enumerate(transfers):  # internal hashes may share 6 bytes
+            if transfer[0] in seen:  # as the shared decoder: moved past every index, not dropped
+                log.error('TRON transaction %s has two movements at sequence index %s, so one moves to %s', tx_hash.hex(), transfer[0], extra := extra + 1)  # noqa: E501
+                transfers[position] = (extra, *transfer[1:])
+            seen.add(transfer[0])
 
         events: list[TronEvent] = []
         tx_ref = TronTxHash(tx_hash.hex())

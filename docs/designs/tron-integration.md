@@ -732,7 +732,9 @@ kept, and the removed account's query ranges are deleted.
   2 plus the event index for a TRC20 transfer, and 2^48 plus the first 6 bytes of the internal
   hash for an internal transfer, which is above any event index, keeps the internal hash order
   and stays below 2^53 for the frontend. Neither another tracked account nor rows a later sync
-  adds move an event.
+  adds move an event. Should two internal hashes of a transaction share those 6 bytes, the
+  later one moves past every index, as the shared decoder does with a collision, instead of
+  being dropped.
 - Direction uses `decode_transfer_direction` (`rotkehlchen/chain/decoding/utils.py:20`):
   - tracked to tracked is one `TRANSFER`;
   - TRX an account sends to itself is a `TRANSACTION_TO_SELF`, as for ETH;
@@ -917,7 +919,8 @@ Plan:
 - It decodes without TronScan, except for the metadata of a TRC20 token seen for the first
   time. That metadata is queried before the write. A transaction whose token metadata is
   missing, malformed or can not be queried stays pending, so a later decode retries it; an
-  explicit redecode of it fails instead.
+  explicit redecode of it fails instead. Only a confirmed, non-reverted, successful
+  transaction needs it: an unconfirmed, reverted or failed one decodes without it.
 - Internal transfers move value only for a successful parent or one known only from the
   internal feed, never for a failed parent.
 - Each chunk of transactions is read, decoded and replaced in one write, so a sync, account
