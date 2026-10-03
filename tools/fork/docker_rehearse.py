@@ -11,31 +11,82 @@ usage: docker_rehearse.py <compose file> <old image ref> <new image ref>
 """
 # Docker is a trusted local CLI, invoked without a shell. URLs are loopback HTTP only.
 # ruff: noqa: S404, S603, S607, S310
+import contextlib
 import json
 import os
 import secrets
+import shlex
 import subprocess
 import sys
 import tempfile
 import urllib.error
 import urllib.request
+from http.client import HTTPException
 from pathlib import Path
 
 PROJECT, PORT = 'rotkibv-rehearsal', '18080'
 API = f'http://127.0.0.1:{PORT}/api/1'
 USER, PASSWORD = 'rbtest', secrets.token_urlsafe(18)
-TRON_ACCOUNT = 'TQhqRHgEonKEYqudomS8243o3bejg8dt1d'  # synthetic: 41 and twenty a1 bytes
-# seeded by the fork: the symbol of the asset and the symbol of its collection
-FORK_ASSETS = {
-    'TRX': ('TRX', 'TRX'),
-    'tron/trc20:41a614f803b6fd780986a42c78ec9c7f77e6ded13c': ('USDT', 'USDT'),
-}
 VOLUME_DIRS = ('data', 'logs', 'config')
+# The test data, as the API takes it and gives it back
+TAG = {
+    'name': 'rehearsal', 'description': 'kept',
+    'background_color': 'ffffff', 'foreground_color': '000000',
+}
+EVENT = {
+    'entry_type': 'history event', 'timestamp': 1700000000000, 'sequence_index': 0,
+    'group_identifier': 'rehearsal-1', 'location': 'kraken', 'event_type': 'receive',
+    'event_subtype': 'none', 'asset': 'ETH', 'amount': '1.5', 'user_notes': 'rehearsal event',
+}
+TRON_ACCOUNT = 'TQhqRHgEonKEYqudomS8243o3bejg8dt1d'  # synthetic: 41 and twenty a1 bytes
+# the first comes with the account, the second is added by the new image to an old TRON profile
+TRON_EVENTS = [{
+    'entry_type': 'tron event', 'tx_ref': tx_ref, 'timestamp': 1700000100000,
+    'sequence_index': 0, 'location_label': TRON_ACCOUNT, 'event_type': 'receive',
+    'event_subtype': 'none', 'asset': 'TRX', 'amount': '2',
+    'user_notes': 'rehearsal TRON event',
+} for tx_ref in ('ab' * 32, 'cd' * 32)]
+# seeded by the fork: the symbol of the asset and the main asset of its collection
+FORK_ASSETS = {
+    'TRX': ('TRX', 'eip155:1/erc20:0x50327c6c5a14DCaDE707ABad2E27eB517df87AB5'),
+    'tron/trc20:41a614f803b6fd780986a42c78ec9c7f77e6ded13c': (
+        'USDT', 'eip155:1/erc20:0xdAC17F958D2ee523a2206206994597C13D831ec7',
+    ),
+}
+
+
+def seeded(found, fields):
+    """What the API returned for the fields that the rehearsal set"""
+    return {key: found.get(key) for key in fields}
+
+
+def listed(history, fields):
+    """The events of a history answer by their seeded fields. An event that the image cannot
+    read is counted in `entries_found` but not listed, so the count proves nothing"""
+    entries = (history or {}).get('entries') or []
+    return sorted((seeded(x['entry'], fields) for x in entries), key=str)
+
+
+def snapshot(tags, history, db_version, tron=None):
+    """The test data in the answers of an image. `tron` is its TRON accounts and TRON history,
+    None for an image without TRON"""
+    state = {
+        'tag': seeded((tags or {}).get(TAG['name']) or {}, TAG),
+        'kraken_events': listed(history, EVENT),
+        'db_version': db_version,
+    }
+    if tron is not None:
+        accounts, tron_history = tron
+        state |= {
+            'tron_accounts': [x['address'] for x in accounts or []],
+            'tron_events': listed(tron_history, TRON_EVENTS[0]),
+        }
+    return state
 
 
 def stored(state, tron_events):
-    """The test data is in the profile; `tron_events` is None for an image without TRON"""
-    return 'rehearsal' in state['tags'] and state['kraken_events'] == 1 and (
+    """The image returns the test data as it was stored; `tron_events` is None without TRON"""
+    return state['tag'] == TAG and state['kraken_events'] == [EVENT] and (
         tron_events is None or
         (state.get('tron_accounts'), state.get('tron_events')) == ([TRON_ACCOUNT], tron_events)
     )
@@ -47,15 +98,16 @@ def kept(before, after):
 
 
 def fork_assets(mappings):
-    """The symbols of each fork asset and of its collection; None for a missing asset"""
+    """The symbol of each fork asset and the main asset of its collection, which identifies the
+    collection (symbols repeat); None for a missing asset"""
     assets = mappings.get('assets') or {}
     collections = mappings.get('asset_collections') or {}
     return {
-        identifier: (
-            assets[identifier].get('symbol'),
-            (collections.get(str(assets[identifier].get('collection_id'))) or {}).get('symbol'),
-        ) if identifier in assets else None
-        for identifier in FORK_ASSETS
+        x: (
+            assets[x].get('symbol'),
+            (collections.get(str(assets[x].get('collection_id'))) or {}).get('main_asset'),
+        ) if x in assets else None
+        for x in FORK_ASSETS
     }
 
 
@@ -97,6 +149,10 @@ def api(method, path, body=None):
         return e.code, json.loads(e.read() or b'{}')
 
 
+def result_of(method, path, body=None):
+    return api(method, path, body)[1].get('result')
+
+
 def said(body):
     return str(body.get('message', ''))[:160]
 
@@ -116,12 +172,16 @@ def logout():
     api('PATCH', f'users/{USER}', {'action': 'logout'})
 
 
-def supports_tron():
-    return 'tron' in json.dumps(api('GET', 'blockchains/supported')[1]).lower()
+def supports_tron(label):
+    status, body = api('GET', 'blockchains/supported')
+    chains = [x.get('id') for x in body.get('result') or []]
+    check(label, f'supported chains listed (HTTP {status})', status == 200 and bool(chains))
+    print(f'{label}: TRON', 'supported' if 'tron' in chains else 'not supported')
+    return 'tron' in chains
 
 
 def entries_found(**filters):
-    return (api('POST', 'history/events', filters)[1].get('result') or {}).get('entries_found')
+    return (result_of('POST', 'history/events', filters) or {}).get('entries_found')
 
 
 def all_events(label):
@@ -130,13 +190,8 @@ def all_events(label):
     print(f'{label}: all history events HTTP {status} found {found} {said(body)!r}')
 
 
-def add_tron_event(label, tx_ref):
-    call(label, 'add TRON event', 'PUT', 'history/events', {
-        'entry_type': 'tron event', 'tx_ref': tx_ref, 'timestamp': 1700000100000,
-        'sequence_index': 0, 'location_label': TRON_ACCOUNT, 'event_type': 'receive',
-        'event_subtype': 'none', 'asset': 'TRX', 'amount': '2',
-        'user_notes': 'rehearsal TRON event',
-    })
+def add_tron_event(label, event):
+    call(label, 'add TRON event', 'PUT', 'history/events', event)
     print(f'{label}: TRON events', entries_found(location='tron'))
 
 
@@ -147,12 +202,12 @@ def add_tron_data(label):
             ('add an invalid address', TRON_ACCOUNT[:-1] + 'e'),
     ):
         call(label, what, 'PUT', 'blockchains/tron/accounts', {'accounts': [{'address': address}]})
-    add_tron_event(label, 'ab' * 32)
+    add_tron_event(label, TRON_EVENTS[0])
 
 
 def check_fork_assets(label):
-    body = api('POST', 'assets/mappings', {'identifiers': list(FORK_ASSETS)})[1]
-    found = fork_assets(body.get('result') or {})
+    mappings = result_of('POST', 'assets/mappings', {'identifiers': list(FORK_ASSETS)})
+    found = fork_assets(mappings or {})
     check(label, f'fork assets {found} in their collections', found == FORK_ASSETS)
 
 
@@ -166,7 +221,7 @@ def assets_update(label):
         print(f'{label}: no assets update is offered')
         return
     status, body = api('POST', 'assets/updates', {})
-    versions = api('GET', 'assets/updates')[1].get('result') or {}
+    versions = result_of('GET', 'assets/updates') or {}
     check(
         label,
         f'assets update HTTP {status} {said(body)!r} applied, now {versions}',
@@ -175,19 +230,18 @@ def assets_update(label):
     check_fork_assets(label)
 
 
-def user_data(label):
-    state = {
-        'tags': sorted(api('GET', 'tags')[1].get('result') or {}),
-        'kraken_events': entries_found(location='kraken'),
-        'db_version': (api('GET', 'settings')[1].get('result') or {}).get('version'),
-    }
-    if supports_tron():
-        accounts = api('GET', 'blockchains/tron/accounts')[1].get('result') or []
-        state |= {
-            'tron_accounts': [x['address'] for x in accounts],
-            'tron_events': entries_found(location='tron'),
-        }
-    version = (api('GET', 'info')[1].get('result') or {}).get('version') or {}
+def user_data(label, tron):
+    """The test data as the image returns it; `tron` tells whether the image supports TRON"""
+    state = snapshot(
+        tags=result_of('GET', 'tags'),
+        history=result_of('POST', 'history/events', {'location': 'kraken'}),
+        db_version=(result_of('GET', 'settings') or {}).get('version'),
+        tron=(
+            result_of('GET', 'blockchains/tron/accounts'),
+            result_of('POST', 'history/events', {'location': 'tron'}),
+        ) if tron else None,
+    )
+    version = (result_of('GET', 'info') or {}).get('version') or {}
     print(f'{label}: {state} app version {version.get("our_version")}')
     return state
 
@@ -217,9 +271,10 @@ def main():
         return compose(image, 'ps', '-aq', 'rotki')
 
     if compose(old, 'ps', '-aq'):
+        down = shlex.join(['docker', 'compose', '-p', PROJECT, '-f', compose_file, 'down', '-v'])
         raise SystemExit(
             f'The {PROJECT} project already has containers. If no rehearsal is running, '
-            f'remove them: docker compose -p {PROJECT} down -v',
+            f'remove them: ROTKIBV_IMAGE=none {down}',
         )
     try:
         with tempfile.TemporaryDirectory() as backup:
@@ -229,21 +284,13 @@ def main():
                 'name': USER, 'password': PASSWORD,
                 'initial_settings': {'submit_usage_analytics': False},
             })
-            call('old', 'add tag', 'PUT', 'tags', {
-                'name': 'rehearsal', 'description': 'kept',
-                'background_color': 'ffffff', 'foreground_color': '000000',
-            })
-            call('old', 'add event', 'PUT', 'history/events', {
-                'entry_type': 'history event', 'timestamp': 1700000000000, 'sequence_index': 0,
-                'group_identifier': 'rehearsal-1', 'location': 'kraken', 'event_type': 'receive',
-                'event_subtype': 'none', 'asset': 'ETH', 'amount': '1.5',
-                'user_notes': 'rehearsal event',
-            })
-            print('old: supports tron', old_has_tron := supports_tron())
-            if old_has_tron:
+            call('old', 'add tag', 'PUT', 'tags', TAG)
+            call('old', 'add event', 'PUT', 'history/events', EVENT)
+            if old_has_tron := supports_tron('old'):
                 add_tron_data('old')
-            before = user_data('old')
-            check('old', 'test data stored', stored(before, 1 if old_has_tron else None))
+            before = user_data('old', old_has_tron)
+            expected = TRON_EVENTS[:1] if old_has_tron else None
+            check('old', 'test data stored', stored(before, expected))
             logout()
 
             # 2. stop and back up every volume
@@ -257,16 +304,18 @@ def main():
             # 3. the new image on the same volumes
             image_facts('new', up(new))
             check('new', 'profile opens', login('new'))
-            check('new', 'user data kept', kept(before, user_data('new')))
-            print('new: supports tron', supports_tron())
+            check('new', 'user data kept', kept(before, user_data('new', tron=True)))
+            supports_tron('new')
             if old_has_tron:
-                add_tron_event('new', 'cd' * 32)  # a second TRON event, written by the new image
+                add_tron_event('new', TRON_EVENTS[1])
             else:
                 add_tron_data('new')
-            with_tron = user_data('new')
-            check('new', 'TRON data stored', stored(with_tron, 2 if old_has_tron else 1))
+            with_tron = user_data('new', tron=True)
+            expected = TRON_EVENTS if old_has_tron else TRON_EVENTS[:1]
+            check('new', 'TRON data stored', stored(with_tron, expected))
             assets_update('new')
-            check('new', 'user data kept after the assets update', user_data('new') == with_tron)
+            after_update = user_data('new', tron=True)
+            check('new', 'user data kept after the assets update', after_update == with_tron)
             logout()
 
             # 4. a downgrade without the backup, on the migrated volumes (never do this on real
@@ -279,9 +328,10 @@ def main():
                         found = entries_found(location='tron')
                         print('downgrade without restore: TRON events', found)
                     logout()
-            except (subprocess.CalledProcessError, OSError, ValueError) as e:
+            except (subprocess.CalledProcessError, OSError, ValueError, HTTPException) as e:
                 print(f'downgrade without restore: failed, {e}')
-                print(compose(old, 'logs', '--tail', '20'))
+                with contextlib.suppress(subprocess.CalledProcessError, OSError, ValueError):
+                    print(compose(old, 'logs', '--tail', '20'))
 
             # 5. rollback: the previous image with its matching backup on new volumes
             compose(old, 'down', '-v')
@@ -291,7 +341,7 @@ def main():
                 docker('cp', f'{backup}/{directory}/.', f'{container_id}:/{directory}')
             image_facts('rollback', up(old))
             check('rollback', 'profile opens', login('rollback'))
-            check('rollback', 'user data kept', user_data('rollback') == before)
+            check('rollback', 'user data kept', user_data('rollback', old_has_tron) == before)
             all_events('rollback')
             logout()
     finally:

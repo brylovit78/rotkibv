@@ -6,54 +6,95 @@ import io
 import unittest
 
 from docker_rehearse import (
+    EVENT,
     FORK_ASSETS,
+    TAG,
     TRON_ACCOUNT,
+    TRON_EVENTS,
     check,
     fork_assets,
     kept,
+    snapshot,
     stored,
     update_offered,
 )
 
-STATE = {'tags': ['Contract', 'rehearsal'], 'kraken_events': 1, 'db_version': 53}
-TRON = {'tron_accounts': [TRON_ACCOUNT], 'tron_events': 1}
+# answers of the API, in the shape the images give them
+TAGS = {'Contract': dict(TAG, name='Contract', description='System tag'), 'rehearsal': TAG}
+ACCOUNTS = [{'address': TRON_ACCOUNT, 'label': None, 'tags': None}]
+
+
+def history(*events):
+    entries = [{'entry': x | {'identifier': 1, 'extra_data': None}, 'states': []} for x in events]
+    return {'entries': entries, 'entries_found': len(events)}
+
+
+STATE = {'tag': TAG, 'kraken_events': [EVENT], 'db_version': 53}
+TRON = {'tron_accounts': [TRON_ACCOUNT], 'tron_events': TRON_EVENTS[:1]}
 
 
 class DockerRehearseTests(unittest.TestCase):
-    def test_test_data_must_be_in_the_profile(self):
+    def test_snapshot_holds_the_test_data_as_the_image_returns_it(self):
+        self.assertEqual(snapshot(TAGS, history(EVENT), 53), STATE)
+        newest_first = history(*reversed(TRON_EVENTS))
+        self.assertEqual(
+            snapshot(TAGS, history(EVENT), 53, tron=(ACCOUNTS, newest_first)),
+            STATE | {'tron_accounts': [TRON_ACCOUNT], 'tron_events': TRON_EVENTS},
+        )
+        # a system tag that a migration adds is not the rehearsal's data
+        self.assertEqual(snapshot(TAGS | {'System': TAGS['Contract']}, history(EVENT), 53), STATE)
+        # an event that the image cannot read is counted but not listed
+        unreadable = {'entries': [], 'entries_found': 1}
+        self.assertEqual(snapshot(TAGS, unreadable, 53)['kraken_events'], [])
+        changed = dict(EVENT, amount='15')
+        self.assertEqual(snapshot(TAGS, history(changed), 53)['kraken_events'], [changed])
+        lost = {'rehearsal': dict(TAG, description='lost')}
+        self.assertEqual(snapshot(lost, history(EVENT), 53)['tag'], lost['rehearsal'])
+        # failed requests give no data, not an error
+        self.assertEqual(
+            snapshot(None, None, None, tron=(None, None)),
+            {'tag': dict.fromkeys(TAG), 'kraken_events': [], 'db_version': None} |
+            {'tron_accounts': [], 'tron_events': []},
+        )
+
+    def test_test_data_must_come_back_as_stored(self):
         self.assertTrue(stored(STATE, None))
-        self.assertTrue(stored(STATE | TRON, 1))
-        self.assertFalse(stored(dict(STATE, tags=['Contract']), None))
-        self.assertFalse(stored(dict(STATE, kraken_events=0), None))
-        self.assertFalse(stored(STATE, 1))
-        self.assertFalse(stored(STATE | TRON, 2))
-        self.assertFalse(stored(STATE | dict(TRON, tron_accounts=[]), 1))
+        self.assertTrue(stored(STATE | TRON, TRON_EVENTS[:1]))
+        self.assertFalse(stored(dict(STATE, tag=dict(TAG, description='lost')), None))
+        self.assertFalse(stored(dict(STATE, kraken_events=[]), None))
+        self.assertFalse(stored(dict(STATE, kraken_events=[dict(EVENT, amount='15')]), None))
+        self.assertFalse(stored(STATE, TRON_EVENTS[:1]))
+        self.assertFalse(stored(STATE | TRON, TRON_EVENTS))
+        self.assertFalse(stored(STATE | dict(TRON, tron_accounts=[]), TRON_EVENTS[:1]))
 
     def test_upgrade_keeps_old_values_and_may_raise_the_db_version(self):
         self.assertTrue(kept(STATE, STATE | TRON | {'db_version': 54}))
-        self.assertFalse(kept(STATE, dict(STATE, kraken_events=0)))
+        self.assertFalse(kept(STATE, dict(STATE, tag=dict(TAG, description='lost'))))
+        self.assertFalse(kept(STATE, dict(STATE, kraken_events=[])))
         self.assertFalse(kept(STATE | TRON, STATE))
-        self.assertFalse(kept(STATE | TRON, STATE | dict(TRON, tron_events=2)))
+        self.assertFalse(kept(STATE | TRON, STATE | dict(TRON, tron_events=TRON_EVENTS)))
 
     def test_fork_assets_are_read_with_their_collections(self):
-        trx, usdt = FORK_ASSETS
+        (trx, (_, trx_main)), (usdt, (_, usdt_main)) = FORK_ASSETS.items()
         assets = {
-            trx: {'symbol': 'TRX', 'collection_id': '23'},
-            usdt: {'symbol': 'USDT', 'collection_id': '9'},
+            trx: {'symbol': 'TRX', 'collection_id': '332'},
+            usdt: {'symbol': 'USDT', 'collection_id': '37'},
         }
-        collections = {'23': {'symbol': 'TRX'}, '9': {'symbol': 'USDT'}}
+        collections = {
+            '332': {'symbol': 'TRX', 'main_asset': trx_main},
+            '37': {'symbol': 'USDT', 'main_asset': usdt_main},
+        }
         mappings = {'assets': assets, 'asset_collections': collections}
         self.assertEqual(fork_assets(mappings), FORK_ASSETS)
-        # an assets update that drops the asset, its collection mapping or moves it
+        # an assets update that drops the asset, renames it, or takes it out of its collection
         self.assertEqual(fork_assets({'assets': {trx: assets[trx]}})[usdt], None)
-        self.assertEqual(
-            fork_assets(dict(mappings, assets=assets | {usdt: {'symbol': 'USDT'}}))[usdt],
-            ('USDT', None),
-        )
-        self.assertEqual(
-            fork_assets(dict(mappings, asset_collections={'9': {'symbol': 'TRX'}})),
-            {trx: ('TRX', None), usdt: ('USDT', 'TRX')},
-        )
+        renamed = assets | {usdt: {'symbol': 'USDT.e', 'collection_id': '37'}}
+        self.assertEqual(fork_assets(dict(mappings, assets=renamed))[usdt], ('USDT.e', usdt_main))
+        loose = assets | {usdt: {'symbol': 'USDT'}}
+        self.assertEqual(fork_assets(dict(mappings, assets=loose))[usdt], ('USDT', None))
+        # another collection with the same symbol is not the fork's collection
+        other = collections | {'37': {'symbol': 'USDT', 'main_asset': 'eip155:10/erc20:0x94b0'}}
+        self.assertNotEqual(fork_assets(dict(mappings, asset_collections=other)), FORK_ASSETS)
 
     def test_update_is_offered_as_in_the_frontend(self):
         self.assertTrue(update_offered({'local': 41, 'remote': 42, 'new_changes': 9}))
