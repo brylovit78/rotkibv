@@ -3,7 +3,8 @@
 Публічний community fork [rotki/rotki](https://github.com/rotki/rotki) для власного
 сервера та розвитку додаткових інтеграцій. Початкова база — **v1.44.0**,
 commit `ef14aadd1f387a199731fcc03254463b45b6e0cb`. Перший образ зберігає
-функціональність upstream. **TRON ще не реалізовано.**
+функціональність upstream. TRON (TRX і TRC20 через офіційний TronScan) реалізовано
+в #7–#11; перший TRON-реліз готує #5.
 
 - [Завдання](https://github.com/brylovit78/rotkibv/issues)
 - [Дошка Rotki BV](https://github.com/users/brylovit78/projects/3)
@@ -53,6 +54,11 @@ git merge --no-ff vX.Y.Z
 Після розв'язання конфліктів оновити `.github/fork.env`: `UPSTREAM_TAG`,
 `CASSETTES_REF` (commit test-caching, сумісний із релізом), `ASSETS_BRANCH`
 та `ASSETS_REF` (snapshot assets для перевірки packaged DB).
+TRON-члени enum (`Location.TRON`, `HistoryBaseEntryType.TRON_EVENT`,
+`ExternalService.TRONSCAN`) лишаються останніми, а packaged
+`rotkehlchen/data/global.db` генерують із файла upstream командою з
+[дизайну TRON](docs/designs/tron-integration.md) §6.5. `upstream` — partial clone
+(`blob:none`); якщо merge не докачує blobs, спершу докачати blobs верхівки (§6.6).
 Початкові cassettes та assets snapshot зафіксовано станом на публікацію v1.44.0;
 загальні data-запити використовують master, а consistency test — assets snapshot
 версії 41. Live master вже містить assets v42, тому порівнювати його зі старою
@@ -69,7 +75,7 @@ merge PR і випустити новий fork tag. Не перепризнач�
 
 Джерело вимог — GitHub Issue з acceptance criteria, тестами та залежностями.
 Стани дошки: **Backlog → Ready → In progress → Review → Done**.
-TRON-задачі лишаються Backlog до окремого старту розробки.
+Нові TRON-задачі лишаються Backlog до окремого старту розробки.
 
 1. Відновити checkpoint активного Issue або взяти найпріоритетніший Ready.
 2. Перевести Issue в In progress, створити feature branch від `origin/main`.
@@ -179,8 +185,9 @@ pull/up --wait, перевірити вхід, баланси та історі�
 ## Перший напрям: TRON
 
 Upstream запит: [rotki/rotki#10465](https://github.com/rotki/rotki/issues/10465).
-У цій базі немає окремої TRON chain integration. Наявність активу TRX у
-каталозі активів не означає можливість додати TRON-адресу та імпортувати історію.
+Реалізовано: TRON-акаунти (Base58Check), баланси TRX і TRC20, історія з трьох
+feed TronScan, events, комісії, облік і UI. Синхронізація потребує ключа TronScan.
+Контракт, рішення й обмеження — у [docs/designs/tron-integration.md](docs/designs/tron-integration.md).
 
 Порядок робіт: контракт і fixtures → адреси/Base58Check, TRX і TRC20 баланси
 → paginated історія та дедуплікація → history events, fees та accounting

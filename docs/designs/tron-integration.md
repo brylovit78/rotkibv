@@ -1,7 +1,7 @@
 # TRON integration: TronScan contract and design
 
-Status: contract spike for [brylovit78/rotkibv#2](https://github.com/brylovit78/rotkibv/issues/2),
-revision 1, 2026-10-02. Implementation has not started.
+Status: contract from [brylovit78/rotkibv#2](https://github.com/brylovit78/rotkibv/issues/2),
+revision 1, 2026-10-02. Implemented by #7–#11; #5 validates the first release.
 
 | | |
 |---|---|
@@ -712,6 +712,20 @@ kept, and the removed account's query ranges are deleted.
 4. Rollback means restoring the previous immutable image together with the matching backup of
    all volumes. A migrated database is never downgraded.
 
+`upstream` is a `blob:none` partial clone. If a merge cannot fetch blobs lazily ("not our ref"),
+fetch the missing blobs of the merged tip first:
+`git ls-tree -r <ref> | awk '$2=="blob"{print $3}' | sort -u | GIT_NO_LAZY_FETCH=1 git cat-file --batch-check | awk '$2=="missing"{print $1}' | git fetch upstream --stdin`.
+
+Rehearsal in #5 (2026-10-03, throwaway worktrees, nothing pushed):
+
+- `v1.44.1`: 7 conflicts, the packaged global DB regenerated with the §6.5 command; the TRON
+  modules and both upgrade suites pass.
+- `develop` `a0fc8a5a0` (user DB 54, global DB 19, `Location` 62–66,
+  `BANK_TRANSACTION_EVENT = 12`): 40 conflicts. The enum members stay last and no persisted
+  value collides; the extension applies to global DB 19 and after user DB upgrade 54. The only
+  failure was the guard test's hard-coded example of an unused `Location` value, which #5 now
+  derives.
+
 ## 7. Events and accounting (#11)
 
 - `TronEvent(OnchainEvent[TronTxHash, TronAddress])` follows `BitcoinEvent`
@@ -956,6 +970,8 @@ Plan:
 - Upgrade and reset on a copy.
 - Upstream-merge rehearsal using section 6.6.
 - Release notes listing the limitations in section 11.
+- Offline E2E of the TRON account and history UI (`frontend/app/tests/e2e/specs/history/tron-history.spec.ts`):
+  seeded raw rows, decoded by the real decoder.
 
 ## 9. Fixture use by later tasks
 
@@ -985,7 +1001,10 @@ content type per exchange. Compare results with `expected`.
 | Identical TRC20 transfers in one transaction not observed live | Identity uses event logs; only feed multiplicity is unknown | nothing |
 | `revert: true` never observed | Treated as non-final | nothing |
 | Memo fee and 0-decimal TRC20 not observed live | Covered by synthetic cases | nothing |
-| Saturated one-second history window not observed | Shared data issue; incomplete range; no claim that direction resolves it | completion across that window in #10 |
+| Saturated one-second history window not observed | Warning notification that names the second (section 8, #10); incomplete range; no claim that direction resolves it | completion across that window in #10 |
 | Holdings offset ceiling beyond the 583-row capture unverified | Refuse unresolved partial snapshot; retain previous cache | successful snapshot for a saturated account in #9 |
 | Legacy `TRON_TOKEN` contract verification list not produced | Only legacy backfill waits; TRX, USDT and new tokens do not | the backfill part of #7 |
-| Successor implementation | Owner authorized this contract remediation, merge and image preparation; successors start through their own tasks | no successor was implemented by this PR |
+| Successor implementation | #7–#11 merged; #5 validates the release | nothing |
+| Internal hash prefix collision (R17, #11) | Two internal transfers of one transaction sharing the first 6 hash bytes: the later one moves past every index, and a later sync that adds another internal transfer can renumber it | nothing; no amount is lost |
+| Selection mode deletes TRON events one by one (T11, #11) | For manually selected events it refuses the last event of a transaction, after deleting the others. "Select all matching events" forces the deletion, also of a last event, and keeps the stored transaction. TRON groups are not promoted to a transaction deletion: the selection only sees the events the active filter loaded, so a promoted deletion could remove unselected events (R9, #5). The group menu deletes the whole transaction with its events | nothing |
+| `0x`-prefixed TRON hash in the history filter (T13, #11) | Parsed as EVM, so without a TRON entry type it finds no TRON event; the unprefixed hash works | nothing; changing the shared EVM filter routing is not worth it |

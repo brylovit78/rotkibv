@@ -266,6 +266,7 @@ function confirmIgnoreDuplicate(): void {
           icon
           size="sm"
           class="!p-2"
+          data-testid="history-event-group-menu"
           v-bind="attrs"
         >
           <RuiIcon

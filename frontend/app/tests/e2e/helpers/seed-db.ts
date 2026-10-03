@@ -137,3 +137,41 @@ export function seedBlockchainAccounts(
     conflict: 'ignore' as const,
   })), password);
 }
+
+export interface TronTransactionSeed {
+  readonly id: number;
+  readonly hash: string;
+  /** The tracked account whose feed listed the transaction. */
+  readonly account: string;
+  readonly timestamp: number;
+  /** A native TRX transfer with its paid fee, both in sun. */
+  readonly native?: { readonly from: string; readonly to: string; readonly amount: string; readonly fee: string };
+  /** An official USDT transfer, in raw units. */
+  readonly usdt?: { readonly from: string; readonly to: string; readonly amount: string };
+}
+
+/**
+ * Seeds a confirmed, successful TRON transaction as a sync stores it, without the decoded marker,
+ * so it waits for the decoder (rotkibv #5). Official USDT is the one TRC20 token the packaged global
+ * DB knows, so decoding it needs no TronScan metadata.
+ */
+export function seedTronTransaction(username: string, tx: TronTransactionSeed, password: string = '1234'): void {
+  const { account, hash, id, native, timestamp, usdt } = tx;
+  // owner, recipient, TransferContract type, amount and fee; unknown unless the transfer is native
+  const ownerFields = native ? [native.from, native.to, 1, native.amount, native.fee] : [null, null, null, null, null];
+  seedUserDatabase(username, [
+    {
+      table: 'tron_transactions',
+      columns: ['identifier', 'tx_hash', 'block_number', 'timestamp', 'confirmed', 'reverted', 'contract_ret', 'owner_address', 'to_address', 'contract_type', 'native_amount', 'fee'],
+      values: [id, `<hex:${hash}>`, 56000000 + id, timestamp, 1, 0, 'SUCCESS', ...ownerFields],
+    },
+    ...(usdt
+      ? [{
+          table: 'tron_trc20_transfers',
+          columns: ['tx_id', 'event_index', 'contract_address', 'from_address', 'to_address', 'amount'],
+          values: [id, 0, 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', usdt.from, usdt.to, usdt.amount],
+        }]
+      : []),
+    { table: 'tron_tx_address_mappings', columns: ['tx_id', 'address'], values: [id, account] },
+  ], password);
+}
