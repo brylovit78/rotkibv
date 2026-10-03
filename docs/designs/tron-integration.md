@@ -440,8 +440,8 @@ Live facts, reconciled exactly:
 
 ### 5.1 Catalog facts
 
-- Packaged `rotkehlchen/data/global.db`: global DB 17, assets version 41. It is a tracked file
-  in this fork, not a submodule.
+- Packaged `rotkehlchen/data/global.db`: global DB 17, assets version 41 (42 since the v1.44.1
+  sync in #23). It is a tracked file in this fork, not a submodule.
 - Remote `rotki/assets` master (`c49327d2`, 2026-08-27): latest update 42, valid only for
   schema 17, with no TRON entries.
 - 94 `TRON_TOKEN` (type `'P'`, value 16) assets exist. Their identifiers are symbol-like
@@ -522,7 +522,7 @@ Live facts, reconciled exactly:
 
 | Item | Fork `main` | Upstream |
 |---|---|---|
-| Release base | v1.44.0 (`v1.44.0-bv.1`) | v1.44.1 tagged, global DB 17, not merged into the fork |
+| Release base | v1.44.0 (`v1.44.0-bv.1`) | v1.44.1 tagged, global DB 17, not merged into the fork (merged later, in #23) |
 | User DB | 53; `v52_v53` released in 1.44 | `develop` `a18159a9d` (2026-09-30): 54; `v53_v54` adds locations 62 Sonic, 63 Robinhood, 64 Ink, 65 Qonto, 66 FinTS |
 | Global DB | 17; `v16_v17` released in 1.44.0 | `develop`: 19 (`v17_v18`, `v18_v19`) |
 | `HistoryBaseEntryType` | last `BITCOIN_EVENT = 11` | `develop` adds `BANK_TRANSACTION_EVENT = 12` |
@@ -719,7 +719,9 @@ fetch the missing blobs of the merged tip first:
 Rehearsal in #5 (2026-10-03, throwaway worktrees, nothing pushed):
 
 - `v1.44.1`: 7 conflicts, the packaged global DB regenerated with the §6.5 command; the TRON
-  modules and both upgrade suites pass.
+  modules and both upgrade suites pass. The real sync followed in #23, on the released tag commit
+  `01c3ddc97` (upstream had moved the tag after the rehearsal): the same 7 conflicts and one more
+  in `status-types.ts`.
 - `develop` `a0fc8a5a0` (user DB 54, global DB 19, `Location` 62–66,
   `BANK_TRANSACTION_EVENT = 12`): 40 conflicts. The enum members stay last and no persisted
   value collides; the extension applies to global DB 19 and after user DB upgrade 54. The only

@@ -4,7 +4,7 @@
 сервера та розвитку додаткових інтеграцій. Початкова база — **v1.44.0**,
 commit `ef14aadd1f387a199731fcc03254463b45b6e0cb`. Перший образ зберігає
 функціональність upstream. TRON (TRX і TRC20 через офіційний TronScan) реалізовано
-в #7–#11; перший TRON-реліз готує #5.
+в #7–#11; перший TRON-реліз — `v1.44.0-bv.3`. Поточна база upstream — **v1.44.1** (#23).
 
 - [Завдання](https://github.com/brylovit78/rotkibv/issues)
 - [Дошка Rotki BV](https://github.com/users/brylovit78/projects/3)
@@ -59,10 +59,9 @@ TRON-члени enum (`Location.TRON`, `HistoryBaseEntryType.TRON_EVENT`,
 `rotkehlchen/data/global.db` генерують із файла upstream командою з
 [дизайну TRON](docs/designs/tron-integration.md) §6.5. `upstream` — partial clone
 (`blob:none`); якщо merge не докачує blobs, спершу докачати blobs верхівки (§6.6).
-Початкові cassettes та assets snapshot зафіксовано станом на публікацію v1.44.0;
-загальні data-запити використовують master, а consistency test — assets snapshot
-версії 41. Live master вже містить assets v42, тому порівнювати його зі старою
-packaged DB некоректно. Це не повністю offline-тести: деякі upstream
+Cassettes та assets snapshot зафіксовано станом на публікацію v1.44.1; загальні
+data-запити використовують master, а consistency test — assets snapshot версії 42,
+тієї самої, що в packaged DB. Це не повністю offline-тести: деякі upstream
 fixtures ще залежать від мережі та `rotki/data/develop`.
 Перевірити міграції на **копії** реальних даних, пройти повний CI та рев'ю,
 merge PR і випустити новий fork tag. Не перепризначати upstream tags.
@@ -92,7 +91,9 @@ merge PR і випустити новий fork tag. Не перепризнач�
 8. Після зеленого CI та review status merge PR, закрити Issue й поставити Done.
 9. Перевірити CI на merge commit у main. За помилки повернути Issue в роботу.
 10. Для нового серверного образу після успішного main CI створити immutable
-    tag `v<upstream-version>-bv.<number>`, наприклад `v1.44.0-bv.1`.
+    tag `v<upstream-version>-bv.<number>`, наприклад `v1.44.0-bv.1`. Номер `bv` — версія
+    змін fork: оновлення upstream без нових змін fork його зберігає
+    (`v1.44.0-bv.3` → `v1.44.1-bv.3`).
 
 GitHub status є засвідченням maintainer про локальне рев'ю. GitHub не вміє
 сам перевірити модель; GitHub-account implementer і reviewer може бути один,
