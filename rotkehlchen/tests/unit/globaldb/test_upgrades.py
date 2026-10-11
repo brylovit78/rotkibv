@@ -644,6 +644,7 @@ def test_upgrade_v6_v7(globaldb: GlobalDBHandler, messages_aggregator):
 @pytest.mark.parametrize('target_globaldb_version', [7])
 @pytest.mark.parametrize('reload_user_assets', [False])
 @pytest.mark.parametrize('use_in_memory_globaldb', [False])
+@pytest.mark.parametrize('skip_sync_globaldb_assets', [True])  # v7 predates TRON; only user settings are needed here  # noqa: E501
 def test_upgrade_v7_v8(globaldb: GlobalDBHandler, messages_aggregator, database):
     """Test the global DB upgrade from v7 to v8"""
     # Check the state before upgrading
