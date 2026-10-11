@@ -30,12 +30,14 @@ An affected capability cannot be enabled on synthetic examples alone.
 | 8 | [#43](https://github.com/brylovit78/rotkibv/issues/43) | JustLend supply, redeem, borrow, repay and supported liquidation/reward events. |
 | 9 | [#44](https://github.com/brylovit78/rotkibv/issues/44) | Cross-feature accounting/API/browser/upgrade verification and an accurate support matrix. |
 
-Each issue uses `agent/<issue>-<slug>` and a PR to `main` (this fork's master branch).
+Each issue uses `agent/<issue>-<slug>` and a PR to `main` (this fork's default branch).
 All changes, including the design, require an independent read-only **Claude Fable
 5.1 (`claude-fable-5-1`)** review of the exact head SHA, actual published findings,
 fixes and re-review after any new commit, plus green Fork CI before merge. The
 model was successfully checked through local Claude Code on 2026-10-11. No review
-status may be inferred from a self-review. Container release/deployment is separate.
+status may be inferred from a self-review. This follows the [fork delivery process](../../FORK.md),
+with the owner's explicit choice of Fable 5.1 for this epic overriding its older
+Fable 5 model example. Container release/deployment is separate.
 
 ## Baseline findings and change surface
 
@@ -108,6 +110,7 @@ The target invariant is:
 
 `owned TRX = spendable + self-staked + outgoing delegated principal + pending unstake + matured unwithdrawn principal`
 
+Self-staked and outgoing principal include both legacy Stake 1.0 and Stake 2.0.
 Each term must be disjoint. Incoming Energy/Bandwidth delegation belongs to the
 delegator and is not another holding of the receiver, even when both accounts are
 tracked. Resource capacities, usage, TP and provider-estimated resource values are
@@ -115,7 +118,9 @@ not coins. Claimed rewards are separate history income; pending reward display m
 not silently add a second principal balance.
 
 Use shared `BalanceSheet` labels to distinguish liquid/staked/unstaking funds under
-the same TRX asset, with registered presentation metadata. In #37, reconcile
+the same TRX asset. The existing Solana `staking` label is the precedent; verify its
+frontend rendering before adding labels, since there is no backend label registry.
+In #37, reconcile
 nonzero `accountv2` fields against the corresponding resource rows. Specifically
 prove whether `totalFrozen*` includes outgoing delegation and whether `unfreezeV2`
 includes `canWithdrawAmountV2`; do not add both by assumption. Avoid local guesses
@@ -140,6 +145,8 @@ fees and no successful principal/reward movement.
   token ID. Final serialization must fit the shared resolver; do not pass it to
   the current EVM-only `Nft` constructor. TRC721 quantity is one per owned item;
   TRC1155 ownership is `(asset, owner, integer quantity)` and supports several owners.
+- Reuse existing enum values where semantically valid. If asset/token kinds need
+  additions, keep fork members last and stable, with serialization regression tests.
 - Inventory must end with a verified complete traversal; a capped count or full
   final page is not completion. A contract-level count is not NFT identity. Do not
   fetch arbitrary token-supplied metadata/image URLs from the backend.
@@ -174,6 +181,12 @@ boundary before any schema change. Keep fresh schema, migration, minimized schem
 packaged-global-DB/reset assumptions and tests in agreement. Do not repurpose
 `tron_tokens.address` to contain numeric IDs. New normalized tables/columns must
 retain FK/account purge behavior and exact amounts as text where required.
+
+For NFTs, prefer a fork-owned TRON ownership table feeding the shared interfaces.
+Before changing the upstream `nfts` table, explicitly compare the fork-only option
+with a shared-table migration, including upstream merge conflicts and ETH callers.
+The existing fork schema policy favors fork-owned objects; this plan does not
+authorize bypassing that compatibility rule. Record the decision in #41.
 
 Existing query ranges were complete for the old feature set only. Introduce a
 versioned completion/backfill marker for each newly supported data family; queue
@@ -212,7 +225,10 @@ of this work without a separate request.
 ## Open evidence gates before runtime implementation
 
 1. Nonzero stake/delegation/unstaking snapshots and aggregate overlap; reward and
-   internal TVM lifecycle receipts.
+   internal TVM lifecycle receipts. First revise the existing corpus sanitization
+   rule: it currently removes delegation detail, including `delegated` and
+   `accountResource`. Retain public-chain fields needed to verify ownership while
+   still excluding permission details, keys, cookies and private profile data.
 2. TRC10 historical name-to-ID resolution and multi-token internal identity.
 3. Owner-filtered NFT pagination and complete TRC1155 batch receipts; shared NFT
    storage migration capable of retaining ETH data and multiple owners.
