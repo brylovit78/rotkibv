@@ -3518,12 +3518,12 @@ class FalsePositiveSpamTokenResource(BaseMethodView):
 
     @require_loggedin_user()
     @use_kwargs(post_delete_schema, location='json_and_query')
-    def post(self, token: EvmToken | SolanaToken) -> Response:
+    def post(self, token: CryptoAsset) -> Response:
         return self.rest_api.add_to_spam_assets_false_positive(token=token)
 
     @require_loggedin_user()
     @use_kwargs(post_delete_schema, location='json_and_query')
-    def delete(self, token: EvmToken | SolanaToken) -> Response:
+    def delete(self, token: CryptoAsset) -> Response:
         return self.rest_api.remove_from_spam_assets_false_positives(token=token)
 
     def get(self) -> Response:
@@ -3542,7 +3542,7 @@ class SpamTokenResource(BaseMethodView):
 
     @require_loggedin_user()
     @use_kwargs(delete_schema, location='json_and_query')
-    def delete(self, token: EvmToken | SolanaToken) -> Response:
+    def delete(self, token: CryptoAsset) -> Response:
         return self.rest_api.remove_token_from_spam(token=token)
 
 

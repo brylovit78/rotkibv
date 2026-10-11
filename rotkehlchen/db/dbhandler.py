@@ -124,6 +124,7 @@ from rotkehlchen.exchanges.gate import GateLocation
 from rotkehlchen.exchanges.kraken import KrakenAccountType
 from rotkehlchen.exchanges.okx import OkxLocation
 from rotkehlchen.fval import FVal
+from rotkehlchen.globaldb.cache import globaldb_get_general_cache_values
 from rotkehlchen.globaldb.handler import GlobalDBHandler
 from rotkehlchen.history.events.structures.types import HistoryEventType
 from rotkehlchen.logging import RotkehlchenLogsAdapter
@@ -148,6 +149,7 @@ from rotkehlchen.types import (
     ApiSecret,
     BlockchainAddress,
     BTCAddress,
+    CacheType,
     ChainID,
     ChecksumEvmAddress,
     ExchangeApiCredentials,
@@ -3903,13 +3905,19 @@ class DBHandler:
                 asset_identifiers=[x[0] for x in cursor],
             )  # could do an attach DB here instead of two different cursor queries but probably would be overkill # noqa: E501
             globaldb_spam = cursor.execute(
-                'SELECT identifier FROM evm_tokens WHERE protocol=?',
-                (SPAM_PROTOCOL,),
+                'SELECT identifier FROM evm_tokens WHERE protocol=? UNION ALL '
+                'SELECT identifier FROM tron_tokens WHERE protocol=?',
+                (SPAM_PROTOCOL, SPAM_PROTOCOL),
             ).fetchall()
             self.ignore_multiple_assets(
                 write_cursor=write_cursor,
                 assets=[identifier[0] for identifier in globaldb_spam],
             )
+            # A global false positive also applies to profiles that inherited the spam ignore.
+            for identifier in self.get_ignored_asset_ids(write_cursor).intersection(
+                globaldb_get_general_cache_values(cursor, (CacheType.SPAM_ASSET_FALSE_POSITIVE,)),
+            ):
+                self.remove_from_ignored_assets(write_cursor, Asset(identifier))
 
     def delete_asset_identifier(self, write_cursor: DBCursor, asset_id: str) -> None:
         """Deletes an asset identifier from the user db asset identifier table

@@ -19,7 +19,7 @@ def canonical_tron_address(value: str) -> str | None:
     try:
         if len(value) == 42 and value[:2] in ('0x', '41'):
             payload = b'\x41' + bytes.fromhex(value[2:])
-        elif len(raw := b58decode(value.encode())) == 25 and _checksum(raw[:21]) == raw[21:]:
+        elif len(value) == 34 and len(raw := b58decode(value.encode())) == 25 and _checksum(raw[:21]) == raw[21:]:  # noqa: E501
             payload = raw[:21]
         else:
             return None

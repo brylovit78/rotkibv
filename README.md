@@ -1,6 +1,8 @@
 > **Rotki BV** — a public community fork of [rotki/rotki](https://github.com/rotki/rotki).
 > Fork development, upstream updates and server deployment: **[FORK.md](FORK.md)**.
-> Initial baseline: upstream `v1.44.0`. TRON support is planned, not implemented.
+> Current baseline: upstream `v1.44.1`. TRON wallet balances and transaction history are implemented.
+> TRON requires a TronScan API key and covers wallet TRX/TRC20, excluding staking, frozen/resource positions, TRC10, NFTs and protocol-specific DeFi decoding.
+> See the [community proposal](docs/designs/tron-upstream-proposal.md) and [v1.44.1-bv.4 release notes](docs/releases/v1.44.1-bv.4.md).
 
 <div id="top"></div>
 

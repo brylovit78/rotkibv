@@ -49,8 +49,17 @@ class TronManager(ChainManagerWithTransactions[TronAddress]):
         May raise MissingAPIKey, RemoteError, DeserializationError.
         """
         holdings: list[dict[str, Any]] = []
+        seen: set[str] = set()
         for start in range(0, TRON_HOLDINGS_MAX_START, TRONSCAN_HOLDINGS_LIMIT):
-            holdings.extend(page := self.tronscan.query_holdings_page(address, start=start))
+            for row in (page := self.tronscan.query_holdings_page(address, start=start)):
+                if not isinstance(token_id := row['tokenId'], str):
+                    raise DeserializationError(f'Invalid TronScan holding token id {token_id!r}')
+                if token_id != '_' and row['tokenType'] == 'trc20':
+                    token_id = deserialize_tron_address(token_id)
+                if token_id in seen:
+                    raise RemoteError(f'Duplicate TronScan holding {token_id} for {address}; the balance snapshot can not be proven complete')  # noqa: E501
+                seen.add(token_id)
+            holdings.extend(page)
             if len(page) < TRONSCAN_HOLDINGS_LIMIT:
                 return holdings
 
