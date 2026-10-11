@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { type BigNumber, Zero } from '@rotki/common';
+import { waitForNoRunningTasks } from '../helpers/api';
 import { parseBigNumber, updateLocationBalance } from '../helpers/utils';
 import { RotkiApp } from './rotki-app';
 import { SnapshotEditorPage } from './snapshot-editor-page';
@@ -20,10 +21,13 @@ export class DashboardPage {
   }
 
   async getBlockchainBalances(): Promise<Map<string, BigNumber>> {
+    // A loading zero-balance chain disappears when its query settles.
+    await waitForNoRunningTasks(this.page);
     await this.page.locator('[data-testid=blockchain-balances]').waitFor({ state: 'visible' });
 
     const balances = new Map<string, BigNumber>();
     const elements = this.page.locator('[data-testid=blockchain-balance__summary]');
+    await expect(elements.locator('[data-testid=amount-display].skeleton')).toHaveCount(0);
     const count = await elements.count();
 
     for (let i = 0; i < count; i++) {
