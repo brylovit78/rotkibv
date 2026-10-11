@@ -4602,7 +4602,14 @@ class AccountingRuleConflictsPagination(DBPaginationSchema):
 
 
 class SingleTokenSchema(Schema):
-    token = UnionAssetField(allowed_types=(EvmToken, SolanaToken), required=True)
+    token = UnionAssetField(allowed_types=(EvmToken, SolanaToken, CryptoAsset), required=True)
+
+    @validates_schema
+    def validate_token(self, data: dict[str, Any], **_kwargs: Any) -> None:
+        if data['token'].asset_type not in (
+            AssetType.EVM_TOKEN, AssetType.SOLANA_TOKEN, AssetType.TRON_TOKEN,
+        ):
+            raise ValidationError('Asset is not one of the supported spam token types')
 
 
 class SpamTokenListSchema(Schema):
@@ -5213,9 +5220,18 @@ class RefetchTransactionsSchema(AsyncQueryArgumentSchema, TimestampRangeSchema):
             )
 
         if (address := data['address']) is not None:
-            for deserialize_fn in (deserialize_evm_address, deserialize_solana_address, deserialize_tron_address):  # noqa: E501
+            deserializers: tuple[Callable[[str], str], ...]
+            if (chain := data['chain']) == SupportedBlockchain.TRON:
+                deserializers = (deserialize_tron_address,)
+            elif chain == SupportedBlockchain.SOLANA:
+                deserializers = (deserialize_solana_address,)
+            elif chain is not None:
+                deserializers = (deserialize_evm_address,)
+            else:
+                deserializers = (deserialize_evm_address, deserialize_solana_address, deserialize_tron_address)  # noqa: E501
+            for deserialize_fn in deserializers:
                 try:
-                    data['address'] = deserialize_fn(address)
+                    data['address'] = address = deserialize_fn(address)
                     break
                 except DeserializationError:
                     continue
@@ -5226,7 +5242,7 @@ class RefetchTransactionsSchema(AsyncQueryArgumentSchema, TimestampRangeSchema):
                 )
 
             # Only validate address belongs to chain if chain is specified
-            if (chain := data['chain']) is not None:
+            if chain is not None:
                 with self.db.conn.read_ctx() as cursor:
                     if cursor.execute(
                         'SELECT COUNT(*) FROM blockchain_accounts WHERE account=? AND blockchain=?',  # noqa: E501

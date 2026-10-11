@@ -3903,8 +3903,9 @@ class DBHandler:
                 asset_identifiers=[x[0] for x in cursor],
             )  # could do an attach DB here instead of two different cursor queries but probably would be overkill # noqa: E501
             globaldb_spam = cursor.execute(
-                'SELECT identifier FROM evm_tokens WHERE protocol=?',
-                (SPAM_PROTOCOL,),
+                'SELECT identifier FROM evm_tokens WHERE protocol=? UNION ALL '
+                'SELECT identifier FROM tron_tokens WHERE protocol=?',
+                (SPAM_PROTOCOL, SPAM_PROTOCOL),
             ).fetchall()
             self.ignore_multiple_assets(
                 write_cursor=write_cursor,

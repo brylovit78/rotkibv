@@ -3526,11 +3526,11 @@ class RestAPI:
         response_data = self.accounting_service.list_accounting_rules_conflicts(filter_query)
         return make_response_from_dict(response_data)
 
-    def add_to_spam_assets_false_positive(self, token: EvmToken | SolanaToken) -> Response:
+    def add_to_spam_assets_false_positive(self, token: CryptoAsset) -> Response:
         response_data = self.assets_service.add_to_spam_assets_false_positive(token)
         return make_response_from_dict(response_data)
 
-    def remove_from_spam_assets_false_positives(self, token: EvmToken | SolanaToken) -> Response:
+    def remove_from_spam_assets_false_positives(self, token: CryptoAsset) -> Response:
         response_data = self.assets_service.remove_from_spam_assets_false_positives(token)
         return make_response_from_dict(response_data)
 
@@ -3542,7 +3542,7 @@ class RestAPI:
         response_data = self.assets_service.add_tokens_to_spam(tokens)
         return make_response_from_dict(response_data)
 
-    def remove_token_from_spam(self, token: EvmToken | SolanaToken) -> Response:
+    def remove_token_from_spam(self, token: CryptoAsset) -> Response:
         response_data = self.assets_service.remove_token_from_spam(token)
         return make_response_from_dict(response_data)
 

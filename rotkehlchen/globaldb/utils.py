@@ -4,7 +4,9 @@ from typing import TYPE_CHECKING
 
 import rsqlite
 
+from rotkehlchen.assets.asset import EvmToken, SolanaToken
 from rotkehlchen.assets.resolver import AssetResolver
+from rotkehlchen.assets.types import AssetType
 from rotkehlchen.db.drivers.sqlite import DBConnection, DBConnectionType
 from rotkehlchen.errors.misc import DBUpgradeError
 from rotkehlchen.types import SPAM_PROTOCOL
@@ -12,7 +14,7 @@ from rotkehlchen.types import SPAM_PROTOCOL
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from rotkehlchen.assets.asset import EvmToken, SolanaToken
+    from rotkehlchen.assets.asset import CryptoAsset
     from rotkehlchen.db.drivers.sqlite import DBCursor
 
 
@@ -53,18 +55,25 @@ def globaldb_get_setting_value(cursor: DBCursor, name: str, default_value: int) 
 
 def set_token_spam_protocol(
         write_cursor: DBCursor,
-        token: EvmToken | SolanaToken,
+        token: CryptoAsset,
         is_spam: bool,
 ) -> None:
     """
     Set the protocol field of the provided token as `SPAM` depending on the `is_spam`
     argument and clean the resolver cache. It overwrites the protocol field of the provided token
     """
+    if isinstance(token, (EvmToken, SolanaToken)):
+        table = token.db_table
+    else:
+        assert token.asset_type == AssetType.TRON_TOKEN
+        table = 'tron_tokens'
+
     write_cursor.execute(
-        f'UPDATE {token.db_table} SET protocol=? WHERE identifier=?',
+        f'UPDATE {table} SET protocol=? WHERE identifier=?',
         (SPAM_PROTOCOL if is_spam is True else None, token.identifier),
     )
-    object.__setattr__(token, 'protocol', None)
+    if isinstance(token, (EvmToken, SolanaToken)):
+        object.__setattr__(token, 'protocol', None)
     AssetResolver.clean_memory_cache(identifier=token.identifier)
 
 

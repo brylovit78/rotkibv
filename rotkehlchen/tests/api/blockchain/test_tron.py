@@ -8,8 +8,10 @@ from unittest.mock import patch
 import pytest
 import requests
 
+from rotkehlchen.chain.tron.utils import deserialize_tron_address, get_or_create_tron_token
 from rotkehlchen.concurrency.tasks import Task
 from rotkehlchen.db.trontx import TronTransaction, add_tron_history
+from rotkehlchen.globaldb.handler import GlobalDBHandler
 from rotkehlchen.tests.utils.api import (
     api_url_for,
     assert_error_response,
@@ -26,6 +28,38 @@ if TYPE_CHECKING:
 ACCOUNT: Final = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'
 ACCOUNT_HEX: Final = 'a614f803b6fd780986a42c78ec9c7f77e6ded13c'  # the 20 byte body
 OTHER_ACCOUNT: Final = 'TXM3pBpWRemyMFtpRsXCiXSgPJqmuZG4c4'
+
+
+@pytest.mark.parametrize('false_positive', [False, True])
+def test_tron_unmark_spam(rotkehlchen_api_server: APIServer, false_positive: bool) -> None:
+    """The spam badge's unmark action clears global metadata and the user's ignored entry."""
+    database = rotkehlchen_api_server.rest_api.rotkehlchen.data.db
+    metadata = (deserialize_tron_address('41' + '22' * 20), 'Claim rewards at https://example.com', 'CLAIM', 6)  # noqa: E501
+    token = get_or_create_tron_token(database, *metadata)
+    globaldb = GlobalDBHandler()
+    mappings, _ = globaldb.get_assets_mappings([token.identifier])
+    assert mappings[token.identifier]['is_spam'] is True
+    request = requests.post if false_positive else requests.delete
+    url = api_url_for(rotkehlchen_api_server, 'falsepositivespamtokenresource' if false_positive else 'spamtokenresource')  # noqa: E501
+    assert_proper_sync_response_with_result(request(url, json={'token': token.identifier}))
+    mappings, _ = globaldb.get_assets_mappings([token.identifier])
+    assert 'is_spam' not in mappings[token.identifier]
+    assert get_or_create_tron_token(database, *metadata) == token
+    with database.conn.read_ctx() as cursor:
+        assert token.identifier not in database.get_ignored_asset_ids(cursor)
+    with globaldb.conn.read_ctx() as cursor:
+        assert cursor.execute('SELECT protocol FROM tron_tokens WHERE identifier=?', (token.identifier,)).fetchone() == (None,)  # noqa: E501
+
+    if false_positive:
+        assert token.identifier in assert_proper_sync_response_with_result(requests.get(url))
+        assert_proper_sync_response_with_result(requests.delete(url, json={'token': token.identifier}))  # noqa: E501
+        assert token.identifier not in assert_proper_sync_response_with_result(requests.get(url))
+
+    assert_error_response(
+        response=request(url, json={'token': 'BTC'}),
+        contained_in_msg='is not one of',
+        status_code=HTTPStatus.BAD_REQUEST,
+    )
 
 
 @pytest.mark.parametrize('number_of_eth_accounts', [0])
@@ -248,6 +282,33 @@ def test_tron_events_through_the_shared_history_api(rotkehlchen_api_server: APIS
         )
     assert assert_proper_sync_response_with_result(requests.put(decode_url, json={'chain': 'tron', 'tx_refs': [row['hash']], 'delete_custom': True})) is True  # noqa: E501
     assert [x['user_notes'] for x in _tron_events(rotkehlchen_api_server)] == [event['user_notes']]
+
+
+@pytest.mark.parametrize('number_of_eth_accounts', [0])
+@pytest.mark.parametrize('address', [ACCOUNT, '41' + ACCOUNT_HEX, '0x' + ACCOUNT_HEX])
+def test_tron_refetch_normalizes_tracked_addresses(
+        rotkehlchen_api_server: APIServer,
+        address: str,
+) -> None:
+    assert_proper_sync_response_with_result(requests.put(
+        api_url_for(rotkehlchen_api_server, 'blockchainsaccountsresource', blockchain='TRON'),
+        json={'accounts': [{'address': ACCOUNT}]},
+    ))
+    rotki = rotkehlchen_api_server.rest_api.rotkehlchen
+    url = api_url_for(rotkehlchen_api_server, 'refetchtransactionsresource')
+    with patch.object(rotki.chains_aggregator.tron, 'query_transactions') as query:
+        assert assert_proper_sync_response_with_result(requests.post(
+            url,
+            json={'chain': 'tron', 'address': address, 'from_timestamp': 1, 'to_timestamp': 2},
+        ))['new_transactions_count'] == 0
+        query.assert_called_once_with([ACCOUNT], Timestamp(1), Timestamp(2), refetch=True)
+        query.reset_mock()
+        assert_error_response(
+            response=requests.post(url, json={'chain': 'tron', 'address': OTHER_ACCOUNT, 'from_timestamp': 1, 'to_timestamp': 2}),  # noqa: E501
+            contained_in_msg='is not tracked by rotki',
+            status_code=HTTPStatus.BAD_REQUEST,
+        )
+        query.assert_not_called()
 
 
 @pytest.mark.parametrize('number_of_eth_accounts', [0])

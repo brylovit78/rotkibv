@@ -18,7 +18,7 @@ SELECT
   ac.name                AS collection_name,
   ac.symbol              AS collection_symbol,
   ac.main_asset,
-  COALESCE(et.protocol, st.protocol) AS protocol,  -- take EVM first, else Solana
+  COALESCE(et.protocol, st.protocol, tt.protocol) AS protocol,
   cad.coingecko,
   cad.cryptocompare
 FROM assets AS a
@@ -26,6 +26,7 @@ LEFT JOIN common_asset_details AS cad ON cad.identifier = a.identifier
 LEFT JOIN evm_tokens         AS et  ON et.identifier  = a.identifier
 LEFT JOIN custom_assets      AS ca  ON ca.identifier  = a.identifier
 LEFT JOIN solana_tokens      AS st  ON st.identifier  = a.identifier
+LEFT JOIN tron_tokens        AS tt  ON tt.identifier  = a.identifier
 LEFT JOIN multiasset_mappings ON a.identifier=multiasset_mappings.asset
 LEFT JOIN asset_collections ON multiasset_mappings.collection_id=asset_collections.id
 LEFT JOIN asset_collections  AS ac  ON ac.id          = collection_id
@@ -321,5 +322,44 @@ mod tests {
         assert_eq!(asset.symbol, "FIXTURE");
         assert_eq!(asset.asset_type, "hyperliquid token");
         assert!(asset.evm_chain.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_get_tron_spam_asset_mapping() {
+        let (globaldb, _tmp_dir) = create_globaldb!().await.unwrap();
+        let identifier = "tron/trc20:412222222222222222222222222222222222222222";
+        {
+            let conn = globaldb.conn.lock().await;
+            conn.execute(
+                "INSERT INTO assets(identifier, name, type) VALUES (?, ?, ?)",
+                rusqlite::params![
+                    identifier,
+                    "Claim rewards",
+                    AssetType::TronToken.serialize_for_db()
+                ],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO common_asset_details(identifier, symbol) VALUES (?, ?)",
+                rusqlite::params![identifier, "CLAIM"],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO tron_tokens(identifier, address, decimals, protocol) VALUES (?, ?, ?, ?)",
+                rusqlite::params![identifier, "TD5gsCwxykWsLN9aPrq2TAfNjByuZKYp4E", 6, "spam"],
+            )
+            .unwrap();
+        }
+
+        let (assets, _) = globaldb
+            .get_assets_mappings(&[identifier.to_string(), "TRX".to_string()])
+            .await
+            .unwrap();
+        let spam = assets.get(identifier).unwrap();
+        assert!(spam.is_spam);
+        assert_eq!(spam.protocol.as_deref(), Some("spam"));
+        assert_eq!(spam.asset_type, "tron token");
+        assert!(spam.evm_chain.is_none());
+        assert!(!assets.get("TRX").unwrap().is_spam);
     }
 }

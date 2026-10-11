@@ -81,6 +81,38 @@ def test_tron_address_forms() -> None:
         assert deserialize_tron_address(event['result']['to']) == row['to_address']
 
 
+@pytest.mark.parametrize('length', [0, 33, 35, 42, 32768])
+def test_tron_address_length_is_checked_before_decoding(length: int) -> None:
+    with (
+        patch('rotkehlchen.chain.tron.validation.b58decode') as decode,
+        pytest.raises(DeserializationError),
+    ):
+        deserialize_tron_address('z' * length)
+    decode.assert_not_called()
+
+
+def test_tron_spam_reaches_another_profile(database, globaldb, tmp_path, sql_vm_instructions_cb):
+    """A second profile inherits known spam, including its asset metadata."""
+    spam = get_or_create_tron_token(database, deserialize_tron_address('41' + '22' * 20), name='Claim rewards at https://example.com', symbol='CLAIM', decimals=6)  # noqa: E501
+    (profile_dir := tmp_path / 'second-profile').mkdir()
+    second = DBHandler(
+        user_data_dir=profile_dir,
+        password='123',
+        msg_aggregator=MessagesAggregator(),
+        initial_settings=None,
+        sql_vm_instructions_cb=sql_vm_instructions_cb,
+        resume_from_backup=False,
+    )
+    try:
+        with second.conn.read_ctx() as cursor:
+            assert spam.identifier in second.get_ignored_asset_ids(cursor)
+        mappings, _ = globaldb.get_assets_mappings([spam.identifier, TRON_USDT_IDENTIFIER])
+        assert mappings[spam.identifier]['is_spam'] is True
+        assert 'is_spam' not in mappings[TRON_USDT_IDENTIFIER]
+    finally:
+        second.logout()
+
+
 def test_tron_location_reserved_value() -> None:
     assert Location.TRON.value == 100
     assert list(Location)[-1] is Location.TRON  # deserialization bounds on the last member

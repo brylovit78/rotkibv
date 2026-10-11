@@ -92,6 +92,7 @@ LEFT JOIN evm_tokens ON evm_tokens.identifier=assets.identifier
 LEFT JOIN custom_assets ON custom_assets.identifier=assets.identifier
 LEFT JOIN solana_tokens ON solana_tokens.identifier=assets.identifier
 LEFT JOIN hyperliquid_tokens ON hyperliquid_tokens.identifier=assets.identifier
+LEFT JOIN tron_tokens ON tron_tokens.identifier=assets.identifier
 """
 
 
@@ -100,7 +101,7 @@ SELECT assets.identifier, name, symbol, chain, assets.type, custom_assets.type, 
 
 
 ALL_ASSETS_TABLES_QUERY_WITH_COLLECTIONS = (
-    'SELECT assets.identifier, assets.name, common_asset_details.symbol, chain, assets.type, custom_assets.type, collection_id, asset_collections.name, asset_collections.symbol, asset_collections.main_asset, evm_tokens.protocol, common_asset_details.coingecko, common_asset_details.cryptocompare, solana_tokens.protocol, hyperliquid_tokens.address' +  # noqa: E501
+    'SELECT assets.identifier, assets.name, common_asset_details.symbol, chain, assets.type, custom_assets.type, collection_id, asset_collections.name, asset_collections.symbol, asset_collections.main_asset, evm_tokens.protocol, common_asset_details.coingecko, common_asset_details.cryptocompare, solana_tokens.protocol, hyperliquid_tokens.address, tron_tokens.protocol' +  # noqa: E501
     _ALL_ASSETS_TABLES_JOINS +
     'LEFT JOIN multiasset_mappings ON assets.identifier=multiasset_mappings.asset LEFT JOIN asset_collections ON multiasset_mappings.collection_id=asset_collections.id'  # noqa: E501
 )
@@ -511,7 +512,7 @@ class GlobalDBHandler:
                             'symbol': entry[8],
                             'main_asset': entry[9],
                         }
-                if entry[10] == SPAM_PROTOCOL or entry[13] == SPAM_PROTOCOL:
+                if SPAM_PROTOCOL in (entry[10], entry[13], entry[15]):
                     result[entry[0]].update({'is_spam': True})
                 if entry[11] is not None:
                     result[entry[0]].update({'coingecko': entry[11]})

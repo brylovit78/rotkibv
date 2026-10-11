@@ -11,7 +11,11 @@ import pytest
 from rotkehlchen.accounting.structures.balance import Balance
 from rotkehlchen.assets.asset import Asset, CryptoAsset
 from rotkehlchen.chain.tron.manager import TronManager
-from rotkehlchen.chain.tron.utils import get_or_create_tron_token, tron_address_to_identifier
+from rotkehlchen.chain.tron.utils import (
+    deserialize_tron_address,
+    get_or_create_tron_token,
+    tron_address_to_identifier,
+)
 from rotkehlchen.constants import DEFAULT_BALANCE_LABEL
 from rotkehlchen.errors.misc import RemoteError
 from rotkehlchen.externalapis.tronscan import TRONSCAN_HOLDINGS_LIMIT, Tronscan
@@ -197,6 +201,37 @@ def test_new_spam_is_not_a_balance(manager: TronManager, database: DBHandler) ->
     assert {x.identifier for x in balances[HISTORY_ACCOUNT].assets} == {'TRX'}
     assert [x.identifier for x in prices.call_args.args[0]] == ['TRX']
 
+    with database.user_write() as write_cursor:
+        database.remove_from_ignored_assets(write_cursor, Asset(token_id))
+    with (
+        patch.object(Inquirer, 'find_main_currency_prices', side_effect=_prices),
+        patch.object(manager.tronscan.session, 'request', side_effect=[
+            tronscan_response(HISTORY_CASE, 'accountv2'),
+            _holdings([{'tokenId': contract, 'balance': '1', 'tokenDecimal': 18, 'tokenType': 'trc20'}]),  # noqa: E501
+        ]) as request,
+    ):
+        assert manager.query_balances([HISTORY_ACCOUNT])[HISTORY_ACCOUNT].assets[Asset(token_id)][DEFAULT_BALANCE_LABEL].amount == FVal('0.000000000000000001')  # noqa: E501
+    assert request.call_count == 2  # the known token is neither fetched nor ignored again
+    with database.conn.read_ctx() as cursor:
+        assert token_id not in database.get_ignored_asset_ids(cursor)
+
+
+@pytest.mark.parametrize('across_pages', [False, True])
+@pytest.mark.parametrize('hex_duplicate', [False, True])
+def test_duplicate_holdings_reject_the_snapshot(
+        manager: TronManager,
+        across_pages: bool,
+        hex_duplicate: bool,
+) -> None:
+    rows = [{'tokenId': deserialize_tron_address('41' + f'{i:040x}'), 'tokenType': 'trc20'} for i in range(1, 201)]  # noqa: E501
+    repeated = rows[-1] | ({'tokenId': '41' + f'{200:040x}'} if hex_duplicate else {})
+    pages = [rows, [repeated]] if across_pages else [[rows[-1], repeated]]
+    with (
+        patch.object(manager.tronscan, 'query_holdings_page', side_effect=pages),
+        pytest.raises(RemoteError, match='Duplicate TronScan holding'),
+    ):
+        manager._query_holdings(HISTORY_ACCOUNT)
+
 
 def test_holdings_end_on_a_short_page(manager: TronManager) -> None:
     """Holdings pages are read until one is short, never by the total, and a list that does
@@ -212,9 +247,11 @@ def test_holdings_end_on_a_short_page(manager: TronManager) -> None:
         for start in (0, 200, 400)
     ]
 
-    full_page = _holdings([{'tokenId': '_'}] * TRONSCAN_HOLDINGS_LIMIT)
     with (
-        patch.object(manager.tronscan.session, 'request', return_value=full_page) as request,
+        patch.object(manager.tronscan, 'query_holdings_page', side_effect=lambda address, start: [
+            {'tokenId': str(i), 'tokenType': 'trc10'}
+            for i in range(start, start + TRONSCAN_HOLDINGS_LIMIT)
+        ]) as request,
         patch.object(manager.tronscan._rate_limiter, 'acquire'),
         pytest.raises(RemoteError, match='can not be proven complete'),
     ):
@@ -273,6 +310,10 @@ def test_missing_key_is_a_failure_without_requests(database: DBHandler) -> None:
         tronscan_response(HISTORY_CASE, 'accountv2'),
         _holdings([row | {'tokenType': None} if row['tokenType'] == 'trc20' else row for row in tronscan_body(HISTORY_CASE, 'account-tokens')['data']]),  # noqa: E501
     ], id='unknown token type'),
+    pytest.param([
+        tronscan_response(HISTORY_CASE, 'accountv2'),
+        _holdings(tronscan_body(HISTORY_CASE, 'account-tokens')['data'] * 2),
+    ], id='duplicate holding'),
 ])
 def test_failed_query_keeps_the_previous_balances(
         blockchain: ChainsAggregator,

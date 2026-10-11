@@ -23,6 +23,7 @@ from rotkehlchen.assets.asset import (
     Asset,
     AssetWithNameAndType,
     AssetWithOracles,
+    CryptoAsset,
     CustomAsset,
     EvmToken,
     SolanaToken,
@@ -944,7 +945,7 @@ class AssetsService:
 
         return {'result': True, 'message': '', 'status_code': HTTPStatus.OK}
 
-    def add_to_spam_assets_false_positive(self, token: EvmToken | SolanaToken) -> dict[str, Any]:
+    def add_to_spam_assets_false_positive(self, token: CryptoAsset) -> dict[str, Any]:
         globaldb = GlobalDBHandler()
         with globaldb.conn.write_ctx() as write_cursor:
             globaldb_set_general_cache_values(
@@ -953,7 +954,7 @@ class AssetsService:
                 values=(token.identifier,),
             )
 
-            if token.protocol == SPAM_PROTOCOL:
+            if not isinstance(token, (EvmToken, SolanaToken)) or token.protocol == SPAM_PROTOCOL:
                 set_token_spam_protocol(write_cursor=write_cursor, token=token, is_spam=False)
 
         with self.rotkehlchen.data.db.user_write() as write_cursor:
@@ -966,7 +967,7 @@ class AssetsService:
 
     def remove_from_spam_assets_false_positives(
             self,
-            token: EvmToken | SolanaToken,
+            token: CryptoAsset,
     ) -> dict[str, Any]:
         with GlobalDBHandler().conn.write_ctx() as write_cursor:
             globaldb_delete_general_cache_values(
@@ -1015,8 +1016,8 @@ class AssetsService:
         self.rotkehlchen.data.add_ignored_assets(assets=tokens)
         return {'result': True, 'message': '', 'status_code': HTTPStatus.OK}
 
-    def remove_token_from_spam(self, token: EvmToken | SolanaToken) -> dict[str, Any]:
-        if token.protocol == SPAM_PROTOCOL:
+    def remove_token_from_spam(self, token: CryptoAsset) -> dict[str, Any]:
+        if not isinstance(token, (EvmToken, SolanaToken)) or token.protocol == SPAM_PROTOCOL:
             with GlobalDBHandler().conn.write_ctx() as write_cursor:
                 set_token_spam_protocol(write_cursor=write_cursor, token=token, is_spam=False)
 
