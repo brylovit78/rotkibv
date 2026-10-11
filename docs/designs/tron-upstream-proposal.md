@@ -6,6 +6,8 @@ Rotki BV implements TRON wallet support on the upstream v1.44.1 base: canonical 
 
 The initial contribution would cover wallet TRX/TRC20 and ordinary transfers. It deliberately excludes staking, frozen/resource positions, TRC10, NFTs and protocol-specific DeFi decoding. It depends on TronScan availability and a user-supplied API key; queried addresses and transaction hashes are sent to that provider.
 
+Those additional capabilities are tracked separately in [the extended TRON plan](tron-extended-support.md) and [epic #35](https://github.com/brylovit78/rotkibv/issues/35). They are not implemented by this proposal or included in its current support claim.
+
 The implementation reuses rotki's managers, exact amount arithmetic and shared history events. Tests cover provider errors, pagination boundaries, confirmation and failure states, transfer identity, interrupted synchronization, account removal, user-edited events and API/UI integration. The recorded provider corpus distinguishes observed responses from synthetic edge cases.
 
 Before requesting an upstream merge, the contribution needs a clean port to current `develop`, standard upstream migrations and agreed enum/asset allocations. Fork-only startup schema extensions, branding, GHCR workflows, version-tag handling and deployment tooling would be excluded. Existing upstream equivalents of test stabilization and secret-log redaction would be retained rather than duplicated.
