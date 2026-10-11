@@ -10,15 +10,18 @@ import requests
 
 from rotkehlchen.chain.tron.utils import deserialize_tron_address, get_or_create_tron_token
 from rotkehlchen.concurrency.tasks import Task
+from rotkehlchen.constants import DEFAULT_BALANCE_LABEL
 from rotkehlchen.db.trontx import TronTransaction, add_tron_history
+from rotkehlchen.fval import FVal
 from rotkehlchen.globaldb.handler import GlobalDBHandler
+from rotkehlchen.inquirer import Inquirer
 from rotkehlchen.tests.utils.api import (
     api_url_for,
     assert_error_response,
     assert_proper_sync_response_with_result,
 )
 from rotkehlchen.tests.utils.tronscan import WaitedLock, set_tronscan_key, tronscan_body
-from rotkehlchen.types import SupportedBlockchain, Timestamp, TronAddress
+from rotkehlchen.types import Price, SupportedBlockchain, Timestamp, TronAddress
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -41,7 +44,23 @@ def test_tron_unmark_spam(rotkehlchen_api_server: APIServer, false_positive: boo
     assert mappings[token.identifier]['is_spam'] is True
     request = requests.post if false_positive else requests.delete
     url = api_url_for(rotkehlchen_api_server, 'falsepositivespamtokenresource' if false_positive else 'spamtokenresource')  # noqa: E501
-    assert_proper_sync_response_with_result(request(url, json={'token': token.identifier}))
+    assert_proper_sync_response_with_result(requests.put(
+        api_url_for(rotkehlchen_api_server, 'blockchainsaccountsresource', blockchain='TRON'),
+        json={'accounts': [{'address': ACCOUNT}]},
+    ))
+    aggregator = rotkehlchen_api_server.rest_api.rotkehlchen.chains_aggregator
+    with (
+        patch.object(aggregator.tron, '_account_amounts', return_value={token: FVal(5)}) as query,
+        patch.object(Inquirer, 'find_main_currency_prices', return_value={token: Price(FVal(1))}),
+    ):
+        aggregator.query_balances(blockchain=SupportedBlockchain.TRON)
+        assert not aggregator.balances.tron
+        aggregator.query_balances(blockchain=SupportedBlockchain.TRON)
+        assert query.call_count == 1  # the ignored snapshot is cached
+        assert_proper_sync_response_with_result(request(url, json={'token': token.identifier}))
+        aggregator.query_balances(blockchain=SupportedBlockchain.TRON)
+        assert query.call_count == 2
+        assert aggregator.balances.tron[TronAddress(ACCOUNT)].assets[token][DEFAULT_BALANCE_LABEL].amount == FVal(5)  # noqa: E501
     mappings, _ = globaldb.get_assets_mappings([token.identifier])
     assert 'is_spam' not in mappings[token.identifier]
     assert get_or_create_tron_token(database, *metadata) == token

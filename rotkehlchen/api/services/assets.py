@@ -963,6 +963,11 @@ class AssetsService:
                 asset=token,
             )
 
+        if token.asset_type == AssetType.TRON_TOKEN:
+            self.rotkehlchen.chains_aggregator.flush_chain_balance_query_cache(
+                blockchain=SupportedBlockchain.TRON,
+            )
+
         return {'result': True, 'message': '', 'status_code': HTTPStatus.OK}
 
     def remove_from_spam_assets_false_positives(
@@ -1023,6 +1028,10 @@ class AssetsService:
 
         self.rotkehlchen.data.remove_ignored_assets(assets=[token])
         AssetResolver().clean_memory_cache(token.identifier)
+        if token.asset_type == AssetType.TRON_TOKEN:
+            self.rotkehlchen.chains_aggregator.flush_chain_balance_query_cache(
+                blockchain=SupportedBlockchain.TRON,
+            )
         return {'result': True, 'message': '', 'status_code': HTTPStatus.OK}
 
     def get_types_mappings(self) -> dict[str, Any]:

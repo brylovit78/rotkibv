@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
-from rotkehlchen.assets.asset import CryptoAsset
+from rotkehlchen.assets.asset import Asset, CryptoAsset
 from rotkehlchen.assets.types import AssetType
 from rotkehlchen.assets.utils import token_normalized_value_decimals
 from rotkehlchen.chain.tron.utils import (
@@ -25,6 +25,7 @@ from rotkehlchen.db.dbhandler import DBHandler
 from rotkehlchen.errors.serialization import DeserializationError
 from rotkehlchen.fval import FVal
 from rotkehlchen.globaldb.asset_updates.manager import ASSETS_VERSION_KEY, AssetsUpdater
+from rotkehlchen.globaldb.cache import globaldb_set_general_cache_values
 from rotkehlchen.globaldb.handler import GlobalDBHandler
 from rotkehlchen.globaldb.upgrades.rotkibv import (
     ROTKIBV_SCHEMA_EXTENSION_KEY,
@@ -35,7 +36,7 @@ from rotkehlchen.globaldb.upgrades.rotkibv import (
 from rotkehlchen.history.events.structures.base import HistoryBaseEntryType
 from rotkehlchen.tests.fixtures.globaldb import create_globaldb
 from rotkehlchen.tests.unit.globaldb.test_asset_updates import get_mock_github_assets_response
-from rotkehlchen.types import SPAM_PROTOCOL, Location, TokenKind, TronAddress
+from rotkehlchen.types import SPAM_PROTOCOL, CacheType, Location, TokenKind, TronAddress
 from rotkehlchen.user_messages import MessagesAggregator
 
 DATA_DIR: Final = Path(__file__).resolve().parent.parent / 'data' / 'tronscan'
@@ -109,8 +110,37 @@ def test_tron_spam_reaches_another_profile(database, globaldb, tmp_path, sql_vm_
         mappings, _ = globaldb.get_assets_mappings([spam.identifier, TRON_USDT_IDENTIFIER])
         assert mappings[spam.identifier]['is_spam'] is True
         assert 'is_spam' not in mappings[TRON_USDT_IDENTIFIER]
+        with second.user_write() as write_cursor:
+            second.add_to_ignored_assets(write_cursor, Asset('BTC'))
+        with globaldb.conn.write_ctx() as write_cursor:
+            write_cursor.execute('UPDATE tron_tokens SET protocol=NULL WHERE identifier=?', (spam.identifier,))  # noqa: E501
+            globaldb_set_general_cache_values(write_cursor, (CacheType.SPAM_ASSET_FALSE_POSITIVE,), (spam.identifier,))  # noqa: E501
+        with second.user_write() as write_cursor:  # the same sync runs at the next login
+            second.sync_globaldb_assets(write_cursor)
+        with second.conn.read_ctx() as cursor:
+            ignored = second.get_ignored_asset_ids(cursor)
+            assert spam.identifier not in ignored
+            assert 'BTC' in ignored  # unrelated profile-local ignores survive
     finally:
         second.logout()
+
+
+@pytest.mark.parametrize('use_in_memory_globaldb', [False])
+def test_tron_false_positive_survives_hard_reset(database, globaldb):
+    metadata = (deserialize_tron_address('41' + '22' * 20), 'Claim rewards at https://example.com', 'CLAIM', 6)  # noqa: E501
+    token = get_or_create_tron_token(database, *metadata)
+    with globaldb.conn.write_ctx() as write_cursor:
+        globaldb_set_general_cache_values(write_cursor, (CacheType.SPAM_ASSET_FALSE_POSITIVE,), (token.identifier,))  # noqa: E501
+        write_cursor.execute('UPDATE tron_tokens SET protocol=NULL WHERE identifier=?', (token.identifier,))  # noqa: E501
+    with database.user_write() as write_cursor:
+        database.remove_from_ignored_assets(write_cursor, token)
+
+    assert globaldb.hard_reset_assets_list(user_db=database, force=True)[0] is True
+    assert get_or_create_tron_token(database, *metadata) == token
+    with globaldb.conn.read_ctx() as cursor:
+        assert cursor.execute('SELECT protocol FROM tron_tokens WHERE identifier=?', (token.identifier,)).fetchone() == (None,)  # noqa: E501
+    with database.conn.read_ctx() as cursor:
+        assert token.identifier not in database.get_ignored_asset_ids(cursor)
 
 
 def test_tron_location_reserved_value() -> None:

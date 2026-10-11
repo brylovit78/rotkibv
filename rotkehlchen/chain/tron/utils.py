@@ -6,8 +6,9 @@ from rotkehlchen.assets.types import AssetType
 from rotkehlchen.assets.utils import check_if_spam_token
 from rotkehlchen.chain.tron.validation import canonical_tron_address
 from rotkehlchen.errors.serialization import DeserializationError
+from rotkehlchen.globaldb.cache import globaldb_general_cache_exists
 from rotkehlchen.globaldb.handler import GlobalDBHandler
-from rotkehlchen.types import SPAM_PROTOCOL, TronAddress
+from rotkehlchen.types import SPAM_PROTOCOL, CacheType, TronAddress
 from rotkehlchen.utils.base58 import b58decode
 
 if TYPE_CHECKING:
@@ -72,8 +73,12 @@ def get_or_create_tron_token(
             raise DeserializationError(f'Invalid decimals {decimals!r} for TRC20 {contract}')
 
         identifier = tron_address_to_identifier(contract)
-        is_spam = check_if_spam_token(symbol=symbol, name=name)
         with GlobalDBHandler().conn.write_ctx() as write_cursor:
+            is_spam = check_if_spam_token(symbol=symbol, name=name) and not globaldb_general_cache_exists(  # noqa: E501
+                cursor=write_cursor,
+                key_parts=(CacheType.SPAM_ASSET_FALSE_POSITIVE,),
+                value=identifier,
+            )
             write_cursor.execute(
                 'INSERT INTO assets(identifier, name, type) VALUES(?, ?, ?)',
                 (identifier, name, AssetType.TRON_TOKEN.serialize_for_db()),
